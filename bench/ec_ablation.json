@@ -1,0 +1,1426 @@
+{
+  "_derivation": {
+    "clean": [
+      {
+        "r": 4,
+        "k": 3,
+        "q": 16,
+        "closed_form_exact": true,
+        "outcomes": 4,
+        "prob_each": 0.25,
+        "usable": 0.5
+      },
+      {
+        "r": 8,
+        "k": 3,
+        "q": 32,
+        "closed_form_exact": true,
+        "outcomes": 8,
+        "prob_each": 0.125,
+        "usable": 0.5
+      },
+      {
+        "r": 4,
+        "k": 1,
+        "q": 64,
+        "closed_form_exact": true,
+        "outcomes": 4,
+        "prob_each": 0.25,
+        "usable": 0.5
+      }
+    ],
+    "offset_invisible": true,
+    "real": [
+      {
+        "r": 5,
+        "k": 2,
+        "m": 3,
+        "q": 8,
+        "p_usable_correct": 0.6008786348908506,
+        "p_a1_zero": 0.22115384615384623
+      },
+      {
+        "r": 5,
+        "k": 2,
+        "m": 4,
+        "q": 16,
+        "p_usable_correct": 0.6727213946122553,
+        "p_a1_zero": 0.21527297567870654
+      },
+      {
+        "r": 5,
+        "k": 2,
+        "m": 5,
+        "q": 32,
+        "p_usable_correct": 0.7366892537241923,
+        "p_a1_zero": 0.21106022832697388
+      },
+      {
+        "r": 5,
+        "k": 2,
+        "m": 6,
+        "q": 64,
+        "p_usable_correct": 0.7693121158994842,
+        "p_a1_zero": 0.20296672359161405
+      },
+      {
+        "r": 7,
+        "k": 3,
+        "m": 3,
+        "q": 8,
+        "p_usable_correct": 0.4849223256647563,
+        "p_a1_zero": 0.17499999999999996
+      },
+      {
+        "r": 7,
+        "k": 3,
+        "m": 4,
+        "q": 16,
+        "p_usable_correct": 0.6716676876328553,
+        "p_a1_zero": 0.16813556569726845
+      },
+      {
+        "r": 7,
+        "k": 3,
+        "m": 5,
+        "q": 32,
+        "p_usable_correct": 0.7675210000883329,
+        "p_a1_zero": 0.1536454650574031
+      },
+      {
+        "r": 7,
+        "k": 3,
+        "m": 6,
+        "q": 64,
+        "p_usable_correct": 0.8133426136346618,
+        "p_a1_zero": 0.14533067671708522
+      },
+      {
+        "r": 11,
+        "k": 4,
+        "m": 4,
+        "q": 16,
+        "p_usable_correct": 0.6936752265983086,
+        "p_a1_zero": 0.1005434782608696
+      },
+      {
+        "r": 11,
+        "k": 4,
+        "m": 5,
+        "q": 32,
+        "p_usable_correct": 0.7677816455638817,
+        "p_a1_zero": 0.0937666616226031
+      },
+      {
+        "r": 11,
+        "k": 4,
+        "m": 6,
+        "q": 64,
+        "p_usable_correct": 0.843581928352889,
+        "p_a1_zero": 0.09307406884236744
+      },
+      {
+        "r": 11,
+        "k": 4,
+        "m": 7,
+        "q": 128,
+        "p_usable_correct": 0.875776595657767,
+        "p_a1_zero": 0.09296469770387705
+      },
+      {
+        "r": 13,
+        "k": 5,
+        "m": 4,
+        "q": 16,
+        "p_usable_correct": 0.6304156147206769,
+        "p_a1_zero": 0.08750000000000006
+      },
+      {
+        "r": 13,
+        "k": 5,
+        "m": 5,
+        "q": 32,
+        "p_usable_correct": 0.7475813890920772,
+        "p_a1_zero": 0.09004933497983665
+      },
+      {
+        "r": 13,
+        "k": 5,
+        "m": 6,
+        "q": 64,
+        "p_usable_correct": 0.8407567991934602,
+        "p_a1_zero": 0.07812785950764409
+      },
+      {
+        "r": 13,
+        "k": 5,
+        "m": 7,
+        "q": 128,
+        "p_usable_correct": 0.8832830429943495,
+        "p_a1_zero": 0.07794606176425772
+      }
+    ]
+  },
+  "adder_n8": {
+    "task": "8-bit addition y += x",
+    "variants": {
+      "CDKM [CDKM04]": {
+        "qubits": 17,
+        "toffoli_paper": 16,
+        "toffoli_equiv": 16,
+        "t": 112,
+        "depth": 41,
+        "and": 0,
+        "and_dg": 0,
+        "gates": 48,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "Gidney [Gid18]": {
+        "qubits": 23,
+        "toffoli_paper": 7,
+        "toffoli_equiv": 14,
+        "t": 28,
+        "depth": 46,
+        "and": 7,
+        "and_dg": 7,
+        "gates": 53,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "cadder_n8": {
+    "task": "8-bit controlled addition y += x if ctrl",
+    "variants": {
+      "reconstruct (CDKM)": {
+        "qubits": 18,
+        "toffoli_paper": 32,
+        "toffoli_equiv": 32,
+        "t": 224,
+        "depth": 41,
+        "and": 0,
+        "and_dg": 0,
+        "gates": 48,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "copy-then-add, CDKM inside": {
+        "qubits": 26,
+        "toffoli_paper": 24,
+        "toffoli_equiv": 32,
+        "t": 144,
+        "depth": 49,
+        "and": 8,
+        "and_dg": 8,
+        "gates": 64,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "copy-then-add [106] Fig 4b": {
+        "qubits": 32,
+        "toffoli_paper": 15,
+        "toffoli_equiv": 30,
+        "t": 60,
+        "depth": 55,
+        "and": 15,
+        "and_dg": 15,
+        "gates": 69,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "adder_n16": {
+    "task": "16-bit addition y += x",
+    "variants": {
+      "CDKM [CDKM04]": {
+        "qubits": 33,
+        "toffoli_paper": 32,
+        "toffoli_equiv": 32,
+        "t": 224,
+        "depth": 81,
+        "and": 0,
+        "and_dg": 0,
+        "gates": 96,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "Gidney [Gid18]": {
+        "qubits": 47,
+        "toffoli_paper": 15,
+        "toffoli_equiv": 30,
+        "t": 60,
+        "depth": 102,
+        "and": 15,
+        "and_dg": 15,
+        "gates": 117,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "cadder_n16": {
+    "task": "16-bit controlled addition y += x if ctrl",
+    "variants": {
+      "reconstruct (CDKM)": {
+        "qubits": 34,
+        "toffoli_paper": 64,
+        "toffoli_equiv": 64,
+        "t": 448,
+        "depth": 81,
+        "and": 0,
+        "and_dg": 0,
+        "gates": 96,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "copy-then-add, CDKM inside": {
+        "qubits": 50,
+        "toffoli_paper": 48,
+        "toffoli_equiv": 64,
+        "t": 288,
+        "depth": 97,
+        "and": 16,
+        "and_dg": 16,
+        "gates": 128,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "copy-then-add [106] Fig 4b": {
+        "qubits": 64,
+        "toffoli_paper": 31,
+        "toffoli_equiv": 62,
+        "t": 124,
+        "depth": 119,
+        "and": 31,
+        "and_dg": 31,
+        "gates": 149,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "adder_n32": {
+    "task": "32-bit addition y += x",
+    "variants": {
+      "CDKM [CDKM04]": {
+        "qubits": 65,
+        "toffoli_paper": 64,
+        "toffoli_equiv": 64,
+        "t": 448,
+        "depth": 161,
+        "and": 0,
+        "and_dg": 0,
+        "gates": 192,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "Gidney [Gid18]": {
+        "qubits": 95,
+        "toffoli_paper": 31,
+        "toffoli_equiv": 62,
+        "t": 124,
+        "depth": 214,
+        "and": 31,
+        "and_dg": 31,
+        "gates": 245,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "cadder_n32": {
+    "task": "32-bit controlled addition y += x if ctrl",
+    "variants": {
+      "reconstruct (CDKM)": {
+        "qubits": 66,
+        "toffoli_paper": 128,
+        "toffoli_equiv": 128,
+        "t": 896,
+        "depth": 161,
+        "and": 0,
+        "and_dg": 0,
+        "gates": 192,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "copy-then-add, CDKM inside": {
+        "qubits": 98,
+        "toffoli_paper": 96,
+        "toffoli_equiv": 128,
+        "t": 576,
+        "depth": 193,
+        "and": 32,
+        "and_dg": 32,
+        "gates": 256,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "copy-then-add [106] Fig 4b": {
+        "qubits": 128,
+        "toffoli_paper": 63,
+        "toffoli_equiv": 126,
+        "t": 252,
+        "depth": 247,
+        "and": 63,
+        "and_dg": 63,
+        "gates": 309,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "moddbl_q251": {
+    "task": "modular doubling mod 251",
+    "variants": {
+      "exact (Alg 5)": {
+        "qubits": 30,
+        "toffoli_paper": 17,
+        "toffoli_equiv": 34,
+        "t": 68,
+        "depth": 126,
+        "and": 17,
+        "and_dg": 17,
+        "gates": 162,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "approx msbs=4 (Alg 6)": {
+        "qubits": 28,
+        "toffoli_paper": 13,
+        "toffoli_equiv": 26,
+        "t": 52,
+        "depth": 95,
+        "and": 13,
+        "and_dg": 13,
+        "gates": 129,
+        "failure_rate": 0.02390438247011952,
+        "note": ""
+      },
+      "pseudo-Mersenne (Alg 7)": {
+        "qubits": 21,
+        "toffoli_paper": 5,
+        "toffoli_equiv": 10,
+        "t": 20,
+        "depth": 44,
+        "and": 5,
+        "and_dg": 5,
+        "gates": 50,
+        "failure_rate": 0.03187250996015936,
+        "note": ""
+      }
+    }
+  },
+  "cmodadd_q251": {
+    "task": "controlled modular addition mod 251",
+    "variants": {
+      "exact (Alg 8)": {
+        "qubits": 37,
+        "toffoli_paper": 49,
+        "toffoli_equiv": 97,
+        "t": 199,
+        "depth": 279,
+        "and": 48,
+        "and_dg": 48,
+        "gates": 365,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "approx msbs=4 (Alg 9)": {
+        "qubits": 48,
+        "toffoli_paper": 39,
+        "toffoli_equiv": 77,
+        "t": 159,
+        "depth": 174,
+        "and": 38,
+        "and_dg": 38,
+        "gates": 270,
+        "failure_rate": 0.07,
+        "note": ""
+      },
+      "pseudo-Mersenne (Alg 10)": {
+        "qubits": 53,
+        "toffoli_paper": 33,
+        "toffoli_equiv": 65,
+        "t": 135,
+        "depth": 148,
+        "and": 32,
+        "and_dg": 32,
+        "gates": 207,
+        "failure_rate": 0.03666666666666667,
+        "note": ""
+      }
+    }
+  },
+  "moddbl_q1021": {
+    "task": "modular doubling mod 1021",
+    "variants": {
+      "exact (Alg 5)": {
+        "qubits": 36,
+        "toffoli_paper": 21,
+        "toffoli_equiv": 42,
+        "t": 84,
+        "depth": 156,
+        "and": 21,
+        "and_dg": 21,
+        "gates": 200,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "approx msbs=4 (Alg 6)": {
+        "qubits": 34,
+        "toffoli_paper": 15,
+        "toffoli_equiv": 30,
+        "t": 60,
+        "depth": 97,
+        "and": 15,
+        "and_dg": 15,
+        "gates": 147,
+        "failure_rate": 0.030362389813907934,
+        "note": ""
+      },
+      "approx msbs=8 (Alg 6)": {
+        "qubits": 34,
+        "toffoli_paper": 19,
+        "toffoli_equiv": 38,
+        "t": 76,
+        "depth": 134,
+        "and": 19,
+        "and_dg": 19,
+        "gates": 195,
+        "failure_rate": 0.0009794319294809011,
+        "note": ""
+      },
+      "pseudo-Mersenne (Alg 7)": {
+        "qubits": 21,
+        "toffoli_paper": 4,
+        "toffoli_equiv": 8,
+        "t": 16,
+        "depth": 39,
+        "and": 4,
+        "and_dg": 4,
+        "gates": 44,
+        "failure_rate": 0.031341821743388835,
+        "note": ""
+      }
+    }
+  },
+  "cmodadd_q1021": {
+    "task": "controlled modular addition mod 1021",
+    "variants": {
+      "exact (Alg 8)": {
+        "qubits": 45,
+        "toffoli_paper": 61,
+        "toffoli_equiv": 121,
+        "t": 247,
+        "depth": 353,
+        "and": 60,
+        "and_dg": 60,
+        "gates": 461,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "approx msbs=4 (Alg 9)": {
+        "qubits": 56,
+        "toffoli_paper": 45,
+        "toffoli_equiv": 89,
+        "t": 183,
+        "depth": 196,
+        "and": 44,
+        "and_dg": 44,
+        "gates": 306,
+        "failure_rate": 0.09666666666666666,
+        "note": ""
+      },
+      "approx msbs=8 (Alg 9)": {
+        "qubits": 64,
+        "toffoli_paper": 57,
+        "toffoli_equiv": 113,
+        "t": 231,
+        "depth": 312,
+        "and": 56,
+        "and_dg": 56,
+        "gates": 434,
+        "failure_rate": 0.0033333333333333335,
+        "note": ""
+      },
+      "pseudo-Mersenne (Alg 10)": {
+        "qubits": 65,
+        "toffoli_paper": 41,
+        "toffoli_equiv": 81,
+        "t": 167,
+        "depth": 189,
+        "and": 40,
+        "and_dg": 40,
+        "gates": 263,
+        "failure_rate": 0.013333333333333334,
+        "note": ""
+      }
+    }
+  },
+  "moddbl_q4093": {
+    "task": "modular doubling mod 4093",
+    "variants": {
+      "exact (Alg 5)": {
+        "qubits": 42,
+        "toffoli_paper": 25,
+        "toffoli_equiv": 50,
+        "t": 100,
+        "depth": 186,
+        "and": 25,
+        "and_dg": 25,
+        "gates": 238,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "approx msbs=4 (Alg 6)": {
+        "qubits": 40,
+        "toffoli_paper": 17,
+        "toffoli_equiv": 34,
+        "t": 68,
+        "depth": 111,
+        "and": 17,
+        "and_dg": 17,
+        "gates": 165,
+        "failure_rate": 0.031028585389689715,
+        "note": ""
+      },
+      "approx msbs=8 (Alg 6)": {
+        "qubits": 40,
+        "toffoli_paper": 21,
+        "toffoli_equiv": 42,
+        "t": 84,
+        "depth": 144,
+        "and": 21,
+        "and_dg": 21,
+        "gates": 213,
+        "failure_rate": 0.0017102369899828977,
+        "note": ""
+      },
+      "pseudo-Mersenne (Alg 7)": {
+        "qubits": 23,
+        "toffoli_paper": 4,
+        "toffoli_equiv": 8,
+        "t": 16,
+        "depth": 41,
+        "and": 4,
+        "and_dg": 4,
+        "gates": 46,
+        "failure_rate": 0.03127290495968727,
+        "note": ""
+      }
+    }
+  },
+  "cmodadd_q4093": {
+    "task": "controlled modular addition mod 4093",
+    "variants": {
+      "exact (Alg 8)": {
+        "qubits": 53,
+        "toffoli_paper": 73,
+        "toffoli_equiv": 145,
+        "t": 295,
+        "depth": 427,
+        "and": 72,
+        "and_dg": 72,
+        "gates": 557,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "approx msbs=4 (Alg 9)": {
+        "qubits": 64,
+        "toffoli_paper": 51,
+        "toffoli_equiv": 101,
+        "t": 207,
+        "depth": 221,
+        "and": 50,
+        "and_dg": 50,
+        "gates": 342,
+        "failure_rate": 0.09666666666666666,
+        "note": ""
+      },
+      "approx msbs=8 (Alg 9)": {
+        "qubits": 72,
+        "toffoli_paper": 63,
+        "toffoli_equiv": 125,
+        "t": 255,
+        "depth": 326,
+        "and": 62,
+        "and_dg": 62,
+        "gates": 470,
+        "failure_rate": 0.0033333333333333335,
+        "note": ""
+      },
+      "pseudo-Mersenne (Alg 10)": {
+        "qubits": 77,
+        "toffoli_paper": 49,
+        "toffoli_equiv": 97,
+        "t": 199,
+        "depth": 230,
+        "and": 48,
+        "and_dg": 48,
+        "gates": 319,
+        "failure_rate": 0.01,
+        "note": ""
+      }
+    }
+  },
+  "mul_n8_w2": {
+    "task": "8-bit modular multiplication mod 251",
+    "variants": {
+      "schoolbook double-and-add": {
+        "qubits": 46,
+        "toffoli_paper": 528,
+        "toffoli_equiv": 1048,
+        "t": 2136,
+        "depth": 3211,
+        "and": 520,
+        "and_dg": 520,
+        "gates": 4216,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "Montgomery+QCSA [106] w=2": {
+        "qubits": 88,
+        "toffoli_paper": 434,
+        "toffoli_equiv": 868,
+        "t": 1736,
+        "depth": 2600,
+        "and": 434,
+        "and_dg": 434,
+        "gates": 3456,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "Montgomery+QROM [HJN+20] w=2": {
+        "qubits": 121,
+        "toffoli_paper": 312,
+        "toffoli_equiv": 600,
+        "t": 1320,
+        "depth": 1676,
+        "and": 288,
+        "and_dg": 288,
+        "gates": 2190,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "mul_n12_w4": {
+    "task": "12-bit modular multiplication mod 4093",
+    "variants": {
+      "schoolbook double-and-add": {
+        "qubits": 66,
+        "toffoli_paper": 1176,
+        "toffoli_equiv": 2340,
+        "t": 4740,
+        "depth": 7311,
+        "and": 1164,
+        "and_dg": 1164,
+        "gates": 9540,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "Montgomery+QCSA [106] w=4": {
+        "qubits": 268,
+        "toffoli_paper": 1078,
+        "toffoli_equiv": 2156,
+        "t": 4312,
+        "depth": 4994,
+        "and": 1078,
+        "and_dg": 1078,
+        "gates": 11452,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "Montgomery+QROM [HJN+20] w=4": {
+        "qubits": 261,
+        "toffoli_paper": 699,
+        "toffoli_equiv": 1308,
+        "t": 3066,
+        "depth": 3315,
+        "and": 609,
+        "and_dg": 609,
+        "gates": 6137,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "mul_n16_w4": {
+    "task": "16-bit modular multiplication mod 65521",
+    "variants": {
+      "schoolbook double-and-add": {
+        "qubits": 86,
+        "toffoli_paper": 2080,
+        "toffoli_equiv": 4144,
+        "t": 8368,
+        "depth": 13043,
+        "and": 2064,
+        "and_dg": 2064,
+        "gates": 17008,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "Montgomery+QCSA [106] w=4": {
+        "qubits": 324,
+        "toffoli_paper": 1566,
+        "toffoli_equiv": 3132,
+        "t": 6264,
+        "depth": 6669,
+        "and": 1566,
+        "and_dg": 1566,
+        "gates": 16544,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "Montgomery+QROM [HJN+20] w=4": {
+        "qubits": 347,
+        "toffoli_paper": 1054,
+        "toffoli_equiv": 1988,
+        "t": 4576,
+        "depth": 4780,
+        "and": 934,
+        "and_dg": 934,
+        "gates": 9230,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "inv_n5": {
+    "task": "modular inversion mod 31",
+    "variants": {
+      "reference Kaliski [HJN+20]": {
+        "qubits": 83,
+        "toffoli_paper": 1242,
+        "toffoli_equiv": 2134,
+        "t": 5958,
+        "depth": 4846,
+        "and": 912,
+        "and_dg": 892,
+        "gates": 7476,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "unconditional+postponed [106]": {
+        "qubits": 84,
+        "toffoli_paper": 817,
+        "toffoli_equiv": 1314,
+        "t": 4168,
+        "depth": 2664,
+        "and": 517,
+        "and_dg": 497,
+        "gates": 3906,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "inv_n7": {
+    "task": "modular inversion mod 127",
+    "variants": {
+      "reference Kaliski [HJN+20]": {
+        "qubits": 109,
+        "toffoli_paper": 2328,
+        "toffoli_equiv": 3998,
+        "t": 11202,
+        "depth": 9358,
+        "and": 1698,
+        "and_dg": 1670,
+        "gates": 14098,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "unconditional+postponed [106]": {
+        "qubits": 116,
+        "toffoli_paper": 1593,
+        "toffoli_equiv": 2570,
+        "t": 8136,
+        "depth": 5342,
+        "and": 1005,
+        "and_dg": 977,
+        "gates": 7740,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "inv_n8": {
+    "task": "modular inversion mod 251",
+    "variants": {
+      "reference Kaliski [HJN+20]": {
+        "qubits": 125,
+        "toffoli_paper": 3045,
+        "toffoli_equiv": 5242,
+        "t": 14628,
+        "depth": 12271,
+        "and": 2229,
+        "and_dg": 2197,
+        "gates": 18650,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "unconditional+postponed [106]": {
+        "qubits": 132,
+        "toffoli_paper": 2077,
+        "toffoli_equiv": 3354,
+        "t": 10612,
+        "depth": 7019,
+        "and": 1309,
+        "and_dg": 1277,
+        "gates": 10153,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "inv_n10": {
+    "task": "modular inversion mod 1021",
+    "variants": {
+      "reference Kaliski [HJN+20]": {
+        "qubits": 151,
+        "toffoli_paper": 4647,
+        "toffoli_equiv": 7994,
+        "t": 22368,
+        "depth": 19021,
+        "and": 3387,
+        "and_dg": 3347,
+        "gates": 28478,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "unconditional+postponed [106]": {
+        "qubits": 164,
+        "toffoli_paper": 3237,
+        "toffoli_equiv": 5234,
+        "t": 16548,
+        "depth": 11081,
+        "and": 2037,
+        "and_dg": 1997,
+        "gates": 15937,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "inv_n12": {
+    "task": "modular inversion mod 4093",
+    "variants": {
+      "reference Kaliski [HJN+20]": {
+        "qubits": 177,
+        "toffoli_paper": 6585,
+        "toffoli_equiv": 11322,
+        "t": 31740,
+        "depth": 27239,
+        "and": 4785,
+        "and_dg": 4737,
+        "gates": 40384,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "unconditional+postponed [106]": {
+        "qubits": 196,
+        "toffoli_paper": 4653,
+        "toffoli_equiv": 7530,
+        "t": 23796,
+        "depth": 16059,
+        "and": 2925,
+        "and_dg": 2877,
+        "gates": 23015,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "inplace_n3_p7": {
+    "task": "the multiplicative step of a point addition, mod 7",
+    "variants": {
+      "Kaliski division (out-of-place)": {
+        "qubits": 64,
+        "toffoli_paper": 1095,
+        "toffoli_equiv": 1932,
+        "t": 5154,
+        "depth": 4369,
+        "and": 837,
+        "and_dg": 837,
+        "gates": 6671,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "EEA dialog + Bezout replay [1128]": {
+        "qubits": 39,
+        "toffoli_paper": 612,
+        "toffoli_equiv": 1116,
+        "t": 2772,
+        "depth": 2753,
+        "and": 504,
+        "and_dg": 504,
+        "gates": 3854,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "inplace_n4_p11": {
+    "task": "the multiplicative step of a point addition, mod 11",
+    "variants": {
+      "Kaliski division (out-of-place)": {
+        "qubits": 83,
+        "toffoli_paper": 1910,
+        "toffoli_equiv": 3380,
+        "t": 8960,
+        "depth": 7807,
+        "and": 1470,
+        "and_dg": 1470,
+        "gates": 11976,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "EEA dialog + Bezout replay [1128]": {
+        "qubits": 48,
+        "toffoli_paper": 957,
+        "toffoli_equiv": 1749,
+        "t": 4323,
+        "depth": 4433,
+        "and": 792,
+        "and_dg": 792,
+        "gates": 6205,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "inplace_n4_p13": {
+    "task": "the multiplicative step of a point addition, mod 13",
+    "variants": {
+      "Kaliski division (out-of-place)": {
+        "qubits": 83,
+        "toffoli_paper": 1910,
+        "toffoli_equiv": 3380,
+        "t": 8960,
+        "depth": 7813,
+        "and": 1470,
+        "and_dg": 1470,
+        "gates": 11980,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "EEA dialog + Bezout replay [1128]": {
+        "qubits": 48,
+        "toffoli_paper": 957,
+        "toffoli_equiv": 1749,
+        "t": 4323,
+        "depth": 4433,
+        "and": 792,
+        "and_dg": 792,
+        "gates": 6205,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "inplace_n5_p31": {
+    "task": "the multiplicative step of a point addition, mod 31",
+    "variants": {
+      "Kaliski division (out-of-place)": {
+        "qubits": 99,
+        "toffoli_paper": 2889,
+        "toffoli_equiv": 5108,
+        "t": 13566,
+        "depth": 12165,
+        "and": 2219,
+        "and_dg": 2219,
+        "gates": 18217,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "EEA dialog + Bezout replay [1128]": {
+        "qubits": 57,
+        "toffoli_paper": 1378,
+        "toffoli_equiv": 2522,
+        "t": 6214,
+        "depth": 6527,
+        "and": 1144,
+        "and_dg": 1144,
+        "gates": 9104,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "inplace_n6_p61": {
+    "task": "the multiplicative step of a point addition, mod 61",
+    "variants": {
+      "Kaliski division (out-of-place)": {
+        "qubits": 115,
+        "toffoli_paper": 4068,
+        "toffoli_equiv": 7188,
+        "t": 19116,
+        "depth": 17373,
+        "and": 3120,
+        "and_dg": 3120,
+        "gates": 25798,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "EEA dialog + Bezout replay [1128]": {
+        "qubits": 66,
+        "toffoli_paper": 1875,
+        "toffoli_equiv": 3435,
+        "t": 8445,
+        "depth": 8987,
+        "and": 1560,
+        "and_dg": 1560,
+        "gates": 12543,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "padd_p=7": {
+    "task": "one point addition on p=7 (6 pairs checked)",
+    "variants": {
+      "affine in-place [106] Alg 3": {
+        "qubits": 64,
+        "toffoli_paper": 2756,
+        "toffoli_equiv": 4976,
+        "t": 12632,
+        "depth": 11890,
+        "and": 2220,
+        "and_dg": 2220,
+        "gates": 17626,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "Jacobian out-of-place [106] Alg 4": {
+        "qubits": 75,
+        "toffoli_paper": 1544,
+        "toffoli_equiv": 3037,
+        "t": 6329,
+        "depth": 8511,
+        "and": 1493,
+        "and_dg": 1493,
+        "gates": 11722,
+        "failure_rate": 0.0,
+        "note": "leaves the 3n-qubit input point as garbage"
+      }
+    }
+  },
+  "padd_p=11": {
+    "task": "one point addition on p=11 (9 pairs checked)",
+    "variants": {
+      "affine in-place [106] Alg 3": {
+        "qubits": 83,
+        "toffoli_paper": 4769,
+        "toffoli_equiv": 8632,
+        "t": 21794,
+        "depth": 21024,
+        "and": 3863,
+        "and_dg": 3863,
+        "gates": 31328,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "Jacobian out-of-place [106] Alg 4": {
+        "qubits": 98,
+        "toffoli_paper": 2642,
+        "toffoli_equiv": 5216,
+        "t": 10772,
+        "depth": 15126,
+        "and": 2574,
+        "and_dg": 2574,
+        "gates": 20600,
+        "failure_rate": 0.0,
+        "note": "leaves the 3n-qubit input point as garbage"
+      }
+    }
+  },
+  "padd_windowed_p7": {
+    "task": "one windowed point addition on p=7 (25 cases checked)",
+    "variants": {
+      "windowed w=2 [1128] Alg 1": {
+        "qubits": 49,
+        "toffoli_paper": 1523,
+        "toffoli_equiv": 2763,
+        "t": 6941,
+        "depth": 6893,
+        "and": 1240,
+        "and_dg": 1240,
+        "gates": 9668,
+        "failure_rate": 0.0,
+        "note": "dialog multiplier; handles i=0 (adding O) with no special case"
+      }
+    }
+  },
+  "tempand_n5": {
+    "task": "T-count of one inversion mod 31",
+    "variants": {
+      "all Toffoli (7 T each)": {
+        "qubits": 83,
+        "toffoli_paper": 2134,
+        "toffoli_equiv": 2134,
+        "t": 14938,
+        "depth": 4846,
+        "and": 912,
+        "and_dg": 892,
+        "gates": 7476,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "temporary AND (4 T / 0 T)": {
+        "qubits": 83,
+        "toffoli_paper": 1242,
+        "toffoli_equiv": 2134,
+        "t": 5958,
+        "depth": 4846,
+        "and": 912,
+        "and_dg": 892,
+        "gates": 7476,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "tempand_n8": {
+    "task": "T-count of one inversion mod 251",
+    "variants": {
+      "all Toffoli (7 T each)": {
+        "qubits": 125,
+        "toffoli_paper": 5242,
+        "toffoli_equiv": 5242,
+        "t": 36694,
+        "depth": 12271,
+        "and": 2229,
+        "and_dg": 2197,
+        "gates": 18650,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "temporary AND (4 T / 0 T)": {
+        "qubits": 125,
+        "toffoli_paper": 3045,
+        "toffoli_equiv": 5242,
+        "t": 14628,
+        "depth": 12271,
+        "and": 2229,
+        "and_dg": 2197,
+        "gates": 18650,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "tempand_n12": {
+    "task": "T-count of one inversion mod 4093",
+    "variants": {
+      "all Toffoli (7 T each)": {
+        "qubits": 177,
+        "toffoli_paper": 11322,
+        "toffoli_equiv": 11322,
+        "t": 79254,
+        "depth": 27239,
+        "and": 4785,
+        "and_dg": 4737,
+        "gates": 40384,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "temporary AND (4 T / 0 T)": {
+        "qubits": 177,
+        "toffoli_paper": 6585,
+        "toffoli_equiv": 11322,
+        "t": 31740,
+        "depth": 27239,
+        "and": 4785,
+        "and_dg": 4737,
+        "gates": 40384,
+        "failure_rate": 0.0,
+        "note": ""
+      }
+    }
+  },
+  "full_ecdlp": {
+    "task": "Shor ECDLP on y^2=x^3+5x+4 mod 7, ord(G)=5",
+    "variants": {
+      "arithmetic oracle, full control registers": {
+        "qubits": 69,
+        "toffoli_paper": 16488,
+        "toffoli_equiv": 29760,
+        "t": 75600,
+        "depth": 70991,
+        "and": 13272,
+        "and_dg": 13272,
+        "gates": 105339,
+        "failure_rate": 0.0,
+        "note": ""
+      },
+      "table oracle (simulable)": {
+        "qubits": 12,
+        "gates": 603,
+        "depth": 282,
+        "toffoli_paper": null,
+        "toffoli_equiv": null,
+        "t": null,
+        "and": null,
+        "and_dg": null,
+        "failure_rate": 0.0,
+        "note": "permutation oracle; runs end to end on Aer"
+      },
+      "table oracle, semiclassical (1 ctrl qubit)": {
+        "qubits": 7,
+        "gates": 619,
+        "depth": 287,
+        "toffoli_paper": null,
+        "toffoli_equiv": null,
+        "t": null,
+        "and": null,
+        "and_dg": null,
+        "failure_rate": 0.0,
+        "note": "Griffiths-Niu; both scalar registers cost one qubit between them"
+      }
+    }
+  },
+  "_projections": {
+    "windowing_zigzag": [
+      {
+        "n": 192,
+        "w": 1,
+        "additions": 386,
+        "zigzag_registers": 28,
+        "garbage_qubits": 16128
+      },
+      {
+        "n": 192,
+        "w": 11,
+        "additions": 36,
+        "zigzag_registers": 8,
+        "garbage_qubits": 4608
+      },
+      {
+        "n": 192,
+        "w": 16,
+        "additions": 26,
+        "zigzag_registers": 7,
+        "garbage_qubits": 4032
+      },
+      {
+        "n": 224,
+        "w": 1,
+        "additions": 450,
+        "zigzag_registers": 30,
+        "garbage_qubits": 20160
+      },
+      {
+        "n": 224,
+        "w": 11,
+        "additions": 42,
+        "zigzag_registers": 9,
+        "garbage_qubits": 6048
+      },
+      {
+        "n": 224,
+        "w": 16,
+        "additions": 30,
+        "zigzag_registers": 8,
+        "garbage_qubits": 5376
+      },
+      {
+        "n": 256,
+        "w": 1,
+        "additions": 514,
+        "zigzag_registers": 32,
+        "garbage_qubits": 24576
+      },
+      {
+        "n": 256,
+        "w": 11,
+        "additions": 48,
+        "zigzag_registers": 10,
+        "garbage_qubits": 7680
+      },
+      {
+        "n": 256,
+        "w": 16,
+        "additions": 34,
+        "zigzag_registers": 8,
+        "garbage_qubits": 6144
+      },
+      {
+        "n": 384,
+        "w": 1,
+        "additions": 770,
+        "zigzag_registers": 39,
+        "garbage_qubits": 44928
+      },
+      {
+        "n": 384,
+        "w": 11,
+        "additions": 70,
+        "zigzag_registers": 12,
+        "garbage_qubits": 13824
+      },
+      {
+        "n": 384,
+        "w": 16,
+        "additions": 50,
+        "zigzag_registers": 10,
+        "garbage_qubits": 11520
+      },
+      {
+        "n": 521,
+        "w": 1,
+        "additions": 1044,
+        "zigzag_registers": 46,
+        "garbage_qubits": 71898
+      },
+      {
+        "n": 521,
+        "w": 11,
+        "additions": 96,
+        "zigzag_registers": 14,
+        "garbage_qubits": 21882
+      },
+      {
+        "n": 521,
+        "w": 16,
+        "additions": 66,
+        "zigzag_registers": 11,
+        "garbage_qubits": 17193
+      }
+    ],
+    "eea_space": {
+      "256": {
+        "record_raw": 802,
+        "record_compressed": 669,
+        "record_compressed_per_n": 2.61328125,
+        "paper_asymptotic_per_n": 2.355,
+        "with_register_sharing": 579
+      },
+      "384": {
+        "record_raw": 1180,
+        "record_compressed": 984,
+        "record_compressed_per_n": 2.5625,
+        "paper_asymptotic_per_n": 2.355,
+        "with_register_sharing": 859
+      },
+      "521": {
+        "record_raw": 1582,
+        "record_compressed": 1319,
+        "record_compressed_per_n": 2.531669865642994,
+        "paper_asymptotic_per_n": 2.355,
+        "with_register_sharing": 1157
+      }
+    },
+    "qubit_totals_1128": {
+      "256": {
+        "space_optimized": 1151,
+        "gate_optimized": 1407
+      }
+    },
+    "shor_toffoli_1128": {
+      "value": 72490961,
+      "log2": 26.11
+    }
+  }
+}

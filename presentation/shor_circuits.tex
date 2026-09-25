@@ -322,8 +322,9 @@
   \vskip1mm
   \begin{columns}[T]
     \begin{column}{0.47\textwidth}
-      \blocktitle{Why it matters}
-      It permutes basis states, so it is reversible. Toffoli, CNOT and NOT build \textbf{any classical function} reversibly: every piece of arithmetic in Shor is made of them.
+      \blocktitle{Reversible: it permutes basis states}
+      It swaps $|110\rangle\leftrightarrow|111\rangle$ and fixes the other six. A permutation matrix is unitary; its inverse is the reverse permutation, here the Toffoli itself:
+      \[ c\oplus ab\oplus ab=c . \]
     \end{column}
     \begin{column}{0.47\textwidth}
       \blocktitle{What it costs}
@@ -331,6 +332,23 @@
     \end{column}
   \end{columns}
   \begin{takeaway}Reversible arithmetic = Toffolis + CNOTs. Its T cost is exact: $7\times$ the number of Toffolis.\end{takeaway}
+\end{frame}
+
+\begin{frame}{Any function becomes reversible: keep the input}
+  \[ f:\ x\mapsto f(x)\qquad\leadsto\qquad U_f\,|x\rangle\,|y\rangle=|x\rangle\,|y\oplus f(x)\rangle \]
+  \vskip1mm
+  \begin{columns}[T]
+    \begin{column}{0.47\textwidth}
+      \blocktitle{Why it is reversible}
+      Applied twice, $y\oplus f(x)\oplus f(x)=y$: $U_f$ is its own inverse, even when $f$ has no inverse. AND sends $00,01,10$ to $0$, yet $U_{\mathrm{AND}}$ is the Toffoli.
+    \end{column}
+    \begin{column}{0.47\textwidth}
+      \blocktitle{A whole circuit, gate by gate}
+      NOT and XOR are reversible already ($X$, CNOT). Each AND becomes a Toffoli onto a fresh $|0\rangle$ (Toffoli, 1980):
+      \[ |x\rangle\,|0\rangle\,|0\rangle\;\mapsto\;|x\rangle\,|f(x)\rangle\,|g(x)\rangle . \]
+    \end{column}
+  \end{columns}
+  \begin{takeaway}Any classical circuit runs reversibly, at one Toffoli and one fresh bit per AND. The fresh bits keep the intermediate values $g(x)$: garbage (Act III).\end{takeaway}
 \end{frame}
 
 \begin{frame}{Phase shifts are exact only for multiples of $\pi/4$}
@@ -1432,7 +1450,7 @@ venv/bin/python presentation/make_listings.py   # its code, checked
   \begin{itemize}\setlength{\itemsep}{0.6mm}
     \item P. W. Shor, SIAM J. Comput. 26 (1997). \quad S. Beauregard, Quantum Inf. Comput. 3 (2003).
     \item T. G. Draper, quant-ph/0008033. \quad S. Cuccaro, T. Draper, S. Kutin, D. Moulton, quant-ph/0410184.
-    \item R. Griffiths, C.-S. Niu, Phys. Rev. Lett. 76 (1996). \quad C. H. Bennett, IBM J. Res. Dev. 17 (1973).
+    \item R. Griffiths, C.-S. Niu, Phys. Rev. Lett. 76 (1996). \quad C. H. Bennett, IBM J. Res. Dev. 17 (1973). \quad T. Toffoli, ICALP 1980.
     \item C. Dawson, M. Nielsen, quant-ph/0505030. \quad N. J. Ross, P. Selinger, arXiv:1403.2975.
     \item C. Gidney, arXiv:1709.06648 (temporary AND); arXiv:1905.07682 (windowing); arXiv:2505.15917 (2025).
     \item C. Gidney, M. Ekerå, Quantum 5, 433 (2021). \quad D. Litinski, arXiv:2306.08585 (2023).

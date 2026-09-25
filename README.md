@@ -47,6 +47,25 @@ effect, and Aer runs with each histogram set beside the exact distribution. Re-e
 ./venv/bin/jupyter lab notebooks/shor_walkthrough.ipynb
 ```
 
+### The presentation
+
+`presentation/shor_circuits.pdf` is a 60-minute talk in the theme of `doc/references/shor_pres_v4_1.pdf`. It covers:
+- the circuits for factoring and ECDLP, built in Qiskit;
+- uncomputation, and why garbage kills the interference;
+- Clifford+T, Toffoli and Solovay–Kitaev;
+- qubit, Toffoli and T counts derived from the construction;
+- the optimisations, each with its measured effect;
+- why ECDSA falls before RSA at equal classical security.
+
+Its figures and numbers are generated from `shor_qiskit/` with the notebook's seeds. Its code excerpts are cut from the
+source and checked, and the usage snippets are executed.
+
+```bash
+venv/bin/python presentation/make_figures.py     # figures/ and numbers.json (~1 min)
+venv/bin/python presentation/make_listings.py    # listings/, checked against the source
+cd presentation && tectonic -X compile shor_circuits.tex
+```
+
 Or the whole pipeline as a toy attack — RSA key → factor N → private exponent →
 decrypt, and an elliptic-curve key pair → recover the private key — both on the
 one-counting-qubit circuits, with every measured histogram printed beside its

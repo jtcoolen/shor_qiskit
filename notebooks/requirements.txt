@@ -1,0 +1,4 @@
+# Extra dependencies for notebooks/shor_walkthrough.ipynb (on top of ../requirements.txt)
+jupyterlab
+matplotlib
+pylatexenc

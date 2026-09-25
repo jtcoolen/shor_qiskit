@@ -2194,9 +2194,26 @@ the control classical --- the semiclassical Fourier transform of Griffiths and N
 \cite{griffiths-niu}, applied to factoring by Mosca--Ekert \cite{mosca-ekert}, Parker--Plenio
 \cite{parker-plenio} and Beauregard \cite{beauregard}. The counting register then never exists all
 at once: one qubit is Hadamarded, drives its rung, receives phase corrections conditioned on every
-previously measured bit, is measured, and is reset.
+previously measured bit, is measured, and is reset. The loop knows nothing about modular arithmetic
+--- it takes the rungs as callbacks --- so it lives in \code{semiclassical.py} and the
+elliptic-curve circuit of Part VII reuses it unchanged:
 
 \begin{lstlisting}
+def semiclassical_iqft(qc, ctrl, out, rungs):
+    t = len(rungs)
+    assert len(out) >= t, "one classical bit per rung"
+    for i in range(t):
+        qc.h(ctrl)
+        rungs[t - 1 - i](qc, ctrl)                   # heaviest rung first
+        for j in range(i):                           # the inverse QFT, classically
+            with qc.if_test((out[j], 1)):
+                qc.p(-math.pi / 2 ** (i - j), ctrl)
+        qc.h(ctrl)
+        qc.measure(ctrl, out[i])
+        with qc.if_test((out[i], 1)):                # reset for the next rung
+            qc.x(ctrl)
+
+
 def order_circuit_1c(A, N, t=None):
     n = math.ceil(math.log2(N))
     t = t if t is not None else 2 * n
@@ -2207,18 +2224,11 @@ def order_circuit_1c(A, N, t=None):
     out = ClassicalRegister(t, "out")
     qc = QuantumCircuit(ctr, tgt, anc, sf, out)
     qc.x(tgt[0])                                     # target = |1>
-    for i in range(t):
-        qc.h(ctr[0])
-        # rungs run most-significant exponent first
-        c_ua(qc, ctr[0], pow(A, 2 ** (t - 1 - i), N),
-             list(tgt), list(anc), sf[0], sf[1], N)
-        for j in range(i):                           # semiclassical inverse QFT
-            with qc.if_test((out[j], 1)):
-                qc.p(-math.pi / 2 ** (i - j), ctr[0])
-        qc.h(ctr[0])
-        qc.measure(ctr[0], out[i])
-        with qc.if_test((out[i], 1)):                # reset for the next rung
-            qc.x(ctr[0])
+
+    def rung(k):                                     # controlled U^(2^k)
+        return lambda qc, c: c_ua(qc, c, pow(A, 2 ** k, N),
+                                  list(tgt), list(anc), sf[0], sf[1], N)
+    semiclassical_iqft(qc, ctr[0], out, [rung(k) for k in range(t)])
     return qc
 \end{lstlisting}
 

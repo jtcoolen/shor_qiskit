@@ -41,6 +41,7 @@ from qiskit.circuit import ClassicalRegister, QuantumCircuit, QuantumRegister
 import ec_classical as C
 import ec_pointadd as PA
 from ec_sim import Machine, Reg
+from semiclassical import semiclassical_iqft
 from shor_essentials import qft
 
 
@@ -255,13 +256,13 @@ def ecdlp_circuit_1c(curve, P, Q, order, offset=None, m_bits=None):
     is about to be measured, so measure it first and make the control classical.
     One qubit is Hadamarded, drives its rung, receives phase corrections
     conditioned on every previously measured bit of *its own* register, is
-    measured, and is reset.
+    measured, and is reset.  That loop is `semiclassical.semiclassical_iqft`,
+    shared with `onectrl.py`.
 
     The two registers are independent transforms, so the corrections run within
-    a register and not across the pair.  Rungs go most-significant-exponent
-    first, which puts the first measured bit at the least significant end --
-    Qiskit's own bit order, so no reversal is needed on readout.  (`onectrl.py`
-    makes the same choice for factoring, and for the same reason.)
+    a register and not across the pair: the loop runs twice, once per register.
+    It puts bit i of each measured integer in bit i of its classical register,
+    as the full circuit does, so the post-processing reads both unchanged.
 
     Only the table oracle: with the arithmetic oracle this is a mid-circuit
     measurement on ~60 qubits, which Aer must simulate shot by shot.
@@ -285,18 +286,11 @@ def ecdlp_circuit_1c(curve, P, Q, order, offset=None, m_bits=None):
     pack = list(px) + list(py)
     Ps, Qs = _rungs(curve, P, Q, mb)
 
+    def rung(R):                                     # controlled "+R"
+        return lambda qc, c: permutation(qc, pack, point_perm(curve, R, n),
+                                         ctrls=[c])
     for base, creg in ((Ps, ck), (Qs, cl)):
-        for i in range(mb):
-            R = base[mb - 1 - i]                     # most significant first
-            qc.h(ctr[0])
-            permutation(qc, pack, point_perm(curve, R, n), ctrls=[ctr[0]])
-            for j in range(i):                       # semiclassical inverse QFT
-                with qc.if_test((creg[j], 1)):
-                    qc.p(-math.pi / 2 ** (i - j), ctr[0])
-            qc.h(ctr[0])
-            qc.measure(ctr[0], creg[i])
-            with qc.if_test((creg[i], 1)):           # reset for the next rung
-                qc.x(ctr[0])
+        semiclassical_iqft(qc, ctr[0], creg, [rung(R) for R in base])
 
     return qc, {"n": n, "m_bits": mb, "offset": S, "order": order,
                 "oracle": "table-1c", "qubits": qc.num_qubits}
@@ -317,13 +311,17 @@ def run_ecdlp(curve, P, Q, order, shots=4096, seed=7, one_control=False, **kw):
     sim = AerSimulator(seed_simulator=seed)
     res = sim.run(transpile(qc, sim, optimization_level=0), shots=shots).result()
     counts = res.get_counts()
+    cands = C.ecdlp_postprocess(pair_counts(counts), order, info["m_bits"])
+    return counts, cands, info
 
+
+def pair_counts(counts):
+    """Qiskit counts over the two registers -> {(j1, j2): shots}."""
     tally = {}
     for bits, c in counts.items():
         lo, ko = bits.split()                   # Qiskit prints last register first
         tally[(int(ko, 2), int(lo, 2))] = tally.get((int(ko, 2), int(lo, 2)), 0) + c
-    cands = C.ecdlp_postprocess(tally, order, info["m_bits"])
-    return counts, cands, info
+    return tally
 
 
 def solve(curve, P, Q, order, **kw):

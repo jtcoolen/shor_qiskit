@@ -11,6 +11,12 @@ unlookup        : measurement-based uncomputation (hybrid: needs a runner)
 onectrl         : order finding with one counting qubit (2n+3)
 coset           : Zalka coset representation
 
+Shared by both halves
+---------------------
+semiclassical   : the semiclassical inverse QFT (one recycled counting qubit)
+shor_stats      : exact output distributions, and testing samples against them
+resources       : logical counts: qubits, Toffoli, T, rotations (and synthesis cost)
+
 Elliptic-curve discrete logarithm
 ---------------------------------
 Infrastructure

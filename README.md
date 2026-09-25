@@ -33,6 +33,31 @@ print(order_from_counts(counts, 7, 15, t=8))  # -> 4
 print(find_factor(15, run))                   # -> 3 or 5
 ```
 
+### The walkthrough notebook
+
+`notebooks/shor_walkthrough.ipynb` presents all of it in one place, executed, with outputs saved:
+the minimal circuits level by level as products of unitaries (QFT → Draper adder → Beauregard
+modular adder → multiplier → order finding; then ECDLP), their qubit / Toffoli / T / rotation counts
+checked against closed forms, a fault-tolerance section (Clifford+T, Solovay–Kitaev against
+Ross–Selinger synthesis, why small phase shifts cost ~100 T), every optimisation with its measured
+effect, and Aer runs with each histogram set beside the exact distribution. Re-executes in ~2 min.
+
+```bash
+./venv/bin/pip install -r notebooks/requirements.txt
+./venv/bin/jupyter lab notebooks/shor_walkthrough.ipynb
+```
+
+Or the whole pipeline as a toy attack — RSA key → factor N → private exponent →
+decrypt, and an elliptic-curve key pair → recover the private key — both on the
+one-counting-qubit circuits, with every measured histogram printed beside its
+exact distribution:
+
+```bash
+./venv/bin/python examples/toy_demo.py            # N=15 and a 13-point curve, ~10 s
+./venv/bin/python examples/toy_demo.py --N 21     # 1-2 min (dynamic circuits run shot by shot)
+./venv/bin/python examples/toy_demo.py --full     # full counting registers, for comparison
+```
+
 ## Layout
 
 | file | what it is | note § |
@@ -43,9 +68,13 @@ print(find_factor(15, run))                   # -> 3 or 5
 | `shor_qiskit/windowed.py` | Gidney windowing over the multiplicand; quantum-addend modular adder | V.19 |
 | `shor_qiskit/nested.py` | windowing over the **exponent** as well (Gidney §3.5) | V.19.7 |
 | `shor_qiskit/unlookup.py` | measurement-based uncomputation — hybrid, so it ships as a runner | V.19.6 |
+| `shor_qiskit/semiclassical.py` | the **semiclassical inverse QFT** (Griffiths–Niu): one recycled counting qubit, shared by factoring and ECDLP | V.21 |
 | `shor_qiskit/onectrl.py` | order finding with **one** counting qubit: 2n+3 instead of 4n+2 | V.21 |
+| `shor_qiskit/shor_stats.py` | exact output distributions of both circuits, per-shot success probability, TVD against the shot-noise null | — |
+| `shor_qiskit/resources.py` | logical resource counts for any circuit here: qubits, Toffolis, T (plain and temporary-AND), controlled phases, small-angle rotations and their synthesis cost | — |
 | `shor_qiskit/coset.py` | Zalka **coset representation**: deletes the modular adder — a plain adder does modular arithmetic | V.22 |
 | `tests/` | the verification suite; each file asserts its own results | IV.17 |
+| `examples/toy_demo.py` | toy RSA and toy ECDLP broken end to end on Aer | — |
 | `bench/` | the cost measurements quoted in the document | — |
 
 Two adders and three multiplier variants are interchangeable: everything above
@@ -61,6 +90,16 @@ Level 1 is written once, against the adder interface.
 
 `pytest` also works (`pytest.ini` sets the paths). Use `PYTHON=/path/to/python`
 to pick an interpreter.
+
+The semiclassical QFT has its own unit test, `test_semiclassical.py` (in `fast`,
+~40 s), and so does the resource counter, `test_resources.py` (~4 s: every closed-form count
+the notebook quotes, and T pricing cross-checked against Qiskit's own Clifford+T decomposition); the one-control circuits are exercised end to end by `test_1c.py`
+(factoring, in `full`) and `test_ec_shor.py` (ECDLP, in `ec`). Any single file runs
+on its own:
+
+```bash
+PYTHONPATH=shor_qiskit:tests ./venv/bin/python tests/test_semiclassical.py
+```
 
 The one-control circuit (`test_1c.py`) defaults to N=15 and 21. Mid-circuit
 measurement forces Aer to simulate **shot by shot** rather than evolve one
@@ -81,6 +120,9 @@ a circuit can compute the right value and still be broken:
 | 2 | `c_add_mod`, `rc_c_add_mod`, `add_quantum_mod` all (y,X) for N=9,15,21,33 | correct, flag clean |
 | 3–4 | `c_ua`, `rc_c_ua`, windowed and nested variants | correct, scratch clean |
 | 5 | order finding, N=15 / 21 / 33 | see below |
+| 5 | semiclassical inverse QFT vs `qft(t).inverse()`: every Fourier state t=1..6, and arbitrary non-commuting rungs on entangled inputs t=1..5 | exact (branch-enumerated, not sampled) |
+| 5 | one-control order finding, N=15 every base | distribution **exactly** the closed form |
+| 5 | measured histograms, every end-to-end run | within shot noise of the exact distribution |
 
 End-to-end factoring:
 
@@ -98,6 +140,24 @@ End-to-end factoring:
 **Test the distribution, not the factors.** A garbage bug does not give a wrong
 answer, it gives a *flat histogram* — and the classical tail verifies its own
 candidates, so it can still print the right factors from pure noise.
+
+So the output distribution is computed in closed form (`shor_stats.py`) — for
+order finding `P(y) = 4^-t Σ_{x0<r} |Σ_m e^{-2πi m r y/2^t}|²`, for ECDLP the
+analogous sum over the lattice `u + kv ≡ z (mod r)` — and checked three ways: it
+equals Aer's exact statevector probabilities of the full circuit (to 1e-14), it
+equals the branch-enumerated distribution of the one-control circuit (to 1e-13),
+and every sampled histogram in the end-to-end tests sits within the total-variation
+distance a perfect sampler would reach at that shot count (99.99% quantile,
+Monte Carlo). Measured, 2048 shots, one counting qubit:
+
+| N | a | qubits | TVD from exact | noise bound | P(one shot gives r): exact | measured |
+|---|---|---|---|---|---|---|
+| 15 | 7 | 11 | 0.030 | 0.044 | 0.500 | 0.470 |
+| 21 | 2 | 13 | 0.045 | 0.080 | 0.322 | 0.328 |
+
+Flat noise lands at 11× the bound, so the test has teeth; and so does the
+semiclassical unit test, which catches each of three deliberate bugs (dropped
+phase corrections, reversed rung order, missing reset) at TVD 0.48–0.91.
 
 ## What is implemented, from which paper
 
@@ -226,7 +286,7 @@ whichever optimization interests you.
 | `ec_mult.py` | schoolbook modular multiplication, squaring, accumulate forms | — |
 | `ec_kaliski.py` | Kaliski modular inversion, and division | 106 Alg 2, [HJN+20] |
 | `ec_pointadd.py` | in-place controlled affine point addition | 106 Alg 3 |
-| `ec_shor.py` | the full ECDLP circuit, both oracles, the semiclassical one-control variant, Ekerå post-processing | 106 Fig 1 + App D, 1128 §2, [Eke19] |
+| `ec_shor.py` | the full ECDLP circuit, both oracles, the semiclassical one-control variant (via `semiclassical.py`), Ekerå post-processing | 106 Fig 1 + App D, 1128 §2, [Eke19] |
 | **2026/106** | | |
 | `ec_qcsa.py` | quantum carry-save adder: w addends to two in O(log w) depth | 106 §3.2, [KLJ+25] |
 | `ec_montgomery.py` | word-level Montgomery (Alg 1b reformulation) + the [HJN+20] QROM baseline | 106 §3.2 |
@@ -273,7 +333,8 @@ Verified end to end:
 | projective point addition | every point pair × every projective representative |
 | in-place multiplication (dialog) | every `(x, y)` for `p ≤ 127` |
 | **ECDLP end to end** | every discrete log on both toy curves; correct `k` is the **top** candidate every time |
-| ECDLP, semiclassical (one control qubit) | same, on 7 qubits instead of 12 |
+| ECDLP, semiclassical (one control qubit) | same, on 7 qubits instead of 12 (9 instead of 16 at p=11); distribution **exactly** the closed form on p=7 |
+| measured histograms, both variants, every k | within shot noise of the exact distribution; P(one shot gives k) 0.644 exact vs 0.645 measured at p=11 |
 
 That last row is the one that matters, and it is stated carefully. A broken
 Shor circuit does not return a wrong answer — it returns a *flat histogram*, and

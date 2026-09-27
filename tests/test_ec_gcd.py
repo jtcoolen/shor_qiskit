@@ -328,6 +328,15 @@ def test_jump2():
             seen.add(out)
         assert len(seen) == 5 ** k
     assert G.base5_record_qubits(261) == 609
+    for fn in ("mul", "div"):
+        r, m = fail_rate(q, G.Jump2Packed(steps=L + 2), pairs, fn)
+        assert r == 0.0, (fn, r)
+    c0 = CO.count(build(q, G.Jump2(steps=L + 2))[0])
+    c1 = CO.count(m)
+    print(f"      codec wired in (q={q}, {L + 2} steps): {c0['qubits']} -> {c1['qubits']} "
+          f"qubits, {c0['toffoli_paper']} -> {c1['toffoli_paper']} Toffoli-eq "
+          f"(a generic permutation codec, ~500 per group)")
+    assert c1["qubits"] < c0["qubits"]
     ok("base-5 codec: 9 -> 7 and 6 -> 5 qubits, injective on the 5^k reachable "
        "patterns; 261 steps -> 609 qubits, ECDSA.Fail's figure")
 

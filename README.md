@@ -503,6 +503,32 @@ not at n = 256.  At toy sizes the fixed round budgets distort comparisons betwee
 (e.g. [1128]'s 1.413n + 2.4√n has a large margin at n = 6), which is why the table is built
 at n = 256.
 
+**Built at n = 256, not projected** (`bench/ec_hier_256.py`, `bench/qualtran_compare.py`).
+`hier.py` runs the *unchanged* builders at cryptographic size: `hier.tracing()` wraps a list
+of existing builders with a `boundary` decorator for the duration of a `with` block (no
+source file changes), and on a `HierMachine` each wrapped call is built once per shape and
+reused as one opaque gate.  A complete 256-bit windowed point addition builds in ~10 s in
+0.5 GB; `tests/test_hier.py` checks that every field of the count equals the flat build.
+`hier.to_qualtran(m)` exports the tree as Qualtran bloqs (`pip install qualtran`, optional),
+and Qualtran's `QECGatesCost` then counts exactly the same Toffolis, plus Cliffords and
+measurements:
+
+| one windowed point addition, secp256k1, w = 16 | Toffolis | qubits |
+|---|---:|---:|
+| Qualtran's own `ECAdd` (Litinski 2023), for reference | 8,346,972 | 1,798 |
+| [1128] dialog, exact arithmetic (MBU lookups, masked tables) | 5,163,617 | 2,104 |
+| … fused 48-bit comparisons, width schedule, pseudo-Mersenne replay | 2,934,431 | 2,251 |
+| … plus the dedicated squarer | 1,962,968 | 2,251 |
+| IonQ's conditionally-inverted walk and replay, squarer | **1,673,250** | 2,251 |
+| ECDSA.Fail ping-pong (704 rounds), squarer | 2,117,534 | 2,155 |
+| register sharing + Fig. 1 packing (space variant), squarer | 1,968,288 | **1,873** |
+| published: [1128] 2,588,963 / IonQ 1,392,608 (Toffolis, incl. 3 lookups) | | 1,192 / ~1,457 |
+
+The Toffoli counts land where the papers put them (the IonQ-style build is 20% above IonQ's
+own figure; its arithmetic cells are composed from this package's general parts, not fused).
+The qubit counts do not: the adders here draw clean n-bit scratch where the papers use
+dirty-ancilla and hybrid adders, which is the space-optimisation work still open.
+
 Things the sources get wrong or leave out, found while reproducing them:
 - IonQ's replay needs its 0 ↔ p swap *before* the complemented adder; without it every
   e = 1, y = 0 step leaves an ancilla dirty (`ec_approx._swap_zero_q`).
@@ -513,9 +539,10 @@ Things the sources get wrong or leave out, found while reproducing them:
 - At toy N, the Gidney–Ekerå choice A = g^(N+1) puts d outside the short range and never
   factors; Gidney 2025's A = g^(N−1) sometimes does (d is pinned only modulo ord g).
 
-Tests: `test_sparse_sim`, `test_depth`, `test_eh`, `test_physical`, `test_api_surface`
-(fast tier); `test_ec_regress`, `test_ec_mbu`, `test_ec_window_cfg`, `test_ec_signed`,
-`test_ec_gcd`, `test_ec_square`, `test_ec_windowed` (ec tier).
+Tests: `test_sparse_sim`, `test_depth`, `test_eh`, `test_physical`, `test_api_surface`,
+`test_g25_arith`, `test_coset_order` (fast tier); `test_ec_regress`, `test_ec_mbu`,
+`test_ec_window_cfg`, `test_ec_signed`, `test_ec_gcd`, `test_ec_square`, `test_ec_windowed`,
+`test_ec_padd_mont`, `test_ec_opt`, `test_hier` (ec tier).
 
 ## What is not implemented
 

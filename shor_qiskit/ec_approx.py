@@ -412,3 +412,99 @@ def cmodneg_approx(m, ctrl, x, q, kappa=None, tau=None):
 def modhalf_pm(m, x, q, lsbs=None):
     """x <- x/2 mod q: Algorithm 7 run backwards."""
     m.emit_inverse(moddbl_pm, m, x, q, lsbs)
+
+
+# --- IonQ Alg 2: the flags uncomputed by measurement --------------------------
+def _flag_predicates(ctx, x, y, k, anc):
+    """Compute t1 = [top_k(y) < top_k(x)] and t2 = [top_k(y) == 0] into
+    anc[0], anc[1] (the rest is scratch).  Undone by calling it again: both
+    parts are carry chains / AND chains whose uncomputes are free."""
+    t1, t2, sc = anc[0], anc[1], anc[2:]
+    ty, tx = y[len(y) - k:], x[len(x) - k:]
+    A.lt_uint(ctx, ty, tx, t1, sc)
+    for b in ty:
+        ctx.x(b)
+    if k == 1:
+        ctx.cx(ty[0], t2)
+    else:                                            # AND chain over NOT(top y)
+        ch = sc[:k - 1]
+        ctx.and_(ty[0], ty[1], ch[0])
+        for i in range(2, k):
+            ctx.and_(ch[i - 2], ty[i], ch[i - 1])
+        ctx.cx(ch[k - 2], t2)
+        for i in range(k - 1, 1, -1):
+            ctx.and_dg(ch[i - 2], ty[i], ch[i - 1])
+        ctx.and_dg(ty[0], ty[1], ch[0])
+    for b in ty:
+        ctx.x(b)
+
+
+def modadd_pm_mbu(m, x, y, q, lsbs=None, msbs=None):
+    """y <- (y + x) mod q, q = 2^u - f: Algorithm 11 (uncontrolled) with both
+    of its flags uncomputed by X-measurement.  IonQ Alg 2.
+
+    After the reduction the overflow flag equals [y < x] AND [y != 0] and the
+    x + y = q flag equals [y < x] AND [y == 0], both functions of the final
+    registers.  Algorithm 11 clears them with comparisons; here each is
+    measured, and only on outcome 1 -- half the time -- is its predicate
+    applied as a *phase*.  Worst case the same comparisons; on average half.
+    Approximate on the top msbs bits, exactly like Algorithm 11."""
+    import ec_mbu as MB
+    pm = pseudo_mersenne(q)
+    assert pm, f"q = {q} is not pseudo-Mersenne"
+    u, f = pm
+    ctx, n = m.ctx, len(y)
+    assert u == n
+    msbs = min(n, msbs or max(2, n // 2))
+    lsbs = lsbs or min(n, 2 * max(1, f.bit_length()) + 8)
+
+    ax, ay = m.anc(1, "ax"), m.anc(1, "ay")
+    sc = m.anc(n + 1, "sc")
+    A.add(ctx, x + ax, y + ay, sc)                   # ay = overflow
+    m.free(sc)
+    e = m.anc(1, "e")
+    eq_top(m, y, q, msbs, [e[0]])                    # e = [sum == q]
+    for i in range(n):
+        if (q >> i) & 1:
+            ctx.cx(e[0], y[i])
+    cp2, sc2 = m.anc(lsbs, "cp2"), m.anc(lsbs, "sc2")
+    A.cadd_const(ctx, ay[0], Reg(list(y[:lsbs])), f, cp2, sc2)
+    m.free(cp2, sc2)
+
+    data = list(x) + list(y)
+    nanc = 2 + msbs + 1
+
+    def make(which, as_phase):
+        def build(qc, qs):
+            from ec_gates import Ctx
+            c = Ctx(qc, "and")
+            xx, yy, fl, anc = qs[:n], qs[n:2 * n], qs[2 * n], qs[2 * n + 1:]
+            _flag_predicates(c, xx, yy, msbs, anc)
+            t1, t2 = anc[0], anc[1]
+            if which == "ay":
+                c.x(t2)                              # [y < x] AND NOT [y == 0]
+            if as_phase:
+                c.cz(t1, t2)
+            else:
+                c.ccx(t1, t2, fl)
+            if which == "ay":
+                c.x(t2)
+            _flag_predicates(c, xx, yy, msbs, anc)
+        return build
+
+    MB.mbu_flag(m, ay[0], data, make("ay", False), make("ay", True), nanc=nanc)
+    MB.mbu_flag(m, e[0], data, make("e", False), make("e", True), nanc=nanc)
+    m.free(ax, ay, e)
+
+
+def csignadd_pm_mbu(m, e, x, y, q, lsbs=None, msbs=None):
+    """`csignadd_pm` on the measured-flag adder (IonQ Sec VI + Alg 2)."""
+    n = len(y)
+    msbs = msbs or max(2, n // 2)
+    _swap_zero_q(m, e, y, q, msbs)
+    for b in y:
+        m.ctx.cx(e, b)
+    modadd_pm_mbu(m, x, y, q, lsbs, msbs)
+    for b in y:
+        m.ctx.cx(e, b)
+    _fix_zero_q(m, e, y, q, msbs)

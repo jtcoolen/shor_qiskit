@@ -28,7 +28,8 @@ EC="test_ec_classical test_ec_quantum test_ec_arith test_ec_kaliski
     test_ec_pointadd test_ec_shor test_ec_opt106 test_ec_opt1128 test_ec_pbt
     test_ec_regress test_ec_mbu test_ec_window_cfg
     test_ec_signed test_ec_gcd test_ec_square
-    test_ec_windowed test_ec_padd_mont"
+    test_ec_windowed test_ec_padd_mont test_ec_opt
+    test_hier"
 
 # Part VII of shor-complete.tex is generated from bench/ec_ablation.json; this
 # asserts the document still matches what the benchmark measured.

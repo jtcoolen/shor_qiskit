@@ -150,3 +150,100 @@ def csub_square_generic(m, ctrl, src, acc, p):
                       lambda mm, v: MA.modhalf(mm, v, p), sub)
     m.emit_inverse(compute)
     m.free(fl, z)
+
+
+# --- ECDSA.Fail Sec 5.3.4: one Karatsuba split, applied square by square ------
+def _apply_shifted(m, ctrl, v, s, acc, q, sign, dbl, half):
+    """acc <- acc + sign * v * 2^s (mod q), q = 2^n - f, v a quantum integer.
+
+    v 2^s splits at bit n into lo (v's low n - s bits above s zeros) and hi
+    (the rest, worth hi * 2^n == hi * f): one modular add of lo, and f * hi by
+    the doubling chain.  No gates for the shift -- it is a relabelling."""
+    u, f = AX.pseudo_mersenne(q)
+    n = len(acc)
+    add = (lambda mm, c, x, a: (MA.modadd(mm, x, a, q) if c is None else MA.cmodadd(mm, c, x, a, q))) \
+        if sign > 0 else \
+        (lambda mm, c, x, a: (MA.modsub(mm, x, a, q) if c is None else MA.cmodsub(mm, c, x, a, q)))
+    lo_bits = list(v[:max(0, n - s)])
+    zeros = m.anc(s + (n - s - len(lo_bits)), "sh") if s or len(lo_bits) < n - s else []
+    lo = Reg(list(zeros[:s]) + lo_bits + list(zeros[s:]), "lo")
+    add(m, ctrl, lo, acc)
+    hi_bits = list(v[n - s:]) if len(v) + s > n else []
+    if hi_bits:
+        _add_times_small(m, ctrl, hi_bits, f, acc, q, add, dbl, half)
+    if len(zeros):
+        m.free(zeros)
+
+
+def _add_times_small(m, ctrl, bits, c, acc, q, add, dbl, half):
+    """acc <- acc (+/-) c * v for a short quantum integer v (its `bits`).
+
+    When v 2^b fits in n bits for every set bit b of c, c v is a sum of
+    *shifted copies* -- relabellings -- and costs popcount(c) modular
+    additions; otherwise fall back to the doubling chain."""
+    n = len(acc)
+    if len(bits) + c.bit_length() - 1 <= n:
+        for b in range(c.bit_length()):
+            if (c >> b) & 1:
+                z = m.anc(n - len(bits), "sh")
+                reg = Reg(list(z[:b]) + list(bits) + list(z[b:]), "shift")
+                add(m, ctrl, reg, acc)
+                m.free(z)
+        return
+    padq = m.anc(n - len(bits), "hp")
+    _csub_times_const(m, ctrl, Reg(list(bits) + list(padq), "hi"), c, acc, q, dbl, half, add)
+    m.free(padq)
+
+
+def csub_square_karatsuba_pm(m, ctrl, src, acc, q, lsbs=None, msbs=None):
+    """acc <- acc - src^2 mod q, q = 2^n - f, by one Karatsuba split.
+
+    src = L + 2^h H.  With A = L^2, B = H^2, C = (L + H)^2 and c2 = 2^(2h) mod q,
+        -src^2 == (1 - 2^h) A  - 2^h C  + (2^h - c2) B      (mod q)
+    and each square is built, applied straight into acc, and unbuilt in turn,
+    so no 2n-bit product ever exists (ECDSA.Fail's order: C, then A, then B).
+    Three squares of ~n/2 bits against one of n: 3/4 of the squaring ANDs."""
+    pm = AX.pseudo_mersenne(q)
+    assert pm, f"{q} is not pseudo-Mersenne"
+    n = len(src)
+    h = (n + 1) // 2
+    L, H = Reg(list(src[:h]), "L"), Reg(list(src[h:]), "H")
+    c2 = pow(2, 2 * h, q)
+    dbl = lambda mm, v: AX.moddbl_pm(mm, v, q, lsbs)
+    half = lambda mm, v: AX.modhalf_pm(mm, v, q, lsbs)
+
+    def with_square(x, body):
+        z = m.anc(2 * len(x) + 1, "kz")
+        sqr_int(m, x, z)
+        body(Reg(list(z[:2 * len(x)]), "sq"))
+        m.emit_inverse(sqr_int, m, x, z)
+        m.free(z)
+
+    # C = (L + H)^2:  acc -= 2^h C
+    sreg = m.anc(h + 1, "LH")
+    for a, b in zip(L, sreg):
+        m.ctx.cx(a, b)
+    zpad = m.anc(h + 1 - len(H), "hz")
+    sc = m.anc(h, "ad")
+    A.add(m.ctx, Reg(list(H) + list(zpad)), sreg, sc)
+    m.free(sc)
+    with_square(sreg, lambda C: _apply_shifted(m, ctrl, C, h, acc, q, -1, dbl, half))
+    sc = m.anc(h, "ad")
+    A.sub(m.ctx, Reg(list(H) + list(zpad)), sreg, sc)
+    m.free(sc, zpad)
+    for a, b in zip(L, sreg):
+        m.ctx.cx(a, b)
+    m.free(sreg)
+
+    # A = L^2:  acc += 2^h A - A
+    def appA(Asq):
+        _apply_shifted(m, ctrl, Asq, h, acc, q, +1, dbl, half)
+        _apply_shifted(m, ctrl, Asq, 0, acc, q, -1, dbl, half)
+    with_square(L, appA)
+
+    # B = H^2:  acc += 2^h B - c2 B
+    def appB(Bsq):
+        _apply_shifted(m, ctrl, Bsq, h, acc, q, +1, dbl, half)
+        sub = lambda mm, c, x, a: (MA.modsub(mm, x, a, q) if c is None else MA.cmodsub(mm, c, x, a, q))
+        _add_times_small(m, ctrl, list(Bsq), c2, acc, q, sub, dbl, half)
+    with_square(H, appB)

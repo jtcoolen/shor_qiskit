@@ -662,3 +662,12 @@ def ecdlp_postprocess_short(counts, order, bits_k, bits_l, curve, P, Q, radius=N
             if ok_k[k]:
                 votes[k] = votes.get(k, 0.0) + c
     return sorted(votes.items(), key=lambda kv: -kv[1])
+
+
+# secp256k1 (SEC 2): the curve the 2026 ECDLP estimates target.  Classical
+# arithmetic on it is plain Python integers; the circuits are only ever
+# *counted* at this size (hier.py), never simulated.
+SECP256K1 = Curve(2**256 - 2**32 - 977, 0, 7, "secp256k1")
+SECP256K1_G = Point(0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
+                    0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8)
+SECP256K1_N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141

@@ -151,10 +151,46 @@ def test_pm():
     ok("q = 127: x -> x/2 mod q on every x")
 
 
+def test_mbu_flags():
+    section("IonQ Alg 2: the adder's flags uncomputed by measurement")
+    import ec_mbu as MB
+    for q in (61, 127):
+        n = q.bit_length()
+        fails, costs = {}, {}
+        for lab, fn in (("Alg 11", lambda m, x, y: AX.cmodadd_pm_q(m, None, x, y, q, msbs=n)),
+                        ("measured flags", lambda m, x, y: AX.modadd_pm_mbu(m, x, y, q, msbs=n))):
+            m = Machine("and")
+            x, y = m.alloc(n, "x"), m.alloc(n, "y")
+            fn(m, x, y)
+            bad = set()
+            for xv in range(q):
+                for yv in range(0, q, 2):
+                    try:
+                        if run(m, {x: xv, y: yv})(y) != (xv + yv) % q:
+                            bad.add((xv, yv))
+                    except SimError:
+                        bad.add((xv, yv))
+            fails[lab] = bad
+            c = __import__("ec_cost").count(m)
+            costs[lab] = (c["toffoli_paper"], c["toffoli_paper"] - c["mbu_toffoli"] / 2)
+            if lab == "measured flags":
+                ins = [{x: xv, y: yv} for xv in range(0, q, 5) for yv in range(0, q, 7)]
+                MB.live_coherent(m.qc, ins, [MB.all_ones_outcome(), MB.random_outcomes(3)],
+                                 checks=m.checks)
+        assert fails["Alg 11"] == fails["measured flags"], q
+        (w0, e0), (w1, e1) = costs["Alg 11"], costs["measured flags"]
+        print(f"      q={q}: same {len(fails['Alg 11'])} failures; Alg 11 {w0} Toffoli-eq, "
+              f"measured flags {w1} worst / {e1:.0f} expected")
+    ok("measured flags: same answers as Algorithm 11, phase-correct run literally; "
+       "not cheaper here -- recomputing each predicate as a phase costs what the "
+       "static clearing does (IonQ's saving needs a cheaper delta-bit comparator)")
+
+
 def main():
     test_integer()
     test_csignadd()
     test_pm()
+    test_mbu_flags()
 
 
 if __name__ == "__main__":

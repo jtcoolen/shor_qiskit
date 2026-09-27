@@ -798,3 +798,120 @@ def base5_record_qubits(steps):
     """Transcript qubits with the codec: 7 per 3 symbols, 5 per 2."""
     q3, r = divmod(steps, 3)
     return 7 * q3 + (5 if r == 2 else 3 * r)
+
+
+class Jump2Packed(Jump2):
+    """Jump-2 with the base-5 transcript codec wired in (ECDSA.Fail Sec 5.3.2).
+
+    Each group of three macro-step symbols (9 qubits, 5^3 = 125 reachable
+    patterns) is packed into 7 as soon as it is recorded, and the two freed
+    qubits go back to the pool for the next records -- the transcript grows at
+    7/3 qubits per step instead of 3.  The replay unpacks a group onto fresh
+    qubits and repacks it; the reverse walk unpacks it by claiming the same two
+    qubits back, as `Dialog`'s Fig. 1 packing does.  The codec here is a
+    generic permutation circuit (~500 Toffolis per group), far from
+    ECDSA.Fail's hand-built one: this measures the qubit saving, not the codec.
+    """
+
+    def _step(self, m, U, V, rec, t1, i):
+        """Macro-step i alone (the body of `_walk_body` for one index)."""
+        ctx, w = m.ctx, len(U)
+        b, s, s2 = rec
+        if i == 0:
+            ctx.cx(V[0], t1[0])
+            ctx.x(t1[0])
+            self._chalve(ctx, t1[0], V)
+        else:
+            for j in range(w - 1):
+                ctx.swap(V[j], V[j + 1])
+        ctx.cx(V[0], s2[0])
+        ctx.x(s2[0])
+        self._chalve(ctx, s2[0], V)
+        ctx.cx(V[0], b[0])
+        if i == 0:
+            ctx.cx(b[0], s[0])
+        else:
+            sc = m.anc(w, "sc")
+            A.cgt_fused(ctx, b[0], U, V, s[0], sc)
+            m.free(sc)
+        for j in range(w):
+            ctx.cswap(s[0], U[j], V[j])
+        cp, sc = m.anc(w, "cp"), m.anc(w, "sc")
+        A.csub(ctx, b[0], U, V, cp, sc)
+        m.free(cp, sc)
+
+    @staticmethod
+    def _wires(recs, g):
+        return [q[0] for j in range(3 * g, 3 * g + 3) for q in recs[j]]
+
+    def record(self, m, x, q):
+        U, hi, V = self._registers(m, x)
+        A.encode_const(m.ctx, U, q)
+        t1 = m.anc(1, "t1")
+        recs, spares = [], {}
+        for i in range(self.L(len(x))):
+            rec = tuple(m.anc(1, nm) for nm in ("b", "s", "s2"))
+            recs.append(rec)
+            self._step(m, U, V, rec, t1, i)
+            if i % 3 == 2:
+                g = i // 3
+                spares[g] = base5_pack(m, self._wires(recs, g))
+                m.free(Reg(spares[g]))
+        m.ctx.x(U[0])
+        m.free(U, hi)
+        return recs, t1, spares
+
+    def _unpack(self, m, recs, g, spares, qubits):
+        """Unpack group g onto `qubits` (two zero qubits standing in for the
+        spares); the group's last two record wires become those qubits."""
+        w = self._wires(recs, g)
+        kept, old = w[:7], w[7:]
+        new = list(qubits)
+        # the last symbol's (s, s2) were the spare wires: rewire them
+        b8 = recs[3 * g + 2][0]
+        recs[3 * g + 2] = (b8, Reg([new[0]]), Reg([new[1]]))
+        m.emit_inverse(base5_pack, m, kept + new)
+
+    def unrecord(self, m, x, q, recs, t1, spares):
+        reserved = {s_ for sp in spares.values() for s_ in sp}
+        U = list(_anc_excluding(m, len(x) + 1, reserved, "u"))
+        hi = _anc_excluding(m, 1, reserved, "vhi")
+        V = list(x) + list(hi)
+        m.ctx.x(U[0])
+        for i in reversed(range(len(recs))):
+            if i % 3 == 2 and (i // 3) in spares:
+                g = i // 3
+                self._unpack(m, recs, g, spares, m.claim(spares[g]))
+            m.emit_inverse(self._step, m, Reg(U), Reg(V), recs[i], t1, i)
+            m.free(*recs[i])
+        A.encode_const(m.ctx, Reg(U), q)
+        m.free(Reg(U), hi, t1)
+
+    def mul(self, m, x, y, q):
+        arith = self.arith or Exact(q)
+        n = len(x)
+        recs, t1, spares = self.record(m, x, q)
+        reserved = {s_ for sp in spares.values() for s_ in sp}
+        z = _anc_excluding(m, n, reserved, "z")
+        for i in reversed(range(len(recs))):
+            g = i // 3
+            if i % 3 == 2 and g in spares:
+                fresh = _anc_excluding(m, 2, reserved, "u5")
+                self._unpack(m, recs, g, spares, fresh)
+            b, s, s2 = recs[i]
+            arith.cadd(m, b[0], y, z)
+            for a_, c_ in zip(y, z):
+                m.ctx.cswap(s[0], a_, c_)
+            if i == 0:
+                MA.cmoddbl(m, t1[0], z, q)
+            else:
+                arith.dbl(m, z)
+            MA.cmoddbl(m, s2[0], z, q)
+            if i % 3 == 0 and g in spares:
+                spares[g] = base5_pack(m, self._wires(recs, g))
+                m.free(Reg(spares[g]))
+                reserved = {s_ for sp in spares.values() for s_ in sp}
+        for a_, c_ in zip(y, z):
+            m.ctx.swap(a_, c_)
+        m.free(z)
+        self.unrecord(m, x, q, recs, t1, spares)

@@ -196,12 +196,56 @@ def test_arith():
     ok("S + [u]P + [v]Q (+ the mask shift) on every sampled non-exceptional input")
 
 
+def test_oracle_success():
+    section("the arithmetic oracle's own success probability, exactly")
+    from ec_sim import SimError
+    name, curve, P, k = CURVES[1]
+    order = curve.point_order(P)
+    Q = curve.mul(k, P)
+    for masks in (False, True):
+        m, info = S.ecdlp_windowed(curve, P, Q, order, 2, masks=masks,
+                                   oracle="arith", seed=5)
+        kr, lr, px, py = info["regs"]
+        bk, bl = info["bits_k"], info["bits_l"]
+        tP, tQ = info["tables"]
+        S0, shift = info["offset"], info["shift"]
+        f, bad = [], 0
+        for u in range(1 << bk):
+            row = []
+            for v in range(1 << bl):
+                ideal = curve.add(curve.add(curve.add(S0, curve.mul(u, P)),
+                                            curve.mul(v, Q)), shift)
+                try:
+                    rd = run(m, {kr: u, lr: v})
+                    got = (rd(px), rd(py))
+                except SimError:
+                    got = ("dirty", u, v)          # worst case: fully distinct
+                if ideal.inf or got != (ideal.x, ideal.y):
+                    bad += 1
+                row.append(got)
+            f.append(row)
+        pf = bad / (1 << (bk + bl))
+        P0 = ST.success_probability(ST.ecdlp_probs(order, k, bk), order, k, bk, bl)
+        Pt = ST.success_probability(ST.ecdlp_probs_oracle(f, bk, bl), order, k, bk, bl)
+        bound = max(0.0, math.sqrt(P0) - 2 * pf) ** 2
+        flat = ST.success_probability(np.full((1 << bk, 1 << bl), 1 / (1 << (bk + bl))),
+                                      order, k, bk, bl)
+        print(f"      {name} masks={masks!s:<5}: {100*pf:.1f}% of (u, v) wrong; "
+              f"success {100*Pt:.1f}% (ideal {100*P0:.1f}%, IonQ bound {100*bound:.1f}%, "
+              f"flat noise {100*flat:.1f}%)")
+        assert Pt >= bound - 1e-12 and Pt > 1.5 * flat
+    ok("the real oracle's success probability, computed from what it actually "
+       "outputs on every input: above IonQ's bound (vacuous at this toy order, "
+       "where most inputs hit an exceptional case) and well above noise")
+
+
 def main():
     test_windowed_qft()
     test_distributions()
     test_dropped()
     test_multikey()
     test_arith()
+    test_oracle_success()
 
 
 if __name__ == "__main__":

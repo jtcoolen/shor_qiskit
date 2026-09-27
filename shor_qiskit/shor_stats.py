@@ -143,3 +143,48 @@ def ecdlp_probs2(order, k, bits_k, bits_l):
         amp = Fa.T @ (z == zz).astype(float) @ Fb
         probs += np.abs(amp) ** 2
     return probs / (qa * qb) ** 2
+
+
+def ecdlp_probs_oracle(f, bits_k, bits_l, phase=None):
+    """P[j1, j2] for the circuit that *actually* computes f(u, v).
+
+    `f[u][v]` is whatever the oracle leaves in the accumulator on basis input
+    (u, v) -- correct, or garbage on an exceptional input -- as any hashable
+    value; `phase[u][v]` its phase (default +1).  The output is exact:
+    group the (u, v) by the value they reach, Fourier transform each group,
+    sum the squared amplitudes.  This is how an imperfect oracle's success
+    probability is computed without trusting any bound."""
+    qa, qb = 1 << bits_k, 1 << bits_l
+    u, v = np.arange(qa), np.arange(qb)
+    Fa = np.exp(-2j * np.pi * np.outer(u, u) / qa)
+    Fb = np.exp(-2j * np.pi * np.outer(v, v) / qb)
+    groups = {}
+    for a in range(qa):
+        for b in range(qb):
+            groups.setdefault(f[a][b], []).append((a, b))
+    probs = np.zeros((qa, qb))
+    for members in groups.values():
+        M = np.zeros((qa, qb), dtype=complex)
+        for a, b in members:
+            M[a, b] = 1 if phase is None else phase[a][b]
+        amp = Fa.T @ M @ Fb
+        probs += np.abs(amp) ** 2
+    return probs / (qa * qb) ** 2
+
+
+def success_probability(P, order, k, bits_k, bits_l, curve=None, Pt=None, Q=None):
+    """Probability that one run's (j1, j2) yields k: equal registers use
+    `ecdlp_postprocess` (no search), unequal ones the verified search."""
+    s = 0.0
+    for j1 in range(P.shape[0]):
+        for j2 in range(P.shape[1]):
+            if P[j1, j2] < 1e-15:
+                continue
+            if bits_k == bits_l:
+                c = C.ecdlp_postprocess({(j1, j2): 1}, order, bits_k, search=0)
+            else:
+                c = C.ecdlp_postprocess_short({(j1, j2): 1}, order, bits_k, bits_l,
+                                              curve, Pt, Q)
+            if c and c[0][0] == k:
+                s += P[j1, j2]
+    return s

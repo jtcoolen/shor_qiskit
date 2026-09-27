@@ -333,9 +333,15 @@ def masked_window_points(curve, base, w, rng, avoid=()):
     `avoid` lists points the entries must also stay clear of.
     """
     from ec_classical import Point
-    pts = [P for P in curve.points() if not P.inf]
+    small = curve.p < (1 << 24)
+    pts = [P for P in curve.points() if not P.inf] if small else None
     while True:
-        mu = rng.choice(pts)
-        T = [curve.add(mu, curve.mul(i, base)) for i in range(1 << w)]
+        # small curves: any point; large ones (where the points cannot be
+        # listed): a random multiple of the base, which avoids O w.h.p.
+        mu = rng.choice(pts) if small else curve.mul(rng.randrange(1 << 64, 1 << 128), base)
+        T, acc = [], mu
+        for _ in range(1 << w):                  # mu + [i] base, incrementally
+            T.append(acc)
+            acc = curve.add(acc, base)
         if not any(P.inf for P in T) and not any(P in avoid for P in T):
             return [Point(P.x, P.y, P.inf) for P in T], mu

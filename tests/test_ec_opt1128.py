@@ -85,7 +85,7 @@ def main():
     assert 2.35 < w < 2.45, w
     ok(f"asymptotically 2.355n record qubits (measured {w:.3f}n at n=4096)")
 
-    section("approximate arithmetic (Alg. 6, 7, 9, 10)")
+    section("approximate arithmetic (Alg. 6, 7, 9, 10, 11)")
     print("      these circuits are SUPPOSED to fail sometimes -- the question")
     print("      is whether the failure rate tracks 2^-msbs, and it does:")
 
@@ -132,6 +132,40 @@ def main():
               f"{na} ANDs vs {ands(me)} exact")
     ok("Alg 7 pseudo-Mersenne doubling costs under half the exact circuit")
 
+    def fails_cadd(fn, q, **kw):
+        n = q.bit_length()
+        m = Machine("and")
+        c = m.alloc(1, "c")
+        x, y = m.alloc(n, "x"), m.alloc(n, "y")
+        fn(m, c[0], x, y, q, **kw)
+        bad = set()
+        for t in (0, 1):
+            for a in range(q):
+                for b in range(q):
+                    try:
+                        rd = run(m, {c: t, x: a, y: b})
+                        if rd(y) != ((a + b) % q if t else b) or rd(x) != a:
+                            bad.add((t, a, b))
+                    except SimError:
+                        bad.add((t, a, b))
+        return bad, ands(m)
+
+    for q in (31, 61) + ((127,) if scope(0, 1) else ()):
+        n = q.bit_length()
+        u, f = AX.pseudo_mersenne(q)
+        gap = {(1, a, b) for a in range(q) for b in range(q) if q < a + b < 1 << u}
+        wrap = {(1, a, q - a) for a in range(1, q)}
+        b10, na10 = fails_cadd(AX.cmodadd_pm, q, msbs=n)
+        b11, na11 = fails_cadd(AX.cmodadd_pm_q, q, msbs=n)
+        assert b10 == gap | wrap, (q, len(b10))
+        assert b11 == gap, (q, len(b11))
+        print(f"      q={q}=2^{u}-{f}, msbs=n: Alg 10 fails {len(b10):>3}/{2*q*q} "
+              f"({na10} ANDs), Alg 11 fails {len(b11):>3} ({na11} ANDs)")
+    ok("at full width Alg 10 fails on exactly x+y = q and the sums strictly "
+       "between q and 2^u; Alg 11 only on the latter -- so for a Mersenne prime "
+       "it is exact, including ctrl=0, y=0, which a plain all-zeros flag clear "
+       "gets wrong")
+
     section("approximate arithmetic composed into the dialog multiplier")
     print("      per-operation error compounds over the replay's ~1.4n")
     print("      iterations, which is the whole reason 1128 picks msbs so large:")
@@ -165,6 +199,84 @@ def main():
        "~12% per operation, which compounds to ~80% over the whole multiplier "
        "-- at n=256 the paper's 40-50 bits give ~2^-40 per operation, so even "
        "360 iterations stay negligible")
+
+    section("pseudo-Mersenne arithmetic composed into the dialog multiplier")
+    print("      x + y = q is not a rare input to the replay's adder: r must end")
+    print("      at 0 and only a swap writes r, so the last swap moves out a 0")
+    print("      that the addition before it made -- as r + s = q exactly")
+    for q in (61, 127, 2**64 - 59):
+        n = q.bit_length()
+        it = C.eea_iterations(n)
+        for _ in range(200):
+            xv, yv = r.randrange(1, q), r.randrange(1, q)
+            bits, _, _ = C.eea_dialog(q, xv, it)
+            rr, ss, hits = yv, 0, []
+            for i in reversed(range(it)):
+                b0, b0b1 = bits[i]
+                ss = 2 * ss % q
+                if b0:
+                    if rr + ss == q:
+                        hits.append(i)
+                    ss = (ss + rr) % q
+                if b0b1:
+                    rr, ss = ss, rr
+            v2 = (xv & -xv).bit_length() - 1
+            assert hits == [v2], (q, xv, yv, hits)
+    ok("every multiplication with y != 0 hits x + y = q exactly once, at the "
+       "replay step mirroring the dialog's first swap: v2(x)+1 steps from the "
+       "END of the replay, the very last one whenever x is odd")
+
+    def touches_gap(q, xv, yv):
+        """Does the exact replay ever give Alg 7 or Alg 11 a value in the gap
+        between q and 2^u -- one that does not reach bit u, so is not reduced?"""
+        n = q.bit_length()
+        bits, _, _ = C.eea_dialog(q, xv, C.eea_iterations(n))
+        rr, ss = yv, 0
+        for b0, b0b1 in reversed(bits):
+            if q <= 2 * ss < 1 << n:
+                return True
+            ss = 2 * ss % q
+            if b0:
+                if q < rr + ss < 1 << n:
+                    return True
+                ss = (ss + rr) % q
+            if b0b1:
+                rr, ss = ss, rr
+        return False
+
+    for q in (61, 127):
+        n = q.bit_length()
+        u, f = AX.pseudo_mersenne(q)
+        cases = [(xv, yv) for xv in range(1, q)
+                 for yv in range(0, q, scope(q // 4 + 1, 1))]
+        want = {"Alg 10": {c for c in cases if c[1]},
+                "Alg 11": {c for c in cases if touches_gap(q, *c)}}
+        for label, fn in (("Alg 10", AX.cmodadd_pm), ("Alg 11", AX.cmodadd_pm_q)):
+            m = Machine("and")
+            x, y = m.alloc(n, "x"), m.alloc(n, "y")
+            E.inplace_mul(
+                m, x, y, q,
+                dbl=lambda mm, reg: AX.moddbl_pm(mm, reg, q),
+                cadd=lambda mm, c, a, b: fn(mm, c, a, b, q, msbs=n))
+            bad = set()
+            for xv, yv in cases:
+                try:
+                    rd = run(m, {x: xv, y: yv})
+                    if rd(y) != xv * yv % q or rd(x) != xv:
+                        bad.add((xv, yv))
+                except SimError:
+                    bad.add((xv, yv))
+            rate = len(bad) / len(cases)
+            assert bad == want[label], (q, label, len(bad), len(want[label]))
+            if label == "Alg 11" and f == 1:
+                assert rate == 0.0, (q, rate)
+            print(f"      q={q}=2^{u}-{f}  Alg 7 + {label}, msbs=n: "
+                  f"{len(bad):>4}/{len(cases)} = {100*rate:>5.1f}% failure, "
+                  f"{ands(m):>5} ANDs")
+    ok("Alg 7 + Alg 10 fails on every input with y != 0.  Alg 7 + Alg 11 is "
+       "exact at q=127, and at q=61 fails on exactly the inputs whose replay "
+       "lands a value between q and 2^u -- the pseudo-Mersenne approximation "
+       "itself, ~f/2^u per operation, and nothing else")
 
     section("windowed point addition (Alg. 1)")
     curve = C.CLASSIQ

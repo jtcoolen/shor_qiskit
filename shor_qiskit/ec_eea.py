@@ -131,7 +131,9 @@ def bezout_replay(m, r, s, recs, q, dbl=None, cadd=None):
 
     Started at (y, 0) this ends at (0, y x mod q).  `dbl` and `cadd` default to
     the exact modular doubling and controlled modular addition; `ec_approx`
-    supplies the cheaper approximate ones.
+    supplies the cheaper approximate ones.  The same `cadd` runs on every
+    iteration, and once per multiplication it is handed r + s = q exactly (see
+    `ec_approx`), so a pseudo-Mersenne `cadd` must be Algorithm 11, not 10.
     """
     dbl = dbl or (lambda mm, reg: MA.moddbl(mm, reg, q))
     cadd = cadd or (lambda mm, c, a, b: MA.cmodadd(mm, c, a, b, q))

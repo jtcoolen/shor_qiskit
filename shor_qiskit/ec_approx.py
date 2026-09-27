@@ -26,11 +26,18 @@ actual error probability against the exact circuits in `ec_modarith` instead --
 per operation, and composed into `ec_eea.inplace_mul` -- so the msbs and lsbs
 budgets can be chosen from data rather than asserted.
 
-Algorithm 11 of [1128] -- the pseudo-Mersenne controlled addition that also
-handles x + y = q -- is not built here.  That case cannot arise from random
-inputs; it arises only in the first few iterations of the Bezout replay, and
-`ec_eea.bezout_replay` handles it by using the exact adder there, which is the
-same fix at negligible cost.
+One set of inputs is not small, though.  Algorithm 10 cannot reduce x + y = q
+(the sum does not reach bit u), and inside the Bezout replay that is not a
+random event: r must end at 0 and only a swap writes r, so the last swap moves
+out a 0 that the addition before it produced -- as r + s = q exactly.  Every
+multiplication with y != 0 hits it once, at the replay step mirroring the
+dialog's first swap: v2(x)+1 steps from the *end* of the replay, the last step
+whenever x is odd.  `ec_eea.bezout_replay` uses one `cadd` for every iteration,
+so composed with Alg 10 the multiplier fails on every such input.  Algorithm 11
+(`cmodadd_pm_q`) handles the case and is what the replay needs; Alg 10 is kept
+because it is the paper's cheaper circuit and the per-operation baseline.
+(An exact adder on only the last k replay steps would also work, but only with
+probability 1 - 2^-k, since v2(x) is geometric.)
 """
 
 import ec_adders as A
@@ -67,6 +74,48 @@ def pseudo_mersenne(q):
     u = q.bit_length()
     f = (1 << u) - q
     return (u, f) if f.bit_length() * 2 < u else None
+
+
+def all_ones(m, qs, outs):
+    """out ^= AND of the qubits `qs`, for every out in `outs`.
+
+    A chain of len(qs)-1 temporary ANDs, read out by CNOT and uncomputed --
+    `ec_modarith.is_zero` without the negation.  Extra targets are free.
+    """
+    ctx, k = m.ctx, len(qs)
+    if k == 1:
+        for o in outs:
+            ctx.cx(qs[0], o)
+        return
+    a = m.anc(k - 1, "all")
+    ctx.and_(qs[0], qs[1], a[0])
+    for i in range(2, k):
+        ctx.and_(a[i - 2], qs[i], a[i - 1])
+    for o in outs:
+        ctx.cx(a[k - 2], o)
+    for i in range(k - 1, 1, -1):
+        ctx.and_dg(a[i - 2], qs[i], a[i - 1])
+    ctx.and_dg(qs[0], qs[1], a[0])
+    m.free(a)
+
+
+def eq_top(m, reg, value, k, outs, also=()):
+    """out ^= [the top k bits of reg equal those of value] AND all of `also`.
+
+    X gates turn "equals the constant" into "all ones".  For q = 2^u - f the top
+    bits of q *are* all ones -- as long as k stays inside that leading run -- so
+    `eq_top(m, y, q, k, ...)` is [1128]'s all(y_reg[-msbs:]) with no X gates at
+    all.  With value = 0 it is the all-zeros test.
+    """
+    W = len(reg)
+    k = min(k, W)
+    top, c = top_bits(reg, k), top_const(value, W, k)
+    flip = [top[i] for i in range(k) if not (c >> i) & 1]
+    for qb in flip:
+        m.ctx.x(qb)
+    all_ones(m, list(also) + list(top), outs)
+    for qb in flip:
+        m.ctx.x(qb)
 
 
 # --- Algorithm 6: approximate modular doubling ------------------------------
@@ -158,7 +207,8 @@ def cmodadd_approx(m, ctrl, x, y, q, msbs=None):
 def cmodadd_pm(m, ctrl, x, y, q, lsbs=None, msbs=None):
     """y <- (y + x) mod q when ctrl, for q = 2^u - f.  [1128] Algorithm 10.
 
-    Does not handle x + y == q; see the module docstring.
+    Does not handle x + y == q, which the Bezout replay hits once in every
+    multiplication; use `cmodadd_pm_q` there.  See the module docstring.
     """
     pm = pseudo_mersenne(q)
     assert pm, f"q = {q} is not pseudo-Mersenne"
@@ -188,6 +238,76 @@ def cmodadd_pm(m, ctrl, x, y, q, lsbs=None, msbs=None):
         ctx.ccx(ctrl, t[0], ay[0])
     A.lt_uint(ctx, top_bits(y, msbs), top_bits(x, msbs), t[0], sc)
     m.free(t, cp, sc, ax, ay)
+
+
+# --- Algorithm 11: the same, also handling x + y == q ----------------------
+def cmodadd_pm_q(m, ctrl, x, y, q, lsbs=None, msbs=None):
+    """y <- (y + x) mod q when ctrl, for q = 2^u - f.  [1128] Algorithm 11.
+
+    Algorithm 10 plus the one sum it gets wrong for certain.  x + y == q does
+    not reach bit u, so Alg 10 never reduces it and leaves q where 0 belongs.
+    Here it is caught by an all-ones test on the top bits -- q's top bits are
+    all ones -- and q is XORed out: CNOTs, because y *is* q, so y becomes 0.
+
+    Two departures from the paper's pseudocode, both gating a test on ctrl.
+    The all-ones test is ANDed with ctrl, since without the addition y < q can
+    never be q; this makes ctrl = 0 an exact identity at any msbs.  And the
+    flag has to be cleared again from the output: [1128] uses "are the top
+    bits of the answer all zero?", but the answer is also 0 whenever ctrl = 0
+    and y = 0 -- which is the call the Bezout replay makes on each of its
+    opening iterations (s = 0, b0 = 0), so the ungated form leaves the flag set
+    in every multiplication.  Here the zero test is gated on ctrl AND
+    [answer < x], the condition that already clears the overflow flag.  Both
+    reductions make the answer drop below x; the zero test tells them apart,
+    because the overflow one leaves the answer >= f > 0.
+
+    Cost over Alg 10: the two AND chains over the top bits, about 2 msbs
+    Toffoli-equivalents.  Accuracy: both top-bit tests can misfire, so at a
+    given msbs the failure rate on random inputs is a few times Alg 10's --
+    but still ~2^-msbs, and Alg 10 is certain to fail inside the replay.
+    """
+    pm = pseudo_mersenne(q)
+    assert pm, f"q = {q} is not pseudo-Mersenne"
+    u, f = pm
+    ctx, n = m.ctx, len(y)
+    assert u == n
+    msbs = msbs or max(2, n // 2)
+    lsbs = lsbs or min(n, 2 * max(1, f.bit_length()) + 8)
+
+    ax, ay = m.anc(1, "ax"), m.anc(1, "ay")
+    xe, ye = x + ax, y + ay
+    cp, sc = m.anc(n + 1, "cp"), m.anc(n + 1, "sc")
+    if ctrl is None:
+        A.add(ctx, xe, ye, sc)
+    else:
+        A.cadd(ctx, ctrl, xe, ye, cp, sc)
+
+    e = m.anc(1, "e")
+    on = [] if ctrl is None else [ctrl]           # y < q alone: never q
+    eq_top(m, y, q, msbs, [e[0]], also=on)        # e = [sum == q]
+    for i in range(n):
+        if (q >> i) & 1:
+            ctx.cx(e[0], y[i])                    # y ^= q: q becomes 0
+
+    cp2, sc2 = m.anc(lsbs, "cp2"), m.anc(lsbs, "sc2")
+    A.cadd_const(ctx, ay[0], Reg(list(y[:lsbs])), f, cp2, sc2)  # += f on overflow
+    m.free(cp2, sc2)
+
+    t = m.anc(1, "t")
+    A.lt_uint(ctx, top_bits(y, msbs), top_bits(x, msbs), t[0], sc)
+    if ctrl is None:
+        c = t
+    else:
+        c = m.anc(1, "c")
+        ctx.and_(ctrl, t[0], c[0])
+    ctx.cx(c[0], ay[0])                           # either reduction: answer < x
+    eq_top(m, y, 0, msbs, [e[0], ay[0]], also=[c[0]])   # ...and == 0: it was e
+    if ctrl is not None:
+        ctx.and_dg(ctrl, t[0], c[0])
+        m.free(c)
+    A.lt_uint(ctx, top_bits(y, msbs), top_bits(x, msbs), t[0], sc)
+    m.free(t, e, cp, sc, ax, ay)
+
 
 # --- measuring the approximation --------------------------------------------
 # There is deliberately no generic failure-rate helper here.  The circuits in

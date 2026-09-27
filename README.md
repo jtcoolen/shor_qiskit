@@ -209,6 +209,7 @@ lineage, and where this stops:
 | 2019 | Gidney windowed arithmetic | **built, in full** |
 | 2021 | Gidney–Ekerå: Zalka coset representation | **built** (`coset.py`) |
 | 2021 | Gidney–Ekerå: oblivious carry runways | absent — depth only |
+| 2017–25 | Ekerå–Håstad short discrete logarithm (1.5n exponent qubits) | **built** (`ekera_hastad.py`) |
 | 2025 | Chevignard–Fouque–Schrottenloher: residue number system | absent |
 | 2025 | Gidney: approximate residue arithmetic + yoked surface codes | absent |
 
@@ -456,27 +457,81 @@ control, and when it is 0 every round is inert. n ANDs buy a controlled
 inversion, which is what makes 106 Fig 8's conditional division blocks
 affordable.
 
+## The 2026 optimisations (IonQ, ECDSA.Fail, Litinski, Babbush, the rest of 1128)
+
+Everything above implements [106] and [1128] as the papers print them.  This part adds
+the refinements that took the published cost of one 256-bit windowed point addition
+from ~2.6M Toffolis ([1128]) to ~1.4M (IonQ, arXiv:2609.05625), plus the GCD variants
+of ECDSA.Fail (arXiv:2609.09582), each as a *switch*
+next to the construction it refines, never in place of it: every default reproduces
+the old builder gate for gate, and `tests/test_ec_regress.py` pins every number in
+Part VII.
+
+| module | what it adds | source |
+|---|---|---|
+| `sparse_sim.py` | sparse state-vector simulator with phases, measurement, feed-forward and supplied outcomes; `assert_coherent` checks a measurement-based uncompute exactly, at any width | — |
+| `ec_mbu.py` | measurement-based uncomputation as logical gates (`LookupGate`, `UnlookupGate`, `PhaseFixGate`, `MbuFlagGate`) that the unitary machinery can simulate and invert; `run_live` performs the real X-measurements and repairs | [1128] §2, Litinski Fig 4b, IonQ Alg 6 |
+| | ANF lookup (2^w − w − 1 ANDs) and power-product *phaseup* (~2√L ANDs) | Gidney 2025 App A |
+| `depth.py` | Toffoli depth, reaction depth, expected (average-executed) Toffolis | — |
+| `ec_adders`, `ec_modarith`, `ec_approx` (additions) | conditionally-inverted adder `ci_add` (n−1 ANDs), fused comparator `cgt_fused` (n+1), top-bit comparison, signed modular add, IonQ's complement-trick signed add and approximate negation | IonQ §VI, §X.D |
+| `ec_window.windowed_point_add_cfg` | 3 lookups + 1 merged phase repair instead of 10 recomputed lookups; x/y loaded as one word; masked tables (no O entry, no control flag); freed x1/y1; serial loading; pluggable multiplier/squarer/negation | [1128] §2, IonQ Alg 4/6, ECDSA.Fail Era III |
+| `ec_gcd.py` | one interface, five GCDs: [1128]'s dialog with fused/top-bit comparisons, width schedule, **register sharing**, the real **5-Toffoli Fig. 1** packing and x-reuse; IonQ's **conditionally-inverted** walk and replay; ECDSA.Fail's **ping-pong** and **Jump-2** walks and its **base-5** transcript codec; exact / approximate / pseudo-Mersenne replay arithmetic | [1128] §3–4, IonQ §VI, ECDSA.Fail §5.3.1–3 |
+| `ec_square.py` | dedicated squarer (n(n+3)/2 ANDs) and a pseudo-Mersenne fold for step 10 | IonQ §VII.A, ECDSA.Fail §5.3.4 |
+| `ec_shor.ecdlp_windowed` | the full windowed circuit: w recycled control qubits (`semiclassical_iqft_windowed`), first window as a lookup, dropped trailing windows + search post-processing, IonQ's masks; `ecdlp_multikey_1c` reuses one P-half for many keys | [1128] §2, Babbush App A, Litinski §4, IonQ §IV |
+| `ekera_hastad.py` | factoring by a short discrete logarithm: 1.5n exponent qubits instead of 2n (s = 1) | Ekerå–Håstad, CFS 2024, Gidney 2025 |
+| `physical.py` | surface code + yoked storage + cultivation/CCZ-factory model; reproduces Gidney 2025's 897,864 qubits / 4.96 days from its inputs | Gidney 2025 §3.2 |
+
+**Measured at n = 256** (`bench/ec_project_256.py`: every coefficient is a gate count of a
+circuit built at n = 256 with secp256k1's prime and verified exactly at toy sizes):
+
+| | Toffoli-eq |
+|---|---:|
+| in-place multiplication, [1128] dialog as built before this | 1,955,276 |
+| … with fused 48-bit comparisons, width schedule, pseudo-Mersenne replay | 842,330 |
+| … IonQ conditionally-inverted walk, IonQ replay | **697,365** |
+| … ECDSA.Fail ping-pong (704 rounds) / Jump-2 (261 steps), as composed here | 917,565 / 1,161,099 |
+| square-subtract: general multiplier → dedicated squarer + fold | 1,050,623 → **79,160** |
+| lookups per addition (w = 16): 10 recomputed → 3 MBU loads + 1 repair | 1,310,700 → **197,364** |
+| **one windowed point addition**, before → after | **6,276,990 → 1,676,369** |
+| published: [1128] / IonQ | 2,588,963 / 1,392,608 |
+| **whole ECDLP-256**: 34 × before → 28 × after | 213M → **47M** |
+
+The "after" column takes the approximate settings (48-bit comparisons, the width
+schedule, pseudo-Mersenne arithmetic) at the papers' parameters; their failure rates are
+measured at toy sizes (`tests/test_ec_gcd.py`, `test_ec_signed.py`, `test_ec_square.py`),
+not at n = 256.  At toy sizes the fixed round budgets distort comparisons between GCDs
+(e.g. [1128]'s 1.413n + 2.4√n has a large margin at n = 6), which is why the table is built
+at n = 256.
+
+Things the sources get wrong or leave out, found while reproducing them:
+- IonQ's replay needs its 0 ↔ p swap *before* the complemented adder; without it every
+  e = 1, y = 0 step leaves an ancilla dirty (`ec_approx._swap_zero_q`).
+- ECDSA.Fail's ping-pong budget L = 2.75n is not a worst case: exhaustively, n = 16 needs
+  3.9n. `PingPong(rounds=...)` exposes it; the tests report the failure rate at 2.75n.
+- Gidney 2025's hot-qubit count "3f + 2ℓ + len m = 131" evaluates to 152 (926,256 qubits);
+  the published 897,864 uses 131.  Its "9.1 shots" is 9.2.
+- At toy N, the Gidney–Ekerå choice A = g^(N+1) puts d outside the short range and never
+  factors; Gidney 2025's A = g^(N−1) sometimes does (d is pinned only modulo ord g).
+
+Tests: `test_sparse_sim`, `test_depth`, `test_eh`, `test_physical`, `test_api_surface`
+(fast tier); `test_ec_regress`, `test_ec_mbu`, `test_ec_window_cfg`, `test_ec_signed`,
+`test_ec_gcd`, `test_ec_square`, `test_ec_windowed` (ec tier).
+
 ## What is not implemented
 
 Named rather than glossed:
 
-- **Register sharing** (1128 §3.1), where `u` and `v` shrink as the algorithm
-  proceeds and the freed qubits absorb the record, taking space from 2.83n to
-  2.12n. It is probabilistic; everything built here is exact.
-  `ec_eea.shrink_schedule` computes the widths it would use so `ec_cost` can
-  price it, and the gap is reported rather than hidden.
+- **Register sharing** (1128 §3.1) is built in `ec_gcd.Dialog(c_pad=..., share=True)`
+  (probabilistic, failure rate measured); `ec_eea` itself remains exact.  The
+  **5-Toffoli Fig. 1** packing is `ec_gcd.fig1_compress`; `ec_eea.compress_records`
+  keeps its generic 57-Toffoli permutation and is still not wired into `ec_eea`.
 - **Gidney's dirty-ancilla constant adder** [Gid25]. Constant addition here uses
   clean ancillas: correct, and more qubits than the paper's accounting.
-- The **Fig 1 compression circuit** is built from a generic permutation, so it
-  costs **57 Toffoli-equivalents per triple against the paper's 5** — an order of
-  magnitude worse. It compresses correctly (all 27 valid patterns, verified) and
-  the paper calls this cost negligible against the arithmetic, so it moves no
-  headline number; but if you want the paper's constant, this is the circuit to
-  replace.
 - **The Ed25519 extension** of 106 §4.4 — the same out-of-place strategy in
   extended Edwards coordinates. The curve model here is short Weierstrass only.
-- **Physical-level estimates** (surface codes, QLDPC, runtime) from 106 §6.2.
-  This package stops at the logical layer.
+- **QLDPC physical estimates** (Pinnacle, Cain et al.). `physical.py` models the
+  surface-code architecture of Gidney 2025 and records the QLDPC figures in
+  `physical.REFERENCE`, but does not model them.
 
 And one thing that is implemented but only in one of its two forms: 106 §3.2
 distinguishes a *depth-optimized* Montgomery multiplier (fresh output qubits per

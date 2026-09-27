@@ -4352,6 +4352,141 @@ The full-algorithm count of $2^{26.11}$ Toffolis is likewise the paper's equatio
 evaluated at the paper's own per-addition figure --- restated for scale, not independently
 confirmed. Nothing in this package measures a $256$-bit point addition.
 
+\section{The 2026 refinements}\label{ec:sec:refine}
+
+Everything so far builds \cite{ec:kim26} and \cite{ec:schrott26} as printed. Between those and the
+lowest published count --- IonQ's $1.196\times10^{6}$ Toffolis per point addition plus three
+lookups \cite{ec:ionq26} --- lie three changes, and a fourth line of work (ECDSA.Fail
+\cite{ec:ecdsafail26}) reached comparable numbers by different means. Each is built here as a
+\emph{switch} beside the construction it refines, never in its place: with the switch off, the
+circuit is the old one gate for gate, and a regression test pins every number above.
+
+\subsection{Uncomputing by measurement, and checking that it worked}
+
+A windowed addition loads its table point three times. Unloading a lookup by running it again costs
+as much as loading it; measuring the loaded register in the $X$ basis costs nothing, but leaves the
+phase $(-1)^{m\cdot T[a]}$ on the address, which a \emph{phase} lookup of $F[a]=m\cdot T[a]$ must
+repair --- about $2\sqrt L$ ANDs with Gidney's power products, against $L$ for the lookup. IonQ
+goes further: every unload of a window shares one address, so their tables are XORed and a single
+repair serves all of them. That is how the lookup cost of an addition falls from ten recomputed
+lookups to three loads and one repair: $1\,310\,700$ Toffolis to $197\,364$ at $w=16$.
+
+Measurement is the one thing the simulator of \S\ref{ec:sec:verify} cannot see: it pushes basis
+states and skips phases. So the logical gates carry their measurement-based \emph{price} and a
+unitary \emph{definition} (the plain XOR), which keeps every exhaustive test of this part valid, and
+a separate sparse state-vector simulator executes the real thing --- measure, build the repair from
+the actual outcome, apply it --- under fixed outcome sequences. The uncompute is right if and only
+if every basis input comes back with the same phase; an unrepaired phase is exactly a difference
+between inputs. An approximate repair (IonQ's comparator on the top bits) fails that on precisely
+the inputs where its truncated comparison disagrees, which the tests confirm input by input.
+
+\subsection{The GCD, five ways}
+
+Two thirds of a point addition is the in-place multiplier, and most of that is the walk and replay
+of the binary GCD. IonQ's change is a change of \emph{representation}: store $\tilde v=v+(1-a)u$ with
+$a=v\bmod2$. Both registers stay odd, so the next parity is free ($\tilde v[1]\oplus u[1]$, two
+CNOTs), and the update $\tilde v\leftarrow(\tilde v\pm u)/2$ is a \emph{conditionally inverted}
+addition --- one uncontrolled adder between two rows of CNOTs:
+\begin{lstlisting}
+def ci_add(ctx, e, x, y, anc):
+    for q in y:
+        ctx.cx(e, q)
+    add(ctx, x, y, anc)
+    for q in y:
+        ctx.cx(e, q)
+\end{lstlisting}
+\noindent $n-1$ ANDs where \cite{ec:schrott26} spends $2n$ on a controlled subtraction. The recorded
+bits turn out to be exactly the dialog's (checked on every $x$ for three primes), so the replay and
+the packing of \S\ref{ec:sec:dialog} carry over. ECDSA.Fail's ``ping-pong'' walk removes the comparison
+and the swap altogether by keeping both operands signed and odd and updating them alternately; its
+Jump-2 walk takes up to two halvings per step. Built at $n=256$ with secp256k1's prime, each part
+counted and combined with the paper's round budget:
+
+\begin{center}\small
+\begin{tabular}{lrrrr}
+\toprule
+in-place multiplication, $n=256$ & rounds & walk/round & replay/step & Toffolis\\
+\midrule
+dialog \cite{ec:schrott26}, exact, full width (before) & $401$ & $1\,285$ & $2\,306$ & $1\,955\,276$\\
+dialog, fused 48-bit compare, width schedule, PM & $401$ & $496$ & $1\,108$ & $842\,330$\\
+cond.\ inverted \cite{ec:ionq26}, dialog replay & $401$ & $349$ & $1\,108$ & $723\,994$\\
+cond.\ inverted \cite{ec:ionq26}, IonQ replay & $401$ & $349$ & $1\,041$ & $697\,365$\\
+ping-pong \cite{ec:ecdsafail26} & $704$ & $257$ & $785$ & $917\,565$\\
+Jump-2 \cite{ec:ecdsafail26} & $261$ & $1\,284$ & $1\,878$ & $1\,161\,099$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The ping-pong walk is the cheapest per round, but at $2.75n$ rounds its replay dominates; composed
+from this package's general modular cells it does not reach ECDSA.Fail's fused ones. Its round
+budget is also not a worst case: exhaustively, $n=16$ needs $3.9n$.
+
+\subsection{Squaring}
+
+Step 10 subtracts $\lambda^2$. With the general multiplier that is two multiplications (compute and
+uncompute). IonQ's dedicated squarer writes $x^2=-x+\sum_i(2x_i-1)2^{2i+1}(h_i+x_i)$ with
+$h_i=\lfloor x/2^{i+1}\rfloor$: every term is an \emph{unconditional} signed subtraction on a window
+of $n+1-i$ bits, for $\tfrac12n(n+3)$ ANDs in all. A pseudo-Mersenne fold ($2^n\equiv f$) then
+reduces it into the accumulator: $1\,050\,623$ Toffolis become $79\,160$ at $n=256$.
+\begin{lstlisting}
+def sqr_int(m, x, z):
+    ctx, n = m.ctx, len(x)
+    assert len(z) == 2 * n + 1
+    pad = m.anc(1, "pad")
+
+    # z <- -x as an (n+1)-bit two's-complement number
+    zero = m.anc(1, "z0")
+    anc = m.anc(n, "sq")
+    A.sub(ctx, Reg(list(x) + list(zero)), Reg(z[:n + 1]), anc)
+    m.free(anc, zero)
+
+    for i in range(n):
+        ctx.cx(z[n + i], z[n + i + 1])              # sign-extend by one bit
+        h = list(x[i + 1:])
+        for q in h + [pad[0]]:
+            ctx.cx(x[i], q)                         # x_i ? NOT(0||h) : (0||h)
+        operand = Reg(h + [pad[0], x[i]], "op")     # signed, sign = x_i
+        window = Reg(z[2 * i + 1:n + i + 2], "win")
+        assert len(operand) == len(window) == n + 1 - i
+        anc = m.anc(max(len(window) - 1, 1), "sq")
+        A.sub(ctx, operand, window, anc)            # z -= signed operand
+        m.free(anc)
+        for q in h + [pad[0]]:
+            ctx.cx(x[i], q)
+    m.free(pad)
+\end{lstlisting}
+
+\subsection{One point addition, at $n=256$}
+
+\begin{center}\small
+\begin{tabular}{lrr}
+\toprule
+windowed point addition, $n=256$, $w=16$ & before & after\\
+\midrule
+two in-place multiplications & $3\,910\,552$ & $1\,394\,730$\\
+square-subtract & $1\,050\,623$ & $79\,160$\\
+table lookups & $1\,310\,700$ & $197\,364$\\
+five modular additions & $5\,115$ & $5\,115$\\
+\midrule
+total & $6\,276\,990$ & $1\,676\,369$\\
+published: \cite{ec:schrott26} / \cite{ec:ionq26} & $2\,588\,962$ & $1\,392\,608$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+A $3.7\times$ reduction per addition, and with the first window replaced by a lookup and
+the last three dropped (recovered by a classical search, as \cite{ec:babbush26} and
+\cite{ec:ionq26} do), $28$ additions instead of $34$: $213\,417\,660$ Toffolis for the whole
+algorithm become $46\,938\,332$. The ``after'' column uses the approximate settings at the papers'
+parameters; their failure rates are measured at toy sizes, not at $n=256$.
+
+\begin{warnbox}[title={What reproducing the sources turned up}]
+IonQ's replay needs its $0\leftrightarrow p$ swap \emph{before} the complemented adder: without it,
+every $e=1$, $y=0$ step leaves an ancilla dirty. ECDSA.Fail's ping-pong budget $L=2.75n$ is not a
+worst case. And at toy sizes the round budgets distort any comparison of GCDs --- which is why the
+table above is assembled at $n=256$ rather than read off a toy circuit.
+\end{warnbox}
+
 \section{Verifying it}\label{ec:sec:verify}
 
 A wrong ECDLP circuit does not return a wrong answer. It returns a \emph{flat histogram} --- and
@@ -4492,18 +4627,16 @@ moment the vote shares were printed next to the uniform baseline.
 Named rather than glossed:
 
 \begin{itemize}\setlength\itemsep{2pt}
-\item \textbf{Register sharing} (\cite{ec:schrott26} Sec 3.1), which takes the dialog space from
-$2.83n$ to $2.12n$ by shrinking $u$ and $v$ as the algorithm proceeds. It is left out not for being
-probabilistic --- \S\ref{ec:sec:approx} builds and measures several circuits that are --- but
-because its failure mode is a \emph{register overflow} rather than a wrong answer, so the
-exact-simulation harness of \S\ref{ec:sec:verify} would be checking a circuit whose register layout
-is itself only probably right. Priced in \S\ref{ec:sec:space}, not built.
+\item \textbf{Register sharing} (\cite{ec:schrott26} Sec 3.1) is built beside the dialog of
+\S\ref{ec:sec:dialog}, not inside it: its failure mode is a register overflow, which the ancilla
+checks turn into a counted failure. The dialog of \S\ref{ec:sec:dialog} itself stays exact.
 \item \textbf{Gidney's dirty-ancilla constant adder} \cite{ec:gidney25}. Constant addition here uses
 clean ancillas: correct, and more qubits than the papers' accounting.
 \item \textbf{The Ed25519 extension} of \cite{ec:kim26} Sec 4.4, in extended Edwards coordinates.
 The curve model here is short Weierstrass only.
-\item \textbf{Physical-level estimates} --- surface codes, QLDPC, wall-clock runtime. This part
-stops at the logical layer, as Parts II--VI do.
+\item \textbf{Physical-level estimates} for QLDPC architectures. The surface-code model of
+Gidney 2025 is built and reproduces its headline from its inputs; QLDPC figures are recorded, not
+modelled.
 \end{itemize}
 
 \noindent
@@ -4714,6 +4847,18 @@ arXiv:1905.09084, 2019.
 C.~Gidney,
 \emph{A classical-quantum adder with constant workspace and linear gates},
 arXiv:2507.23079, 2025.
+
+\bibitem{ec:ionq26}
+T.~H\"aner, F.~Tripier, J.~Young, M.~Naehrig, et al.\ (IonQ),
+\emph{Computing 256-bit elliptic curve discrete logarithms in 26 days on a fault-tolerant
+trapped-ion quantum computer with 20,000 qubits},
+arXiv:2609.05625, 2026.
+
+\bibitem{ec:ecdsafail26}
+ECDSA.Fail contributors,
+\emph{ECDSA.Fail: open autoresearch for optimizing elliptic-curve point addition in Shor's
+algorithm},
+arXiv:2609.09582, 2026.
 
 \bibitem{ec:grassl16}
 M.~Grassl, B.~Langenberg, M.~Roetteler, and R.~Steinwandt,

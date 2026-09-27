@@ -316,3 +316,99 @@ def cmodadd_pm_q(m, ctrl, x, y, q, lsbs=None, msbs=None):
 # per operation (where the rate should track 2^-msbs) and composed into
 # `ec_eea.inplace_mul` (where it compounds over ~1.4n iterations, which is the
 # thing that actually decides how large msbs has to be).
+
+
+# --- IonQ Sec VI and X.D: complements instead of negations -------------------
+def _fix_zero_q(m, ctrl, y, q, tau):
+    """If (ctrl and) y == q, set y = 0: the one out-of-range value a
+    complement-based circuit produces.  Approximate: both tests look at the top
+    tau bits only.  y == 0 is otherwise impossible at this point, so the
+    all-zeros test clears the flag again."""
+    n = len(y)
+    fl = m.anc(1, "zq")
+    on = [] if ctrl is None else [ctrl]
+    eq_top(m, y, q, tau, [fl[0]], also=on)        # fl = [y == q]
+    for i in range(n):
+        if (q >> i) & 1:
+            m.ctx.cx(fl[0], y[i])                 # q -> 0
+    eq_top(m, y, 0, tau, [fl[0]], also=on)        # fl = [y == 0] = old flag
+    m.free(fl)
+
+
+def csignadd_pm(m, e, x, y, q, lsbs=None, msbs=None):
+    """y <- (y + (-1)^e x) mod q for q = 2^u - f.  IonQ Sec VI.
+
+    NOT(y) = 2^u - 1 - y == (f - 1) - y  (mod q), so complementing y, adding x
+    modulo q and complementing again gives
+        (f - 1) - ((f - 1) - y + x) = y - x.
+    The complements are CNOTs from e; the adder is Algorithm 11 (uncontrolled);
+    the only out-of-range output, q in place of 0, is repaired by `_fix_zero_q`,
+    and the only out-of-range *input*, NOT(0), is avoided by first mapping
+    0 -> q (`_swap_zero_q`, as IonQ does).
+
+    Approximate in two ways, both ~2^-msbs or ~f/2^u: the top-bit tests, and
+    sums that land in [q, 2^u) without overflowing, which the pseudo-Mersenne
+    adder does not reduce (Algorithm 11 shares that).  At secp256k1 sizes both
+    are negligible; at toy primes f/q is not, and the tests measure it.
+    """
+    n = len(y)
+    msbs = msbs or max(2, n // 2)
+    _swap_zero_q(m, e, y, q, msbs)                # IonQ: 0 -> q before the adder
+    for b in y:
+        m.ctx.cx(e, b)
+    cmodadd_pm_q(m, None, x, y, q, lsbs, msbs)
+    for b in y:
+        m.ctx.cx(e, b)
+    _fix_zero_q(m, e, y, q, msbs)
+
+
+def _swap_zero_q(m, ctrl, y, q, tau):
+    """If (ctrl and) y == 0, set y = q.
+
+    NOT(0) = 2^u - 1 is not a canonical residue, and the pseudo-Mersenne adder
+    is only correct on canonical inputs; NOT(q) = f - 1 is.  IonQ Sec VI:
+    "we conditionally swap the values 0 <-> p ... before invoking the
+    conditionally-inverted adder".  y == q is impossible on entry, so the
+    all-ones test clears the flag again.  Approximate on the top tau bits."""
+    fl = m.anc(1, "z0")
+    on = [] if ctrl is None else [ctrl]
+    eq_top(m, y, 0, tau, [fl[0]], also=on)        # fl = [y == 0]
+    for i in range(len(y)):
+        if (q >> i) & 1:
+            m.ctx.cx(fl[0], y[i])                 # 0 -> q
+    eq_top(m, y, q, tau, [fl[0]], also=on)        # fl = [y == q] = old flag
+    m.free(fl)
+
+
+def cmodneg_approx(m, ctrl, x, q, kappa=None, tau=None):
+    """x <- (-x) mod q (when ctrl), q = 2^u - f.  IonQ Sec X.D.
+
+    q - x = NOT(x) - (f - 1): complement the bits, subtract the small constant
+    f - 1 on the low kappa bits only (the borrow escapes them with probability
+    ~f/2^kappa), and repair x = 0, which comes out as q.  kappa = tau = u is
+    exact.  Cost ~kappa + 2 tau against ~4u for `ec_modarith.cmodneg`.
+    """
+    pm = pseudo_mersenne(q)
+    assert pm, f"q = {q} is not pseudo-Mersenne"
+    u, f = pm
+    n = len(x)
+    assert u == n
+    kappa = min(n, kappa or n)
+    tau = min(n, tau or n)
+    ctx = m.ctx
+    for b in x:
+        ctx.cx(ctrl, b) if ctrl is not None else ctx.x(b)
+    if f > 1:
+        cp, sc = m.anc(kappa, "cp"), m.anc(kappa, "sc")
+        low = Reg(list(x[:kappa]))
+        if ctrl is None:
+            A.sub_const(ctx, low, f - 1, cp, sc)
+        else:
+            A.csub_const(ctx, ctrl, low, f - 1, cp, sc)
+        m.free(cp, sc)
+    _fix_zero_q(m, ctrl, x, q, tau)
+
+
+def modhalf_pm(m, x, q, lsbs=None):
+    """x <- x/2 mod q: Algorithm 7 run backwards."""
+    m.emit_inverse(moddbl_pm, m, x, q, lsbs)

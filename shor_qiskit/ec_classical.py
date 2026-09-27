@@ -627,3 +627,38 @@ def ecdlp_postprocess(counts, order, bits, search=1):
 
 def verify_dlog(curve, P, Q, k):
     return curve.mul(k, P) == Q
+
+
+def ecdlp_postprocess_short(counts, order, bits_k, bits_l, curve, P, Q, radius=None):
+    """k from (j1, j2) when the second register has fewer bits than the first.
+
+    Dropping the last windows of the Q register ([Litinski23] Sec 3, Babbush et
+    al. App A, IonQ Sec IV.B) leaves j2 with only bits_l bits, so
+    a2 = j2 r / 2^bits_l is known to within ~r / 2^(bits_l + 1) instead of 1/2.
+    The missing precision is recovered by *searching* a2 over that interval and
+    keeping only candidates that satisfy [k]P = Q -- Litinski's 2^48 classical
+    evaluations at n = 256, a handful here.  Unlike `ecdlp_postprocess`, the
+    search is wide by design, so the verification is what makes it sound; the
+    tests therefore compare against a flat-noise control.
+
+    Returns [(k, weight)] of *verified* candidates, heaviest first.
+    """
+    items = list(counts.items()) if isinstance(counts, dict) else [(c, 1) for c in counts]
+    qa, qb = 1 << bits_k, 1 << bits_l
+    if radius is None:
+        radius = max(1, -(-order // (2 * qb)))
+    ok_k = {}
+    votes = {}
+    for (j1, j2), c in items:
+        a1 = round(j1 * order / qa) % order
+        if gcd(a1, order) != 1:
+            continue
+        inv = pow(a1, -1, order)
+        centre = round(j2 * order / qb)
+        for d in range(-radius, radius + 1):
+            k = (centre + d) % order * inv % order
+            if k not in ok_k:
+                ok_k[k] = verify_dlog(curve, P, Q, k)
+            if ok_k[k]:
+                votes[k] = votes.get(k, 0.0) + c
+    return sorted(votes.items(), key=lambda kv: -kv[1])

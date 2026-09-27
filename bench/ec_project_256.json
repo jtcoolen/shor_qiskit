@@ -1,0 +1,81 @@
+{
+  "n": 256,
+  "q": "secp256k1",
+  "msbs": 48,
+  "variants": {
+    "[1128] Dialog, exact, full width (repo today)": {
+      "in_place_mul": 1955276,
+      "walk_round_avg": 1285.0,
+      "replay_step": 2306,
+      "rounds": 401,
+      "qubits_mul": 2088,
+      "note": "ec_eea.inplace_mul"
+    },
+    "[1128] Dialog, fused cmp48, c_pad 2.3, PM": {
+      "in_place_mul": 842330,
+      "walk_round_avg": 496.286783042394,
+      "replay_step": 1108,
+      "rounds": 401,
+      "qubits_mul": 2235,
+      "note": "1128 Sec 3-4"
+    },
+    "IonQ CondInv, cmp48, c_pad 2.3, PM, replay=standard": {
+      "in_place_mul": 723994,
+      "walk_round_avg": 348.857855361596,
+      "replay_step": 1108,
+      "rounds": 401,
+      "qubits_mul": 2235,
+      "note": "IonQ Sec VI"
+    },
+    "IonQ CondInv, cmp48, c_pad 2.3, PM, replay=ci": {
+      "in_place_mul": 697365,
+      "walk_round_avg": 348.857855361596,
+      "replay_step": 1041,
+      "rounds": 401,
+      "qubits_mul": 2235,
+      "note": "IonQ Sec VI"
+    },
+    "ECDSA.Fail ping-pong, 704 rounds, PM": {
+      "in_place_mul": 917565,
+      "walk_round_avg": 257.0,
+      "replay_step": 785,
+      "rounds": 704,
+      "qubits_mul": 2139,
+      "note": "ECDSA.Fail Alg 5"
+    },
+    "ECDSA.Fail Jump-2, 261 steps, PM": {
+      "in_place_mul": 1161099,
+      "walk_round_avg": 1284.0,
+      "replay_step": 1878,
+      "rounds": 261,
+      "qubits_mul": 2217,
+      "note": "ECDSA.Fail Alg 4"
+    }
+  },
+  "square_sub": {
+    "general": 1050623,
+    "pm_fold": 79160
+  },
+  "lookups_w16": {
+    "ten_recomputed": 1310700,
+    "three_mbu": 197364
+  },
+  "modadd": 1023,
+  "point_addition": {
+    "today": 6276990,
+    "best": 1676369,
+    "best_gcd": "IonQ CondInv, cmp48, c_pad 2.3, PM, replay=ci",
+    "published": {
+      "1128": 2588962.9082608987,
+      "IonQ": 1392608.0
+    }
+  },
+  "full_algorithm": {
+    "today": 213417660,
+    "best": 46938332,
+    "additions": [
+      34,
+      28
+    ]
+  }
+}

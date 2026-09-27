@@ -14,6 +14,8 @@ V = lambda s: D[s]["variants"]
 
 import ec_listings as L
 
+PJ = json.loads((ROOT / "bench" / "ec_project_256.json").read_text())
+
 
 def expand_listings(text):
     """Replace %%LST module.func [opts]%% with the function, verbatim from source.
@@ -211,6 +213,49 @@ def rows_space():
     return "\n".join(out)
 
 
+REFINE_LABELS = {
+    "[1128] Dialog, exact, full width (repo today)":
+        "dialog \\cite{ec:schrott26}, exact, full width (before)",
+    "[1128] Dialog, fused cmp48, c_pad 2.3, PM":
+        "dialog, fused 48-bit compare, width schedule, PM",
+    "IonQ CondInv, cmp48, c_pad 2.3, PM, replay=standard":
+        "cond.\\ inverted \\cite{ec:ionq26}, dialog replay",
+    "IonQ CondInv, cmp48, c_pad 2.3, PM, replay=ci":
+        "cond.\\ inverted \\cite{ec:ionq26}, IonQ replay",
+    "ECDSA.Fail ping-pong, 704 rounds, PM": "ping-pong \\cite{ec:ecdsafail26}",
+    "ECDSA.Fail Jump-2, 261 steps, PM": "Jump-2 \\cite{ec:ecdsafail26}",
+}
+
+
+def rows_refine_gcd():
+    out = []
+    for name, v in PJ["variants"].items():
+        out.append(f"{REFINE_LABELS[name]} & ${v['rounds']}$ & "
+                   f"${num(round(v['walk_round_avg']))}$ & ${num(v['replay_step'])}$ & "
+                   f"${num(v['in_place_mul'])}$\\\\")
+    return "\n".join(out)
+
+
+def rows_refine_padd():
+    V_ = PJ["variants"]
+    before = V_["[1128] Dialog, exact, full width (repo today)"]["in_place_mul"]
+    best = V_[PJ["point_addition"]["best_gcd"]]["in_place_mul"]
+    rows = [
+        ("two in-place multiplications", 2 * before, 2 * best),
+        ("square-subtract", PJ["square_sub"]["general"], PJ["square_sub"]["pm_fold"]),
+        ("table lookups", PJ["lookups_w16"]["ten_recomputed"], PJ["lookups_w16"]["three_mbu"]),
+        ("five modular additions", 5 * PJ["modadd"], 5 * PJ["modadd"]),
+    ]
+    out = [f"{a} & ${num(b)}$ & ${num(c)}$\\\\" for a, b, c in rows]
+    pa = PJ["point_addition"]
+    out.append("\\midrule")
+    out.append(f"total & ${num(pa['today'])}$ & ${num(pa['best'])}$\\\\")
+    pub = pa["published"]
+    out.append(f"published: \\cite{{ec:schrott26}} / \\cite{{ec:ionq26}} & ${num(pub['1128'])}$ & "
+               f"${num(pub['IonQ'])}$\\\\")
+    return "\n".join(out)
+
+
 # ---- values quoted in prose, so they too come from the benchmark ----------
 def facts():
     f = {}
@@ -277,6 +322,14 @@ def facts():
     q = D["_projections"]["qubit_totals_1128"]["256"]
     f["q1128_space"], f["q1128_gate"] = q["space_optimized"], q["gate_optimized"]
     f["shor_log2"] = D["_projections"]["shor_toffoli_1128"]["log2"]
+    f["r_lk_old"] = num(PJ["lookups_w16"]["ten_recomputed"])
+    f["r_lk_new"] = num(PJ["lookups_w16"]["three_mbu"])
+    f["r_sq_old"] = num(PJ["square_sub"]["general"])
+    f["r_sq_new"] = num(PJ["square_sub"]["pm_fold"])
+    pa = PJ["point_addition"]
+    f["r_padd_x"] = f"{pa['today'] / pa['best']:.1f}"
+    f["r_full_old"] = num(PJ["full_algorithm"]["today"])
+    f["r_full_new"] = num(PJ["full_algorithm"]["best"])
     return f
 
 
@@ -287,7 +340,8 @@ if __name__ == "__main__":
             "ADDERS": rows_adders(), "MODARITH": rows_modarith(), "MUL": rows_mul(),
             "INV": rows_inv(), "DIALOG": rows_dialog(), "PADD": rows_padd(),
             "TEMPAND": rows_tempand(), "WINDOW": rows_window(), "FULL": rows_full(),
-            "SPACE": rows_space()}
+            "SPACE": rows_space(), "REFINE_GCD": rows_refine_gcd(),
+            "REFINE_PADD": rows_refine_padd()}
     for k, v in subs.items():
         tpl = tpl.replace(f"%%{k}%%", v)
     for k, v in facts().items():

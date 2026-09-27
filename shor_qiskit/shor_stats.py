@@ -125,3 +125,21 @@ def order_counts(counts):
 
 def nearest_fraction(y, t, N):
     return Fraction(y, 2**t).limit_denominator(N - 1)
+
+
+def ecdlp_probs2(order, k, bits_k, bits_l):
+    """P[j1, j2] for registers of different lengths (u: bits_k, v: bits_l).
+
+    The shape of the circuit once trailing windows of the second register are
+    dropped ([Litinski23], Babbush et al., IonQ): fewer qubits, a coarser j2.
+    Reduces to `ecdlp_probs` when the lengths agree."""
+    qa, qb = 1 << bits_k, 1 << bits_l
+    u, v = np.arange(qa), np.arange(qb)
+    Fa = np.exp(-2j * np.pi * np.outer(u, u) / qa)
+    Fb = np.exp(-2j * np.pi * np.outer(v, v) / qb)
+    z = (u[:, None] + k * v[None, :]) % order
+    probs = np.zeros((qa, qb))
+    for zz in range(order):
+        amp = Fa.T @ (z == zz).astype(float) @ Fb
+        probs += np.abs(amp) ** 2
+    return probs / (qa * qb) ** 2

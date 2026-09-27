@@ -17,13 +17,18 @@ PY=${PYTHON:-python3}
 
 FAST="qft_check test_qrom test_tempand test_fixup test_mbu test_unlookup
       test_essentials test_rc test_windowed test_nested test_coset_law
-      test_semiclassical test_resources"
+      test_semiclassical test_resources test_api_surface test_depth
+      test_sparse_sim test_eh test_physical test_g25_arith
+      test_coset_order"
 E2E="test_rc_l4 test_win_l4 test_acc_mbu test_win_full test_nested_e2e test_win_e2e test_1c"
 SLOW="test_precision test_n21 test_win_n21 test_n33"
 
 # --- ECDLP (elliptic-curve discrete log) ------------------------------------
 EC="test_ec_classical test_ec_quantum test_ec_arith test_ec_kaliski
-    test_ec_pointadd test_ec_shor test_ec_opt106 test_ec_opt1128 test_ec_pbt"
+    test_ec_pointadd test_ec_shor test_ec_opt106 test_ec_opt1128 test_ec_pbt
+    test_ec_regress test_ec_mbu test_ec_window_cfg
+    test_ec_signed test_ec_gcd test_ec_square
+    test_ec_windowed test_ec_padd_mont"
 
 # Part VII of shor-complete.tex is generated from bench/ec_ablation.json; this
 # asserts the document still matches what the benchmark measured.
@@ -35,7 +40,7 @@ case "${1:-fast}" in
   all)  SET="$FAST $E2E $SLOW $EC" ;;
   ec)   SET="$EC" ;;
   doc)  SET="" ; "$PY" bench/ec_check_tex.py; exit $? ;;
-  *)    echo "usage: $0 [fast|full|all|ec]"; exit 2 ;;
+  *)    echo "usage: $0 [fast|full|all|ec|doc]"; exit 2 ;;
 esac
 
 fails=0

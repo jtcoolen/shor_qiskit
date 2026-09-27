@@ -313,7 +313,7 @@ whichever optimization interests you.
 | `ec_proj.py` | Jacobian-affine out-of-place addition (11 multiplications), zig-zag | 106 §4.2, Alg 4, Fig 10 |
 | **2026/1128** | | |
 | `ec_eea.py` | Euclidean dialog, Bézout replay, in-place multiplication, Fig 1 compression | 1128 §3, Alg 2–4 |
-| `ec_approx.py` | approximate and pseudo-Mersenne modular arithmetic | 1128 §4, Alg 6, 7, 9, 10 |
+| `ec_approx.py` | approximate and pseudo-Mersenne modular arithmetic | 1128 §4, Alg 6, 7, 9, 10, 11 |
 | `ec_window.py` | windowed point addition | 1128 Alg 1 |
 
 ## How this is verified
@@ -465,10 +465,6 @@ Named rather than glossed:
   2.12n. It is probabilistic; everything built here is exact.
   `ec_eea.shrink_schedule` computes the widths it would use so `ec_cost` can
   price it, and the gap is reported rather than hidden.
-- **Algorithm 11** of 1128 (pseudo-Mersenne controlled addition handling
-  `x + y = q`). That case cannot arise from random inputs — only in the first
-  few Bézout-replay iterations — and using the exact adder there is the same fix
-  at negligible cost.
 - **Gidney's dirty-ancilla constant adder** [Gid25]. Constant addition here uses
   clean ancillas: correct, and more qubits than the paper's accounting.
 - The **Fig 1 compression circuit** is built from a generic permutation, so it
@@ -488,6 +484,22 @@ two-operand addition) from a *qubit-optimized* one (uncompute and reuse them).
 `ec_montgomery` always accumulates in place, i.e. the qubit-optimized shape,
 which is why the depth win from the carry-save tree shows up here smaller than
 the paper's depth-optimized figures.
+
+And one that is implemented, but not quite as printed: **Algorithm 11** of 1128
+(`ec_approx.cmodadd_pm_q`), the pseudo-Mersenne controlled addition that also
+handles `x + y = q`. Algorithm 10 cannot, and inside the multiplier that case is
+certain, not rare: `r` must end the Bézout replay at 0 and only a swap writes
+`r`, so every multiplication with `y ≠ 0` hits `r + s = q` exactly once, at the
+replay step mirroring the dialog's first swap — near the *end* of the replay,
+the very last step whenever `x` is odd. `ec_eea.bezout_replay` uses one adder for
+every iteration, so Algorithm 7 + Algorithm 10 in `inplace_mul` fails on every
+such input. As printed, Algorithm 11 clears its flag with an all-zeros test that
+also fires for `ctrl = 0, y = 0`, which is the call the replay makes on its opening
+iterations; here that test is gated on `ctrl ∧ [y < x]` (and the all-ones test on
+`ctrl`). With full-width comparisons Algorithm 7 + Algorithm 11 is exact at
+`q = 127` and fails at `q = 61` only where the pseudo-Mersenne shortcut itself
+does (sums between `q` and `2^u`), which `tests/test_ec_opt1128.py` asserts
+input by input.
 
 The ECDLP circuit with real arithmetic is verified on every basis state — which
 for a permutation is the whole truth — but at 69 qubits and ~10^5 gates for a

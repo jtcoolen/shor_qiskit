@@ -573,6 +573,16 @@ negligible. A cheap approximation is only cheap once you count how often you use
 is in \code{tests/test\_ec\_opt1128.py}, not an estimate.
 \end{warnbox}
 
+\emph{One case is not rare.} Algorithm~10 cannot reduce $x+y=p$: the sum does not reach bit $u$.
+Inside the in-place multiplier that input is certain. $r$ must end the B\'ezout replay at $0$ and
+only a swap writes $r$, so every multiplication with $y\neq0$ presents $r+s=p$ exactly once, at the
+replay step mirroring the dialog's first swap --- near the \emph{end} of the replay, not the start.
+Algorithms~7 and 10 composed into the multiplier therefore fail on every such input.
+\code{ec\_approx.cmodadd\_pm\_q} is Algorithm~11, which catches the case with an all-ones test on
+the top bits and XORs $p$ out. The all-zeros test that clears its flag is gated here on
+$\mathit{ctrl}\wedge[y<x]$: the replay's opening iterations make exactly the call
+($\mathit{ctrl}=0$, $y=0$) on which the ungated test misfires.
+
 \subsection{Level 3: Montgomery multiplication over a carry-save tree}\label{ec:sec:mont}
 
 \cite{ec:kim26} rewrites word-level Montgomery so that its two halves have the same shape. The
@@ -1040,9 +1050,6 @@ probabilistic --- \S\ref{ec:sec:approx} builds and measures several circuits tha
 because its failure mode is a \emph{register overflow} rather than a wrong answer, so the
 exact-simulation harness of \S\ref{ec:sec:verify} would be checking a circuit whose register layout
 is itself only probably right. Priced in \S\ref{ec:sec:space}, not built.
-\item \textbf{Algorithm 11} of \cite{ec:schrott26}, the pseudo-Mersenne controlled addition that
-also handles $x+y=p$. That case cannot arise from random inputs, only in the first few
-B\'ezout-replay iterations, and using the exact adder there is the same fix at negligible cost.
 \item \textbf{Gidney's dirty-ancilla constant adder} \cite{ec:gidney25}. Constant addition here uses
 clean ancillas: correct, and more qubits than the papers' accounting.
 \item \textbf{The Ed25519 extension} of \cite{ec:kim26} Sec 4.4, in extended Edwards coordinates.

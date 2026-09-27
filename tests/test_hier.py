@@ -20,8 +20,8 @@ import ec_window as W
 import hier as H
 from ec_sim import Machine
 
-FIELDS = ("qubits", "toffoli_paper", "and", "and_dg", "toffoli", "cswap",
-          "mbu_toffoli", "measure")
+FIELDS = ("qubits", "toffoli_paper", "toffoli_expected", "and", "and_dg", "toffoli",
+          "cswap", "mbu_toffoli", "measure")
 
 
 def build(mk, cfg, tab, q):
@@ -56,6 +56,10 @@ def main():
                 m, c, s, a, p, msbs=6, sqr_space=4, lean=True),
             mul=G.Dialog(arith=G.PMSpace(q, msbs=6, lean=True), fused_cmp=True, c_pad=2.3,
                          share=True, compress="fig1", walk_space=8)), tab_m),
+        "IonQ replay cells": (W.PointAddCfg(
+            lookup="mbu", merge_xy=True, offsets=True, free_xy1=True, add=G.PMPhase(q, msbs=6),
+            mul=G.CondInv(arith=G.PMPhase(q, msbs=6), cmp_msbs=6, c_pad=2.3, replay="ci",
+                          zero_steps=3)), tab_m),
         "PingPong": (W.PointAddCfg(lookup="mbu", offsets=True, mul=G.PingPong(rounds=17)), tab_m),
         "Jump2": (W.PointAddCfg(lookup="mbu", offsets=True, mul=G.Jump2(steps=9)), tab_m),
     }

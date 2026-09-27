@@ -206,10 +206,10 @@ def test_addsub():
 def test_square():
     section("square-subtract on the CDKM cells; squarer ancilla budgets")
     for n in range(1, 8):
-        for space in (True, 1, 3):
+        for budget in (1, 3, n):
             m = Machine("and")
             x, z = m.alloc(n, "x"), m.alloc(2 * n + 1, "z")
-            SQ.sqr_int(m, x, z, space=space)
+            SQ.sqr_int_budget(m, x, z, budget)
             for xv in range(1 << n):
                 rd = run(m, {x: xv})
                 assert rd(z) == xv * xv and rd(x) == xv

@@ -4487,6 +4487,244 @@ worst case. And at toy sizes the round budgets distort any comparison of GCDs --
 table above is assembled at $n=256$ rather than read off a toy circuit.
 \end{warnbox}
 
+\section{At cryptographic size}\label{ec:sec:n256}
+
+The tables of \S\ref{ec:sec:refine} are assembled: each part built at $n=256$, then multiplied by a
+round count. This section drops the assembly. The builders that the tests check exhaustively at
+toy primes are run on secp256k1 itself with $16$-bit windows, and every count below is read off
+the circuit they produce. Two further subsections then close, one at a time, the two gaps the
+first table shows: Toffolis against IonQ, and qubits against everyone.
+
+\subsection{Building a 256-bit circuit on a laptop}
+
+Built flat, as a list of gates, one 256-bit point addition is tens of millions of instructions,
+and the whole algorithm thirty times that. But it is made of few distinct pieces called many times
+on registers of the same shape: the replay alone calls one modular adder eight hundred times.
+\texttt{hier.tracing()} uses that without editing a builder. For the duration of a \texttt{with}
+block it wraps a list of existing builder functions in a decorator. A wrapped call computes a
+\emph{shape} --- register widths, which arguments share qubits, the classical parameters --- builds
+the sub-circuit once per shape into a private machine, and appends it to its caller as one opaque
+gate carrying its counts (inverted, when the caller runs it backwards). A complete windowed point
+addition then builds in seconds. Two checks license the numbers: at toy size the hierarchical count
+equals the flat one on every field, for eight configurations; and the tree exports to Qualtran
+bloqs whose \texttt{QECGatesCost} gives the same Toffolis.
+
+\begin{center}\small
+\begin{tabular}{lrr}
+\toprule
+one windowed point addition, secp256k1, $w=16$ & Toffolis & qubits\\
+\midrule
+Qualtran's \texttt{ECAdd} \cite{ec:litinski23}, for reference & $8\,346\,972$ & $1\,798$\\
+dialog \cite{ec:schrott26}, exact arithmetic, MBU lookups, masked tables & $5\,163\,617$ & $2\,104$\\
+\quad + 48-bit comparisons, width schedule, pseudo-Mersenne replay & $2\,934\,431$ & $2\,251$\\
+\quad + dedicated squarer and fold & $1\,962\,968$ & $2\,251$\\
+cond.\ inverted walk and replay \cite{ec:ionq26}, squarer & $1\,673\,250$ & $2\,251$\\
+ping-pong walk, 704 rounds \cite{ec:ecdsafail26}, squarer & $2\,117\,534$ & $2\,155$\\
+dialog, register sharing and Fig.~1 packing, squarer & $1\,968\,288$ & $1\,873$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The whole algorithm builds too: a first-window lookup, then $28$ windowed additions
+with the last three windows dropped, $46\,916\,534$ Toffolis on $2\,251$ qubits with the
+control qubits recycled. On the same tree Qualtran counts $240\,285\,024$ Cliffords and
+$28\,811\,048$ measurements. Two gaps remain. The best row is $20\%$ above IonQ's
+figure, and every row needs far more qubits than any paper reports.
+
+\subsection{Matching IonQ's Toffoli count}\label{ec:sec:toffgap}
+
+Splitting the IonQ-style addition by component locates the first gap:
+
+\begin{center}\small
+\begin{tabular}{lrr}
+\toprule
+one windowed point addition, $n=256$ & before & after\\
+\midrule
+table lookups and their repair & $197\,364$ & $197\,364$\\
+GCD walks and their undoing & $555\,488$ & $555\,488$\\
+B\'ezout replays & $833\,312$ & $564\,086$\\
+\quad of which signed additions & $569\,600$ & $307\,574$\\
+square-subtract & $79\,160$ & $79\,160$\\
+everything else & $7\,926$ & $4\,571$\\
+\midrule
+one windowed point addition & $1\,673\,250$ & $1\,400\,669$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The walk is already IonQ's; the replay is not. Each of its eight hundred steps adds $\pm r$ into $s$
+modulo $p$, and the cell that did it --- Algorithm~11 between two complements, with the
+$0\leftrightarrow p$ swap and its undoing --- costs $712$ Toffolis, of which only $256$ are
+the addition. The rest are top-bit tests: does the sum need reducing, is it exactly $p$, was the
+input $0$. IonQ's modular adder (their Algorithm~2) decides the reduction with no test at all. It
+adds with carry-out, and the carry \emph{is} the flag:
+\begin{lstlisting}
+def modadd_pm_phase(m, x, y, q, kappa=None, delta=None):
+    import ec_mbu as MB
+    pm = pseudo_mersenne(q)
+    assert pm, f"q = {q} is not pseudo-Mersenne"
+    u, f = pm
+    ctx, n = m.ctx, len(y)
+    assert u == n
+    kappa = min(n, kappa or phase_kappa(q))
+    delta = min(n, delta or 32)
+
+    ax, ay = m.anc(1, "ax"), m.anc(1, "ay")
+    sc = m.anc(n, "sc")
+    A.add(ctx, x + ax, y + ay, sc)                   # ay = carry-out
+    m.free(sc)
+    cp, sc2 = m.anc(kappa, "cp"), m.anc(kappa, "sc2")
+    A.cadd_const(ctx, ay[0], Reg(list(y[:kappa])), f, cp, sc2)   # 2^u -> f
+    m.free(cp, sc2)
+
+    def recompute(qc, qs):
+        from ec_gates import Ctx
+        xx, yy, fl, anc = qs[:n], qs[n:2 * n], qs[2 * n], qs[2 * n + 1:]
+        A.lt_uint(Ctx(qc, "and"), top_bits(yy, delta), top_bits(xx, delta), fl,
+                  anc[:delta])
+
+    def phase(qc, qs):
+        from ec_gates import Ctx
+        xx, yy, anc = qs[:n], qs[n:2 * n], qs[2 * n + 1:]
+        out = anc[delta]
+        qc.x(out)
+        qc.h(out)                                    # |->: the CNOT kicks back
+        A.lt_uint(Ctx(qc, "and"), top_bits(yy, delta), top_bits(xx, delta), out,
+                  anc[:delta])
+        qc.h(out)
+        qc.x(out)
+
+    MB.mbu_flag(m, ay[0], list(x) + list(y), recompute, phase, nanc=delta + 1)
+    m.free(ax, ay)
+\end{lstlisting}
+\noindent If $x+y\ge2^{256}$ the carry is set, and subtracting $p$ is ``drop the carry, add
+$f=2^{32}+977$'', which touches only the low $\kappa=65$ bits. What remains is to clear the
+carry, and the identity that makes this cheap is that after the correction it equals $[y'<x]$ for
+the \emph{new} $y'$: with a reduction $y'=x+y-p<x$, without one $y'=x+y\ge x$. So the carry is
+measured in the $X$ basis, and only on outcome $1$ --- half the time --- is the phase $(-1)^{[y'<x]}$
+applied, by a comparator on the top $\delta=32$ bits. The cell costs $352$
+Toffolis in the worst case and $336$ counting only what executes, which is IonQ's
+convention. Its approximations are all of order $f/p$ or $2^{-\delta}$: sums in $[p,2^{256})$,
+which raise no carry and stay unreduced; a carry escaping the low $\kappa$ bits; ties in the top
+$\delta$ bits. At toy primes the tests find it wrong on exactly the sums in $[p,2^n)$ and nowhere
+else, and phase-correct everywhere else with every measurement actually performed.
+
+One of those cases is not rare. The replay \emph{must} pass through a zero: dividing, it starts from
+$(r,s)=(0,z)$, the first swap moves the $0$ into $s$, and the next subtraction complements it ---
+but $\overline0=2^{256}-1$ is not a residue. Multiplying, the same step runs backwards as an addition
+with $x+y=p$ exactly, the one sum the carry cannot see. Both happen at a step fixed by the 2-adic
+valuation of $x$, so within the first $k$ steps with probability $1-2^{-k}$. IonQ's parameter table
+says ``rounds with $x+y=p$: 37'': the first $37$ steps keep the careful cell and the rest use
+the new one. The tests measure the failure rate halving with each careful step and reaching zero
+at $37$, in both directions.
+
+One more detail is worth as much as the adder. The package built multiplication as division run
+backwards: exact, but it throws the saving away, because the inverse of ``measure, and sometimes
+repair'' is ``recompute'', which always runs. So multiplication gets its own replay, each step
+inverted by hand (double, then subtract $\pm r$), and its uncomputes stay measurements. The replay's
+signed additions fall from $569\,600$ to $307\,574$ Toffolis per point addition,
+and each halving from $73$ to $64$ with the shorter correction.
+
+\begin{center}\small
+\begin{tabular}{lrrr}
+\toprule
+one windowed point addition, $n=256$ & Toffolis & executed & qubits\\
+\midrule
+cond.\ inverted walk and replay, Algorithm~11 cells (as above) & $1\,673\,250$ & $1\,673\,250$ & $2\,251$\\
+\quad + IonQ's adder in the replay, 37 careful steps & $1\,404\,024$ & $1\,392\,408$ & $2\,233$\\
+\quad + the same adder in the addition, approximate negation & $1\,400\,669$ & $1\,389\,021$ & $2\,233$\\
+\quad + Fig.~1 packing, replay in $x$'s qubits & $1\,405\,989$ & $1\,394\,341$ & $1\,845$\\
+\midrule
+published \cite{ec:ionq26} & --- & $1\,392\,608$ & $1\,462$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+That is $1\,400\,669$ Toffolis, or $1\,389\,021$ counting what executes, within $0.3\%$ of
+IonQ's $1\,392\,608$. Built end to end on these cells, the $28$-addition algorithm is
+$39\,284\,266$ Toffolis ($38\,958\,122$ executed), against IonQ's
+$28\times(1.196\times10^6+3\cdot2^{16})\approx39.0\times10^6$. The qubits are another matter:
+$2\,233$, or $1\,845$ with the record packed and the replay run in $x$'s qubits,
+against IonQ's $1\,462$. Reaching both at once needs register sharing inside the
+conditionally inverted walk, which is not built here.
+
+\subsection{Fewer qubits}\label{ec:sec:fewq}
+
+\cite{ec:schrott26} makes the qubit count a statement about one moment. The peak of a point
+addition is the B\'ezout replay, holding the packed GCD record, the multiplicand and the
+accumulator --- $2.355n+O(\sqrt n)$ plus $2n$ --- and whatever scratch its arithmetic draws; every
+other step can borrow what the replay will need. So the method is to take the scratch out of each
+cell that runs at the peak, rebuild, find the new peak, and repeat. It moved four times. From the
+replay it went to the square-subtract, whose exact modular subtraction held $2n$ scratch beside the
+$2n$-qubit square. Then to the dialog walk, whose controlled subtraction copied its operand first.
+Then back to the replay, now dominated by the constant adder. Last, to the squarer itself.
+
+The cells that come out are the ones \cite{ec:schrott26} names for its space-optimised variant ---
+CDKM adders wherever no ancillas are free --- plus three that shrink the scratch further. A
+comparator on the CDKM carry chain uses one ancilla instead of $k$. An all-ones test in chunks of
+about $\sqrt k$, each chunk's AND parked in a flag, uses about $2\sqrt k$ ancillas instead of $k-1$.
+A constant adder runs CDKM only over the $33$ bits of $f$ and adds the carry into the bits above as an
+\emph{increment} on borrowed qubits \cite{ec:gidney15}: for a register $g$ in any state,
+$w-g-\overline g=w+1-2^{|w|}$, so two subtractions of a dirty register increment $w$ and leave $g$
+as it was. Each new cell gives the output of the cell it replaces on every input tried, failures
+included. Where the walk and the squarer have headroom --- the replay's accumulator is not yet
+allocated --- they keep Gidney adders up to an ancilla budget.
+
+One of these cells corrected this package. Its CDKM adder with a control was documented at the
+textbook $3n$ Toffolis but put the control on every MAJ and every UMA gate, which is $4n$. The
+carries can be computed unconditionally and unwound by a UMA that writes the sum bit only under the
+control --- two Toffolis per bit on the way down, one on the way up:
+\begin{lstlisting}
+def _cuma(ctx, ctrl, c, b, a):
+    """UMA that writes the sum bit only when ctrl.  On entry (after an
+    *uncontrolled* MAJ) b = y ^ x, c = c_i ^ x, a = c_{i+1}."""
+    ctx.ccx(c, b, a)                     # a <- x
+    ctx.ccx(ctrl, c, b)                  # b ^= ctrl (c_i ^ x)
+    ctx.cx(a, c)                         # c <- c_i
+    ctx.cx(a, b)                         # b = y ^ ctrl (x ^ c_i)
+\end{lstlisting}
+\begin{lstlisting}
+def cdkm_cadd(ctx, ctrl, x, y, carry):
+    n = len(y)
+    assert len(x) == n and n >= 1
+    _maj(ctx, carry, y[0], x[0])
+    for i in range(n - 1):
+        _maj(ctx, x[i], y[i + 1], x[i + 1])
+    for i in range(n - 1, 0, -1):
+        _cuma(ctx, ctrl, x[i - 1], y[i], x[i])
+    _cuma(ctx, ctrl, carry, y[0], x[0])
+\end{lstlisting}
+
+\begin{center}\small
+\begin{tabular}{lrr}
+\toprule
+one windowed point addition, secp256k1, $w=16$ & qubits & Toffolis\\
+\midrule
+cond.\ inverted, pseudo-Mersenne, IonQ replay (the start) & $2\,251$ & $1\,673\,250$\\
+\quad + Fig.~1 packing of the record & $2\,119$ & $1\,678\,570$\\
+\quad + replay in $x$'s qubits & $1\,863$ & $1\,678\,570$\\
+\quad + CDKM replay cells & $1\,713$ & $2\,004\,970$\\
+\quad + CDKM walk adder & $1\,713$ & $2\,246\,826$\\
+\quad dialog replay instead of IonQ's & $1\,557$ & $2\,300\,900$\\
+dialog, register sharing, Fig.~1, CDKM replay cells & $1\,557$ & $2\,295\,504$\\
+\quad + CDKM square-subtract and point-addition adders & $1\,389$ & $2\,298\,094$\\
+\quad + CDKM dialog walk & $1\,309$ & $2\,539\,382$\\
+\quad + lean replay cells & $1\,299$ & $2\,830\,635$\\
+\quad + CDKM squarer & $1\,246$ & $2\,897\,961$\\
+\quad + Gidney adders where there is headroom & $1\,246$ & $2\,815\,707$\\
+(cond.\ inverted walk, same cells: its record is not shared) & $1\,468$ & $2\,621\,075$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The best row is $1\,246$ qubits, $4.87n$: the record's $669$ ($x$'s own $256$
+among them), $512$ for the multiplicand and the accumulator, $16$ for the window, and a few dozen of
+scratch, most of it the register that holds $f$. \cite{ec:schrott26} reports $4.355n+O(\sqrt n)$,
+or $1\,192$ qubits plus the window. The price is Toffolis: $2\,815\,707$ here, against
+$1\,673\,250$ at the $2\,251$ qubits where the table starts, and against
+\cite{ec:schrott26}'s $2.39\times10^6$ for its space-optimised circuit. IonQ reports its Toffoli
+count at $1\,462$ qubits; no circuit here has both.
+
 \section{Verifying it}\label{ec:sec:verify}
 
 A wrong ECDLP circuit does not return a wrong answer. It returns a \emph{flat histogram} --- and
@@ -4629,9 +4867,15 @@ Named rather than glossed:
 \begin{itemize}\setlength\itemsep{2pt}
 \item \textbf{Register sharing} (\cite{ec:schrott26} Sec 3.1) is built beside the dialog of
 \S\ref{ec:sec:dialog}, not inside it: its failure mode is a register overflow, which the ancilla
-checks turn into a counted failure. The dialog of \S\ref{ec:sec:dialog} itself stays exact.
-\item \textbf{Gidney's dirty-ancilla constant adder} \cite{ec:gidney25}. Constant addition here uses
-clean ancillas: correct, and more qubits than the papers' accounting.
+checks turn into a counted failure. The dialog of \S\ref{ec:sec:dialog} itself stays exact. The
+conditionally inverted walk has no sharing at all, which is why IonQ's Toffoli count and IonQ's
+qubit count are each reached here, but not by the same circuit (\S\ref{ec:sec:toffgap}).
+\item \textbf{Gidney's dirty-ancilla constant adder} \cite{ec:gidney25}, in full. The lean
+constant adder of \S\ref{ec:sec:fewq} borrows dirty qubits only above the top bit of $f$; the bits
+of $f$ itself still sit in clean ones, the largest scratch left at the space variant's peak.
+\item \textbf{IonQ's Karatsuba square-subtract} (their Algorithms 7--11), with its fused slice
+additions and phase comparators. The square-subtract here is the dedicated squarer and a fold; a
+Karatsuba split composed from this package's general cells was built and measured, and costs more.
 \item \textbf{The Ed25519 extension} of \cite{ec:kim26} Sec 4.4, in extended Edwards coordinates.
 The curve model here is short Weierstrass only.
 \item \textbf{Physical-level estimates} for QLDPC architectures. The surface-code model of
@@ -4859,6 +5103,16 @@ ECDSA.Fail contributors,
 \emph{ECDSA.Fail: open autoresearch for optimizing elliptic-curve point addition in Shor's
 algorithm},
 arXiv:2609.09582, 2026.
+
+\bibitem{ec:litinski23}
+D.~Litinski,
+\emph{How to compute a 256-bit elliptic curve private key with only 50 million Toffoli gates},
+arXiv:2306.08585, 2023.
+
+\bibitem{ec:gidney15}
+C.~Gidney,
+\emph{Constructing large increment gates}, 2015.
+\url{https://algassert.com/circuits/2015/06/12/Constructing-Large-Increment-Gates.html}.
 
 \bibitem{ec:grassl16}
 M.~Grassl, B.~Langenberg, M.~Roetteler, and R.~Steinwandt,

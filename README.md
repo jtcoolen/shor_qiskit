@@ -477,6 +477,7 @@ Part VII.
 | `ec_window.windowed_point_add_cfg` | 3 lookups + 1 merged phase repair instead of 10 recomputed lookups; x/y loaded as one word; masked tables (no O entry, no control flag); freed x1/y1; serial loading; pluggable multiplier/squarer/negation | [1128] §2, IonQ Alg 4/6, ECDSA.Fail Era III |
 | `ec_gcd.py` | one interface, five GCDs: [1128]'s dialog with fused/top-bit comparisons, width schedule, **register sharing**, the real **5-Toffoli Fig. 1** packing and x-reuse; IonQ's **conditionally-inverted** walk and replay; ECDSA.Fail's **ping-pong** and **Jump-2** walks and its **base-5** transcript codec; exact / approximate / pseudo-Mersenne replay arithmetic | [1128] §3–4, IonQ §VI, ECDSA.Fail §5.3.1–3 |
 | `ec_square.py` | dedicated squarer (n(n+3)/2 ANDs) and a pseudo-Mersenne fold for step 10 | IonQ §VII.A, ECDSA.Fail §5.3.4 |
+| `ec_approx.modadd_pm_phase`, `ec_gcd.PMPhase`, `CondInv(zero_steps=...)` | IonQ's phase-approximate modular adder (carry-out flag, δ-bit phase repair), careful cells only where the replay's structural zero falls, multiplication replayed forwards | IonQ Alg 2, Table X |
 | `ec_space.py` | the qubit-lean cells: controlled CDKM at 3n, CDKM comparator (1 ancilla), chunked all-ones test (~2√k ancillas), constant adder whose high part is an increment on *borrowed* qubits; the same answers as `ec_approx`'s cells input for input | [1128] §3.2 / §4, [CDKM04], Gidney 2015 |
 | `ec_shor.ecdlp_windowed` | the full windowed circuit: w recycled control qubits (`semiclassical_iqft_windowed`), first window as a lookup, dropped trailing windows + search post-processing, IonQ's masks; `ecdlp_multikey_1c` reuses one P-half for many keys | [1128] §2, Babbush App A, Litinski §4, IonQ §IV |
 | `ekera_hastad.py` | factoring by a short discrete logarithm: 1.5n exponent qubits instead of 2n (s = 1) | Ekerå–Håstad, CFS 2024, Gidney 2025 |
@@ -526,8 +527,35 @@ measurements:
 | published: [1128] 2,588,963 / IonQ 1,392,608 (Toffolis, incl. 3 lookups) | | 1,192 / ~1,457 |
 
 The Toffoli counts land where the papers put them (the IonQ-style build is 20% above IonQ's
-own figure; its arithmetic cells are composed from this package's general parts, not fused).
+own figure until its replay uses IonQ's adder, below).
 The qubit counts in that table do not: those builds draw clean n-bit scratch everywhere.
+Part VII of `shor-complete.tex` explains every row of these three tables (§39, "At
+cryptographic size"), generated from the bench JSON files and checked by `bench/ec_check_tex.py`.
+
+**IonQ's Toffoli count, matched** (`bench/ec_toffoli_256.py`).  Split by component, the
+IonQ-style build above spends 570k of its 1.67M Toffolis on the replay's signed modular additions:
+Algorithm 11 between two complements plus the 0 ↔ p swaps, 712 Toffolis a step, of which 256 are
+the addition.  IonQ's own adder (their Alg 2, `ec_approx.modadd_pm_phase`) adds with carry-out and
+uses the carry as the reduction flag; after the correction the carry equals [y' < x], so it is
+cleared by X-measurement and a 32-bit phase comparison that runs half the time: 352 Toffolis worst
+case, 336 executed.  It cannot see x + y = p, and the replay produces exactly that (or, dividing,
+a 0 entering a complement) once, in its first few steps; `CondInv(zero_steps=37)` keeps the careful
+cell there (IonQ's "rounds with x + y = p: 37") and builds multiplication's replay forwards, since
+the inverse of "measure, sometimes repair" is a recomputation that always runs.
+
+| one windowed point addition, secp256k1 | Toffolis | executed | qubits |
+|---|---:|---:|---:|
+| IonQ-style, Algorithm 11 replay cells | 1,673,250 | 1,673,250 | 2,251 |
+| + IonQ's adder in the replay, 37 careful steps | 1,404,024 | 1,392,408 | 2,233 |
+| + the same adder in the point addition, approximate negation | **1,400,669** | **1,389,021** | 2,233 |
+| + Fig. 1 packing, replay in x's qubits | 1,405,989 | 1,394,341 | 1,845 |
+| published: IonQ | | 1,392,608 | 1,462 |
+
+The whole ECDLP-256 circuit on these cells builds to 39,284,266 Toffolis (38,958,122 executed),
+against IonQ's 39.0M.  "Executed" counts a measurement-based repair with the probability it fires
+(`toffoli_expected` in `ec_cost.count` and `hier.count`); every other column is worst case.  IonQ
+reaches its count at 1,462 qubits; that needs register sharing inside the conditionally inverted
+walk, which is not built.
 
 **Fewer qubits** (`bench/ec_space_256.py`, same builders at n = 256, w = 16; every row adds
 one option to the row above it).  The peak of a point addition is the Bézout replay:
@@ -566,7 +594,10 @@ is below f on entry: probability ~f/q, ~2^−224 for secp256k1.
 
 Things the sources get wrong or leave out, found while reproducing them:
 - IonQ's replay needs its 0 ↔ p swap *before* the complemented adder; without it every
-  e = 1, y = 0 step leaves an ancilla dirty (`ec_approx._swap_zero_q`).
+  e = 1, y = 0 step leaves an ancilla dirty (`ec_approx._swap_zero_q`).  IonQ's text names
+  only that swap; run in the multiplication direction, the same replay step is a complemented
+  subtraction whose result is 0, which comes out as p and needs the p → 0 repair as well
+  (`ec_approx._fix_zero_q`).  The careful cell here does both.
 - ECDSA.Fail's ping-pong budget L = 2.75n is not a worst case: exhaustively, n = 16 needs
   3.9n. `PingPong(rounds=...)` exposes it; the tests report the failure rate at 2.75n.
 - Gidney 2025's hot-qubit count "3f + 2ℓ + len m = 131" evaluates to 152 (926,256 qubits);
@@ -590,6 +621,12 @@ Named rather than glossed:
   (probabilistic, failure rate measured); `ec_eea` itself remains exact.  The
   **5-Toffoli Fig. 1** packing is `ec_gcd.fig1_compress`; `ec_eea.compress_records`
   keeps its generic 57-Toffoli permutation and is still not wired into `ec_eea`.
+- **IonQ's Toffoli count and IonQ's qubit count in one circuit.**  Both are reached here
+  (1.39M executed Toffolis; 1,246 qubits), by different circuits: the conditionally inverted
+  walk has no register sharing.
+- **IonQ's Karatsuba square-subtract** (their Algs 7–11, fused slice additions and phase
+  comparators).  The square-subtract here is the dedicated squarer and a fold (79,160);
+  a Karatsuba over this package's general cells was measured and costs more.
 - **Gidney's dirty-ancilla constant adder** [Gid25], in full.  `ec_space`'s lean constant
   adder borrows dirty qubits only for the increment above f's top bit; the bits of f
   itself still sit in bitlen(f) clean qubits (33 for secp256k1, the largest scratch left

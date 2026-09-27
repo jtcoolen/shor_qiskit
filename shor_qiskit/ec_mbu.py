@@ -344,7 +344,7 @@ class MbuFlagGate(Gate):
         super().__init__("ec_mbuflag", ndata + 1 + nanc, [], label=label)
         self.fix_cost = _toffolis_of(phase, self.num_qubits)
         self.recompute_cost = _toffolis_of(recompute, self.num_qubits)
-        self.ec_cost = {"toffoli": self.fix_cost, "measure": 1}
+        self.ec_cost = {"toffoli": self.fix_cost, "measure": 1, "p_fire": 0.5}
 
     def _define(self):
         q = QuantumRegister(self.num_qubits, "q")

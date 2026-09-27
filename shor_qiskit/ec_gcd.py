@@ -143,6 +143,30 @@ class PMSpace(PM):
         SP.modhalf_pm_space(m, reg, self.q, self.lsbs, self.lean)
 
 
+class PMPhase(PM):
+    """IonQ's replay arithmetic: the phase-approximate adder (IonQ Alg 2,
+    `ec_approx.modadd_pm_phase`) for uncontrolled additions, the careful
+    Algorithm 11 cell only where a control or the replay's structural zero
+    needs it, and kappa-bit (65 for secp256k1) constant corrections."""
+    name = "pm-phase"
+
+    def __init__(self, q, kappa=None, delta=None, msbs=None):
+        kappa = min(q.bit_length(), kappa or AX.phase_kappa(q))
+        super().__init__(q, lsbs=kappa, msbs=msbs)
+        self.kappa, self.delta = kappa, delta
+
+    def cadd(self, m, c, a, b):
+        if c is None:
+            AX.modadd_pm_phase(m, a, b, self.q, self.kappa, self.delta)
+        else:
+            super().cadd(m, c, a, b)
+
+    def signadd(self, m, e, a, b, zero=True):
+        """`zero`: a step where the replay's structural 0 can occur (careful
+        cell); otherwise the phase-approximate one."""
+        AX.csignadd_pm_phase(m, e, a, b, self.q, self.kappa, self.delta, zero, self.msbs)
+
+
 def arith_for(q, kind="exact", **kw):
     return {"exact": Exact, "approx": Approx, "pm": PM}[kind](q, **kw)
 
@@ -466,17 +490,27 @@ class CondInv:
 
     def __init__(self, arith=None, cmp_msbs=None, c_pad=None, replay="ci",
                  iters=None, c_iter=2.4, reuse_x=False, compress=None,
-                 walk_space=False):
+                 walk_space=False, zero_steps=None):
         """Space options (all default off): `reuse_x` runs the replay in x's
         qubits, which the walk leaves empty (-n); `compress="fig1"` packs the
         record three rounds into five qubits as it is produced (-1/6 of it);
         `walk_space` gives the walk's adder one ancilla, so it is CDKM (-n,
-        at n more Toffolis per round)."""
+        at n more Toffolis per round).
+
+        `zero_steps=k` (IonQ Table X, "rounds with x + y = p: 37"): the IonQ
+        replay meets its structural 0 -- s = 0 entering a subtraction when
+        dividing, x + y = q when multiplying -- only in its first few steps
+        (v2-distributed); steps after the k-th call `arith.signadd(...,
+        zero=False)`.  Fails with probability ~2^-k.  It also builds the
+        multiplication's replay forwards (doubling, then s -= (-1)^a r) rather
+        than as the division run backwards, so that measurement-based
+        uncomputes stay measurements."""
         assert replay in ("ci", "standard"), replay
         assert compress in (None, "fig1"), compress
         self.arith, self.cmp_msbs, self.c_pad = arith, cmp_msbs, c_pad
         self.replay_kind, self._iters, self.c_iter = replay, iters, c_iter
         self.reuse_x, self.compress, self.walk_space = reuse_x, compress, walk_space
+        self.zero_steps = zero_steps
 
     iters = Dialog.iters
     widths = Dialog.widths
@@ -607,12 +641,53 @@ class CondInv:
             if g is not None and i == recs.groups[g][0] and recs.groups[g][1] is not None:
                 recs.unpack(m, g, claim=False)
             a, mm = pairs[i]
-            if i > 0:
+            if i > 0 and self.zero_steps is not None:
+                arith.signadd(m, a[0], r, s, zero=i <= self.zero_steps)
+                arith.half(m, s)
+            elif i > 0:
                 arith.signadd(m, a[0], r, s)             # s += (-1)^a r
                 arith.half(m, s)                         # s /= 2
             for a_, b_ in zip(r, s):
                 m.ctx.cswap(mm[0], a_, b_)               # (i = 0: r = 0, only the swap)
             if g is not None and i == recs.groups[g][0] + 2:
+                recs.repack(m, g, False)
+
+    def _mul_forward(self, m, x, y, q):
+        """`div` run backwards, written out: the walk, (r, s) = (y, y), the
+        replay in reverse, the walk undone."""
+        n = len(x)
+        recs = self.record(m, x, q)
+        if self.reuse_x:
+            r = Reg(list(x), "r")
+        else:
+            r = _anc_excluding(m, n, self._spares(recs), "r")
+        for a_, b_ in zip(r, y):
+            m.ctx.swap(a_, b_)                           # r = y, y = 0
+        MA.modadd(m, r, y, q)                            # s = y
+        self._replay_mul(m, r, y, recs, q)
+        if not self.reuse_x:
+            m.free(r)
+        self.unrecord(m, x, q, recs)
+
+    def _replay_mul(self, m, r, s, recs, q):
+        """`_replay_div` step for step in reverse, each step inverted by hand:
+        (r, s) = (y, y)  ->  (0, y x)."""
+        arith = self.arith or Exact(q)
+        packed = self.compress is not None
+        pairs = self._pairs(recs)
+        for i in reversed(range(len(pairs))):
+            g = recs.group_of(i) if packed else None
+            if g is not None and i == recs.groups[g][0] + 2 and recs.groups[g][1] is not None:
+                recs.unpack(m, g, claim=False)
+            a, mm = pairs[i]
+            for a_, b_ in zip(r, s):
+                m.ctx.cswap(mm[0], a_, b_)
+            if i > 0:
+                arith.dbl(m, s)                          # s *= 2
+                m.ctx.x(a[0])
+                arith.signadd(m, a[0], r, s, zero=i <= self.zero_steps)  # s -= (-1)^a r
+                m.ctx.x(a[0])
+            if g is not None and i == recs.groups[g][0]:
                 recs.repack(m, g, False)
 
     def div(self, m, x, z, q):
@@ -636,6 +711,9 @@ class CondInv:
 
     def mul(self, m, x, y, q):
         """|x, y> -> |x, y x mod q>."""
+        if self.replay_kind == "ci" and self.zero_steps is not None:
+            self._mul_forward(m, x, y, q)
+            return
         if self.replay_kind == "ci":
             m.emit_inverse(self.div, m, x, y, q)
             return
@@ -764,6 +842,44 @@ class PingPong:
             m.free(e)
 
     # -- division and multiplication ---------------------------------------------------
+    def _mul_forward(self, m, x, y, q):
+        """`div` run backwards, written out: the walk, (r, s) = (y, y), the
+        replay in reverse, the walk undone."""
+        n = len(x)
+        recs = self.record(m, x, q)
+        if self.reuse_x:
+            r = Reg(list(x), "r")
+        else:
+            r = _anc_excluding(m, n, self._spares(recs), "r")
+        for a_, b_ in zip(r, y):
+            m.ctx.swap(a_, b_)                           # r = y, y = 0
+        MA.modadd(m, r, y, q)                            # s = y
+        self._replay_mul(m, r, y, recs, q)
+        if not self.reuse_x:
+            m.free(r)
+        self.unrecord(m, x, q, recs)
+
+    def _replay_mul(self, m, r, s, recs, q):
+        """`_replay_div` step for step in reverse, each step inverted by hand:
+        (r, s) = (y, y)  ->  (0, y x)."""
+        arith = self.arith or Exact(q)
+        packed = self.compress is not None
+        pairs = self._pairs(recs)
+        for i in reversed(range(len(pairs))):
+            g = recs.group_of(i) if packed else None
+            if g is not None and i == recs.groups[g][0] + 2 and recs.groups[g][1] is not None:
+                recs.unpack(m, g, claim=False)
+            a, mm = pairs[i]
+            for a_, b_ in zip(r, s):
+                m.ctx.cswap(mm[0], a_, b_)
+            if i > 0:
+                arith.dbl(m, s)                          # s *= 2
+                m.ctx.x(a[0])
+                arith.signadd(m, a[0], r, s, zero=i <= self.zero_steps)  # s -= (-1)^a r
+                m.ctx.x(a[0])
+            if g is not None and i == recs.groups[g][0]:
+                recs.repack(m, g, False)
+
     def div(self, m, x, z, q):
         """|x, z> -> |x, z / x mod q>."""
         arith = self.arith or Exact(q)

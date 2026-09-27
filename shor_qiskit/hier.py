@@ -79,11 +79,11 @@ def _invert_tally(t):
     trade places, because a lookup and its inverse (an unlookup) cost
     different amounts."""
     out = {}
+    swap = {"cost:": "inv:", "inv:": "cost:", "exp:": "iexp:", "iexp:": "exp:"}
     for k, v in t.items():
-        if k.startswith("cost:"):
-            k2 = "inv:" + k[5:]
-        elif k.startswith("inv:"):
-            k2 = "cost:" + k[4:]
+        pre = next((p for p in swap if k.startswith(p)), None)
+        if pre:
+            k2 = swap[pre] + k[len(pre):]
         else:
             k2 = _INV_NAME.get(k, k)
         out[k2] = out.get(k2, 0) + v
@@ -232,8 +232,11 @@ def _build(fn, label, key, args, kwargs, qubits, parent):
     if child._live != 0 or any(q in qmap.values() for q in child._pool):
         return None                                   # leaves or frees caller qubits
     local, kids = structure(child)
-    return Node(label.split(".")[-1], key, len(qubits), child._nanc, count_tally(child),
+    node = Node(label.split(".")[-1], key, len(qubits), child._nanc, count_tally(child),
                 local, kids)
+    node._st, node._fi = _node_timing(child, len(qubits) + child._nanc)
+    node.depth = max([f for f in node._fi if f is not None], default=0)
+    return node
 
 
 # =============================================================================
@@ -253,13 +256,21 @@ def count_tally(m):
         t[op.name] = t.get(op.name, 0) + 1
         c = getattr(op, "ec_cost", None)
         if c:
-            ci_ = getattr(op.inverse(), "ec_cost", None) or {}
-            for what in ("toffoli", "measure"):
-                kk = f"cost:{op.name}|{what}"
-                t[kk] = t.get(kk, 0) + c.get(what, 0)
-                ki = f"inv:{op.name}|{what}"
-                t[ki] = t.get(ki, 0) + ci_.get(what, 0)
+            _carried(t, op, c)
     return t
+
+
+def _carried(t, op, c):
+    """A logical gate's carried costs, and its inverse's, into tally t."""
+    ci_ = getattr(op.inverse(), "ec_cost", None) or {}
+    for what in ("toffoli", "measure"):
+        kk = f"cost:{op.name}|{what}"
+        t[kk] = t.get(kk, 0) + c.get(what, 0)
+        ki = f"inv:{op.name}|{what}"
+        t[ki] = t.get(ki, 0) + ci_.get(what, 0)
+    ke, kie = f"exp:{op.name}|toffoli", f"iexp:{op.name}|toffoli"
+    t[ke] = t.get(ke, 0) + c.get("toffoli", 0) * c.get("p_fire", 1)
+    t[kie] = t.get(kie, 0) + ci_.get("toffoli", 0) * ci_.get("p_fire", 1)
 
 
 def structure(m):
@@ -275,13 +286,80 @@ def structure(m):
         local[op.name] = local.get(op.name, 0) + 1
         c = getattr(op, "ec_cost", None)
         if c:
-            ci_ = getattr(op.inverse(), "ec_cost", None) or {}
-            for what in ("toffoli", "measure"):
-                kk = f"cost:{op.name}|{what}"
-                local[kk] = local.get(kk, 0) + c.get(what, 0)
-                ki = f"inv:{op.name}|{what}"
-                local[ki] = local.get(ki, 0) + ci_.get(what, 0)
+            _carried(local, op, c)
     return local, kids
+
+
+def _leaf_depth(op):
+    """Toffoli-class depth of one leaf: 1 per Toffoli/AND/Fredkin, the ladder
+    of a multi-controlled X, a logical gate's carried cost taken as serial."""
+    c = getattr(op, "ec_cost", None)
+    if c:
+        return c.get("toffoli", 0)
+    name = op.name
+    if name in ("ecand", "ccx", "cswap", "ccz"):
+        return 1
+    if name == "mcx":
+        k = op.num_qubits - 1
+        return 1 if k == 2 else max(0, 2 * k - 3)
+    return 0
+
+
+def _schedule(qc):
+    """As-soon-as-possible Toffoli depth with every input ready at 0.
+    Returns ({qubit: time its last operation ends}, {qubit: time its first
+    operation starts}).  A cached call is placed by its per-qubit timing:
+    it starts as late as its latest-arriving input allows (each input is
+    first needed `start[i]` into the call) and hands each qubit back
+    `finish[i]` after that -- so consecutive calls overlap where the first
+    one's late qubits are the second one's late qubits (an adder's carry
+    chain feeding the next adder).  Cliffords take no time but order their
+    qubits.  An upper bound on the true depth."""
+    ready, first = {}, {}
+    for ci in qc.data:
+        op, qs = ci.operation, ci.qubits
+        if isinstance(op, NodeGate):
+            st, fi = op.node.timing(op.inverted)
+            used = [i for i in range(len(qs)) if st[i] is not None]
+            S = max((ready.get(qs[i], 0) - st[i] for i in used), default=0)
+            S = max(S, 0)
+            for i in used:
+                first.setdefault(qs[i], S + st[i])
+                ready[qs[i]] = S + fi[i]
+            continue
+        d = _leaf_depth(op)
+        t0 = max((ready.get(q, 0) for q in qs), default=0)
+        for q in qs:
+            first.setdefault(q, t0)
+            ready[q] = t0 + d
+    return ready, first
+
+
+def _node_timing(child, nq):
+    ready, first = _schedule(child.qc)
+    qubits = child.qc.qubits
+    st = [first.get(q) for q in qubits][:nq]
+    fi = [ready.get(q) for q in qubits][:nq]
+    return st, fi
+
+
+def _timing(self, inverted=False):
+    """(start, finish) per qubit, relative to the call's start; run backwards,
+    what finished last starts first."""
+    if not inverted:
+        return self._st, self._fi
+    D = self.depth
+    return ([None if f is None else D - f for f in self._fi],
+            [None if s is None else D - s for s in self._st])
+
+
+Node.timing = _timing
+
+
+def block_depth(m):
+    """The Toffoli depth of a (hierarchical) circuit: see `_schedule`."""
+    ready, _ = _schedule(getattr(m, "qc", m))
+    return max(ready.values(), default=0)
 
 
 def count(m):
@@ -293,12 +371,15 @@ def count(m):
     cswaps = t.get("cswap", 0)
     mbu = sum(v for k, v in t.items() if k.startswith("cost:") and k.endswith("|toffoli"))
     meas = sum(v for k, v in t.items() if k.startswith("cost:") and k.endswith("|measure"))
+    mbu_exp = sum(v for k, v in t.items() if k.startswith("exp:"))
     qc = getattr(m, "qc", m)
     return {"qubits": qc.num_qubits, "and": ands, "and_dg": dgs, "toffoli": toffs,
             "cswap": cswaps, "mbu_toffoli": mbu, "measure": meas,
             "toffoli_paper": ands + toffs + cswaps + mbu,
+            "toffoli_expected": ands + toffs + cswaps + mbu_exp,
             "toffoli_equiv": ands + dgs + toffs + cswaps + mbu,
             "t": ands * AND_T + (toffs + cswaps) * TOFFOLI_T + mbu * AND_T,
+            "toffoli_depth": block_depth(m),
             "cached_nodes": len(_CACHE), "top_level_ops": len(qc.data)}
 
 
@@ -316,10 +397,11 @@ DEFAULT_TARGETS = [
                      "csignadd"]),
     ("ec_approx", ["all_ones", "eq_top", "lt_approx", "moddbl_approx", "moddbl_pm",
                    "cmodadd_approx", "cmodadd_pm", "cmodadd_pm_q", "csignadd_pm",
-                   "cmodneg_approx", "modhalf_pm", "_fix_zero_q", "_swap_zero_q"]),
+                   "cmodneg_approx", "modhalf_pm", "_fix_zero_q", "_swap_zero_q",
+                   "modadd_pm_phase", "csignadd_pm_phase"]),
     ("ec_mult", ["modmul", "modsqr", "modmul_add", "modmul_sub", "modmul_xor",
                  "modsqr_sub", "cmodmul", "modmul_const"]),
-    ("ec_square", ["sqr_int", "csub_square_pm", "csub_square_generic",
+    ("ec_square", ["sqr_int", "sqr_int_budget", "csub_square_pm", "csub_square_generic",
                    "csub_square_karatsuba_pm"]),
     ("ec_space", ["moddbl_pm_space", "modhalf_pm_space", "cmodadd_pm_q_space",
                   "csignadd_pm_space", "csub_square_pm_space", "_cadd_const",

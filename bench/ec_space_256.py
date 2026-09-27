@@ -87,15 +87,17 @@ def main():
             a, x, y = m.alloc(WBITS, "a"), m.alloc(N, "x"), m.alloc(N, "y")
             W.windowed_point_add_cfg(m, a, x, y, table, P, cfg)
             c = H.count(m)
-        out[name] = {"toffoli": c["toffoli_paper"], "qubits": c["qubits"]}
+        out[name] = {"toffoli": c["toffoli_paper"], "qubits": c["qubits"],
+                     "toffoli_depth": c["toffoli_depth"]}
         print(f"  {name:<46} {c['qubits']:>5} qubits  {c['toffoli_paper']:>10,} Toffolis  "
               f"({time.time() - t:.0f} s)", flush=True)
     print("  published (+16 window qubits here): [1128] space-optimised 1,192 + 16 "
           "qubits / 2^21.19 = 2.39M (secp256k1); IonQ ~1,457 qubits / 1.196M + 3 lookups")
+    out["_record_qubits"] = G.record_qubits(G.Dialog(c_pad=2.3, compress="fig1"), N)
     path = ROOT / "bench" / "ec_space_256.json"
     if only and path.exists():          # a partial run updates its rows only
         out = {**json.loads(path.read_text()), **out}
-        out = {k: out[k] for k in rows() if k in out}
+        out = {k: out[k] for k in list(rows()) + ["_record_qubits"] if k in out}
     path.write_text(json.dumps(out, indent=2))
 
 

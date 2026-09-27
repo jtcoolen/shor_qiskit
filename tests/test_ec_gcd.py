@@ -219,6 +219,28 @@ def test_condinv():
     ok("q = 127 with pseudo-Mersenne arithmetic: IonQ's replay is exact")
 
 
+def test_condinv_phase():
+    section("IonQ's replay cells: phase adder, careful steps, forward multiplication")
+    rnd = random.Random(9)
+    q = 127
+    n = q.bit_length()
+    pairs = [(rnd.randrange(1, q), rnd.randrange(q)) for _ in range(300 if FULL else 150)]
+    prev = {}
+    for K in (0, 1, 3, 37):
+        for fn in ("div", "mul"):
+            be = G.CondInv(arith=G.PMPhase(q, msbs=n), cmp_msbs=n + 1, replay="ci",
+                           zero_steps=K)
+            r, m = fail_rate(q, be, pairs, fn)
+            if K == 37:
+                assert r == 0.0, (fn, r)
+            assert r <= prev.get(fn, 1.0) + 0.02, (K, fn, r)
+            prev[fn] = r
+            print(f"      q={q} zero_steps={K:<2} {fn}: fail {100 * r:5.1f}%  "
+                  f"{CO.count(m)['toffoli_paper']} Toffoli-eq")
+    ok("the structural zero sits in the first steps (v2-distributed): failure "
+       "halves per careful step, exact at 37 -- division and multiplication")
+
+
 def pingpong_worst(p):
     """Rounds the ping-pong walk needs in the worst case over all x."""
     def conv(x):
@@ -348,6 +370,7 @@ def main():
     test_probabilistic_options()
     test_pm_arith()
     test_condinv()
+    test_condinv_phase()
     test_pingpong()
     test_jump2()
 

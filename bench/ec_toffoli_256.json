@@ -1,0 +1,91 @@
+{
+  "n": 256,
+  "w": 16,
+  "msbs": 48,
+  "zero_steps": 37,
+  "kappa": 65,
+  "delta": 32,
+  "published": {
+    "IonQ": {
+      "toffoli": 1392608,
+      "qubits": 1462,
+      "toffoli_without_lookups": 1196000
+    }
+  },
+  "cells": {
+    "signed add, Alg 11 + 0<->q swaps (before)": {
+      "toffoli": 712,
+      "expected": 712.0
+    },
+    "signed add, careful (first 37 steps)": {
+      "toffoli": 712,
+      "expected": 712.0
+    },
+    "signed add, phase-approximate (IonQ Alg 2)": {
+      "toffoli": 352,
+      "expected": 336.0
+    },
+    "halving, 74-bit correction (before)": {
+      "toffoli": 73,
+      "expected": 73.0
+    },
+    "halving, kappa = 65": {
+      "toffoli": 64,
+      "expected": 64.0
+    }
+  },
+  "rows": {
+    "IonQ-style, Alg 11 replay cells (before)": {
+      "toffoli": 1673250,
+      "expected": 1673250,
+      "qubits": 2251,
+      "toffoli_depth": 1566023
+    },
+    "+ phase-approximate adder in the replay, 37 careful steps": {
+      "toffoli": 1404024,
+      "expected": 1392408,
+      "qubits": 2233,
+      "toffoli_depth": 1330746
+    },
+    "+ the same adder in the point addition, approximate negation": {
+      "toffoli": 1400669,
+      "expected": 1389021,
+      "qubits": 2233,
+      "toffoli_depth": 1327361
+    },
+    "+ Fig. 1 packing, replay in x's qubits": {
+      "toffoli": 1405989,
+      "expected": 1394341,
+      "qubits": 1845,
+      "toffoli_depth": 1398036
+    }
+  },
+  "components": {
+    "IonQ-style, Alg 11 replay cells (before)": {
+      "table lookups and repair": 197364,
+      "GCD walk and its undoing": 555488,
+      "  of which signed additions": 569600,
+      "Bezout replay": 833312,
+      "square-subtract": 79160,
+      "everything else": 7926,
+      "total": 1673250
+    },
+    "+ the same adder in the point addition, approximate negation": {
+      "table lookups and repair": 197364,
+      "GCD walk and its undoing": 555488,
+      "  of which signed additions": 307574,
+      "Bezout replay": 564086,
+      "square-subtract": 79160,
+      "everything else": 4571,
+      "total": 1400669
+    }
+  },
+  "full_algorithm": {
+    "config": "+ the same adder in the point addition, approximate negation",
+    "toffoli": 39284266,
+    "expected": 38958122,
+    "toffoli_depth": 35462224,
+    "additions": 28,
+    "qubits_semiclassical": 2233
+  }
+}

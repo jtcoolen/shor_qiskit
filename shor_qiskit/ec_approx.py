@@ -497,6 +497,85 @@ def modadd_pm_mbu(m, x, y, q, lsbs=None, msbs=None):
     m.free(ax, ay, e)
 
 
+# --- IonQ Alg 2 proper: one flag, one short phase comparator ------------------
+def phase_kappa(q):
+    """IonQ's truncated-correction width for q = 2^u - f: bitlen(f) + 32
+    (kappa = 65 for secp256k1)."""
+    return pseudo_mersenne(q)[1].bit_length() + 32
+
+
+def modadd_pm_phase(m, x, y, q, kappa=None, delta=None):
+    """y <- (y + x) mod q, q = 2^u - f.  IonQ Algorithm 2.
+
+    One u-bit Gidney addition whose carry-out c = [x + y >= 2^u] is the
+    reduction flag (u ANDs); on c, add f into the low kappa bits (kappa - 1
+    ANDs).  Then c = [y' < x] for canonical inputs, so it is cleared by
+    X-measurement and, on outcome 1, a phase comparison of the top delta bits
+    (delta ANDs, half the time).  No test for x + y = q and none for sums in
+    [q, 2^u): both are ~f/q events, *except* the one x + y = q step the
+    Bezout replay makes on purpose -- `CondInv(zero_steps=...)` keeps the
+    careful cell (`csignadd_pm_phase(careful=True)`) there.  Approximate three ways, all measured in the tests:
+    sums in [q, 2^u), a carry escaping the low kappa bits (~f / 2^kappa), and
+    ties in the top delta bits (~2^-delta, a wrong phase or a dirty flag)."""
+    import ec_mbu as MB
+    pm = pseudo_mersenne(q)
+    assert pm, f"q = {q} is not pseudo-Mersenne"
+    u, f = pm
+    ctx, n = m.ctx, len(y)
+    assert u == n
+    kappa = min(n, kappa or phase_kappa(q))
+    delta = min(n, delta or 32)
+
+    ax, ay = m.anc(1, "ax"), m.anc(1, "ay")
+    sc = m.anc(n, "sc")
+    A.add(ctx, x + ax, y + ay, sc)                   # ay = carry-out
+    m.free(sc)
+    cp, sc2 = m.anc(kappa, "cp"), m.anc(kappa, "sc2")
+    A.cadd_const(ctx, ay[0], Reg(list(y[:kappa])), f, cp, sc2)   # 2^u -> f
+    m.free(cp, sc2)
+
+    def recompute(qc, qs):
+        from ec_gates import Ctx
+        xx, yy, fl, anc = qs[:n], qs[n:2 * n], qs[2 * n], qs[2 * n + 1:]
+        A.lt_uint(Ctx(qc, "and"), top_bits(yy, delta), top_bits(xx, delta), fl,
+                  anc[:delta])
+
+    def phase(qc, qs):
+        from ec_gates import Ctx
+        xx, yy, anc = qs[:n], qs[n:2 * n], qs[2 * n + 1:]
+        out = anc[delta]
+        qc.x(out)
+        qc.h(out)                                    # |->: the CNOT kicks back
+        A.lt_uint(Ctx(qc, "and"), top_bits(yy, delta), top_bits(xx, delta), out,
+                  anc[:delta])
+        qc.h(out)
+        qc.x(out)
+
+    MB.mbu_flag(m, ay[0], list(x) + list(y), recompute, phase, nanc=delta + 1)
+    m.free(ax, ay)
+
+
+def csignadd_pm_phase(m, e, x, y, q, kappa=None, delta=None, careful=False, msbs=None):
+    """y <- (y + (-1)^e x) mod q on the phase-approximate adder (IonQ Sec VI):
+    complement under e, add, complement.
+
+    `careful` is the cell for the Bezout replay's structural zero (IonQ
+    Table X, "rounds with x + y = p"): `csignadd_pm`, i.e. y = 0 mapped to q
+    before a complemented addition (IonQ's 0 <-> p swap: NOT(0) is not
+    canonical), Algorithm 11 (which reduces x + y = q), and a result q mapped
+    back to 0.  The division replay needs the first, the multiplication replay
+    the other two.  Elsewhere none of them arises except with probability ~1/q
+    per call."""
+    if careful:
+        csignadd_pm(m, e, x, y, q, kappa, msbs)
+        return
+    for b in y:
+        m.ctx.cx(e, b)
+    modadd_pm_phase(m, x, y, q, kappa, delta)
+    for b in y:
+        m.ctx.cx(e, b)
+
+
 def csignadd_pm_mbu(m, e, x, y, q, lsbs=None, msbs=None):
     """`csignadd_pm` on the measured-flag adder (IonQ Sec VI + Alg 2)."""
     n = len(y)

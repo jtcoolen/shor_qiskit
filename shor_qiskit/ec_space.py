@@ -354,7 +354,14 @@ def csub_square_pm_space(m, ctrl, src, acc, q, lsbs=None, msbs=None, sqr_space=F
     n = len(src)
     assert u == n
     z = m.anc(2 * n + 1, "z")
-    SQ.sqr_int(m, src, z, space=sqr_space)
+
+    def square(mm, a, b):
+        if sqr_space is False:
+            SQ.sqr_int(mm, a, b)
+        else:
+            SQ.sqr_int_budget(mm, a, b, 1 if sqr_space is True else sqr_space)
+
+    square(m, src, z)
     lo, hi = Reg(z[:n], "zlo"), Reg(z[n:2 * n], "zhi")
 
     def sub(mm, c, v, a):
@@ -364,5 +371,5 @@ def csub_square_pm_space(m, ctrl, src, acc, q, lsbs=None, msbs=None, sqr_space=F
     SQ._csub_times_const(m, ctrl, hi, f, acc, q,
                          lambda mm, v: moddbl_pm_space(mm, v, q, lsbs, lean),
                          lambda mm, v: modhalf_pm_space(mm, v, q, lsbs, lean), sub)
-    m.emit_inverse(SQ.sqr_int, m, src, z, sqr_space)
+    m.emit_inverse(square, m, src, z)
     m.free(z)

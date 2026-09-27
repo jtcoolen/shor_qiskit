@@ -32,27 +32,18 @@ import ec_modarith as MA
 from ec_sim import Reg
 
 
-def sqr_int(m, x, z, space=False):
+def sqr_int(m, x, z):
     """z (2n + 1 clean qubits) <- x^2.  x preserved.  n(n + 3)/2 ANDs.
 
-    z's top qubit is the running sign and comes back to |0>.  space=True
-    gives every subtraction one ancilla (CDKM, ~2x the Toffolis) instead of
-    up to n (Gidney); an integer is an ancilla budget: Gidney for the
-    subtractions whose carries fit in it, CDKM for the others.
+    z's top qubit is the running sign and comes back to |0>.
     """
     ctx, n = m.ctx, len(x)
     assert len(z) == 2 * n + 1
     pad = m.anc(1, "pad")
 
-    def width(need):
-        if space is False:
-            return need
-        budget = 1 if space is True else space
-        return need if need <= budget else 1
-
     # z <- -x as an (n+1)-bit two's-complement number
     zero = m.anc(1, "z0")
-    anc = m.anc(width(n), "sq")
+    anc = m.anc(n, "sq")
     A.sub(ctx, Reg(list(x) + list(zero)), Reg(z[:n + 1]), anc)
     m.free(anc, zero)
 
@@ -64,8 +55,39 @@ def sqr_int(m, x, z, space=False):
         operand = Reg(h + [pad[0], x[i]], "op")     # signed, sign = x_i
         window = Reg(z[2 * i + 1:n + i + 2], "win")
         assert len(operand) == len(window) == n + 1 - i
-        anc = m.anc(width(max(len(window) - 1, 1)), "sq")
+        anc = m.anc(max(len(window) - 1, 1), "sq")
         A.sub(ctx, operand, window, anc)            # z -= signed operand
+        m.free(anc)
+        for q in h + [pad[0]]:
+            ctx.cx(x[i], q)
+    m.free(pad)
+
+
+def sqr_int_budget(m, x, z, budget=1):
+    """`sqr_int` with an ancilla budget: each subtraction whose Gidney carries
+    fit in `budget` qubits keeps them, the others run as CDKM on one ancilla
+    (twice the Toffolis).  budget=1: all CDKM.  Same result, same z."""
+    ctx, n = m.ctx, len(x)
+    assert len(z) == 2 * n + 1
+    pad = m.anc(1, "pad")
+
+    def width(need):
+        return need if need <= budget else 1
+
+    zero = m.anc(1, "z0")
+    anc = m.anc(width(n), "sq")
+    A.sub(ctx, Reg(list(x) + list(zero)), Reg(z[:n + 1]), anc)
+    m.free(anc, zero)
+
+    for i in range(n):
+        ctx.cx(z[n + i], z[n + i + 1])
+        h = list(x[i + 1:])
+        for q in h + [pad[0]]:
+            ctx.cx(x[i], q)
+        operand = Reg(h + [pad[0], x[i]], "op")
+        window = Reg(z[2 * i + 1:n + i + 2], "win")
+        anc = m.anc(width(max(len(window) - 1, 1)), "sq")
+        A.sub(ctx, operand, window, anc)
         m.free(anc)
         for q in h + [pad[0]]:
             ctx.cx(x[i], q)

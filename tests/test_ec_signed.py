@@ -186,11 +186,64 @@ def test_mbu_flags():
        "static clearing does (IonQ's saving needs a cheaper delta-bit comparator)")
 
 
+def test_phase_adder():
+    section("IonQ Alg 2 proper: carry-out flag, delta-bit phase repair")
+    import ec_mbu as MB
+    import random
+    for q in (61, 127, 251):
+        n = q.bit_length()
+        m = Machine("and")
+        x, y = m.alloc(n, "x"), m.alloc(n, "y")
+        AX.modadd_pm_phase(m, x, y, q, delta=n)
+        bad = set()
+        for xv in range(q):
+            for yv in range(q):
+                try:
+                    if run(m, {x: xv, y: yv})(y) != (xv + yv) % q:
+                        bad.add((xv, yv))
+                except SimError:
+                    bad.add((xv, yv))
+        # exactly the sums the carry cannot see: x + y in [q, 2^n)
+        assert bad == {(a, b) for a in range(q) for b in range(q) if q <= a + b < 1 << n}, q
+        ins = [{x: xv, y: yv} for xv in range(0, q, 5) for yv in range(0, q, 7)
+               if not q <= xv + yv < 1 << n]
+        MB.live_coherent(m.qc, ins, [MB.all_ones_outcome(), MB.random_outcomes(4)],
+                         checks=m.checks)
+        c = __import__("ec_cost").count(m)
+        print(f"      q={q}: wrong exactly on the {len(bad)} sums in [q, 2^n); "
+              f"{c['toffoli_paper']} worst / {c['toffoli_expected']:.1f} expected Toffolis")
+    rnd = random.Random(8)
+    for q, kappa, delta in ((2**61 - 1, 20, 16), (2**64 - 59, 24, 16)):
+        n = q.bit_length()
+        m = Machine("and")
+        x, y = m.alloc(n, "x"), m.alloc(n, "y")
+        AX.modadd_pm_phase(m, x, y, q, kappa, delta)
+        for _ in range(400):
+            xv, yv = rnd.randrange(q), rnd.randrange(q)
+            assert run(m, {x: xv, y: yv})(y) == (xv + yv) % q
+    n, q = 256, 2**256 - 2**32 - 977
+    costs = {}
+    for lab, fn in (("Alg 11 + swaps", lambda m, e, x, y: AX.csignadd_pm(m, e, x, y, q, None, 48)),
+                    ("careful", lambda m, e, x, y: AX.csignadd_pm_phase(
+                        m, e, x, y, q, None, None, True, 48)),
+                    ("phase", lambda m, e, x, y: AX.csignadd_pm_phase(m, e, x, y, q))):
+        m = Machine("and")
+        e, x, y = m.alloc(1, "e"), m.alloc(n, "x"), m.alloc(n, "y")
+        fn(m, e[0], x, y)
+        c = __import__("ec_cost").count(m)
+        costs[lab] = (c["toffoli_paper"], c["toffoli_expected"])
+    print("      n=256 signed add: " + ", ".join(f"{k} {w} / {e:.0f}" for k, (w, e) in costs.items()))
+    assert costs["phase"][1] < costs["Alg 11 + swaps"][0] / 2
+    ok("exact off the ~f/q sums, phase-correct with every flag measured; at "
+       "n = 256 the replay's signed add costs less than half of Alg 11's")
+
+
 def main():
     test_integer()
     test_csignadd()
     test_pm()
     test_mbu_flags()
+    test_phase_adder()
 
 
 if __name__ == "__main__":

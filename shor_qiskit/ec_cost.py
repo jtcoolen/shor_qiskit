@@ -37,11 +37,12 @@ def count(obj):
     cswaps = tally.get("cswap", 0)
     # logical gates that carry their own price (ec_mbu: lookups, unlookups,
     # phase fixes, flag uncomputes).  None exist in the original circuits.
-    mbu, meas = 0, 0
+    mbu, meas, mbu_exp = 0, 0, 0.0
     for ci in qc.data:
         c = getattr(ci.operation, "ec_cost", None)
         if c:
             mbu += c.get("toffoli", 0)
+            mbu_exp += c.get("toffoli", 0) * c.get("p_fire", 1)
             meas += c.get("measure", 0)
     return {
         "qubits": qc.num_qubits,
@@ -65,6 +66,9 @@ def count(obj):
         "toffoli_equiv": ands + and_dgs + toffs + cswaps + mbu,
         "t": ands * AND_T + and_dgs * AND_DG_T + (toffs + cswaps) * TOFFOLI_T
              + mbu * AND_T,
+        # the "executed gates" convention of IonQ / Babbush et al.: a repair
+        # that fires only on measurement outcome 1 counts with its probability
+        "toffoli_expected": ands + toffs + cswaps + mbu_exp,
         "mbu_toffoli": mbu,             # included above; lookups + repairs
         "measure": meas,                # X-basis measurements of MBU gates
         "clifford": tally.get("cx", 0) + tally.get("x", 0) + tally.get("swap", 0),

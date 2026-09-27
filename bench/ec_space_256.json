@@ -1,0 +1,54 @@
+{
+  "IonQ-style (cond.-inverted, PM, IonQ replay)": {
+    "toffoli": 1673250,
+    "qubits": 2251
+  },
+  "+ Fig. 1 record packing": {
+    "toffoli": 1678570,
+    "qubits": 2119
+  },
+  "+ replay in x's qubits": {
+    "toffoli": 1678570,
+    "qubits": 1863
+  },
+  "+ CDKM replay arithmetic (PMSpace)": {
+    "toffoli": 2004970,
+    "qubits": 1713
+  },
+  "+ CDKM walk adder": {
+    "toffoli": 2246826,
+    "qubits": 1713
+  },
+  "same, dialog replay instead of IonQ's": {
+    "toffoli": 2300900,
+    "qubits": 1557
+  },
+  "[1128] dialog + sharing + Fig. 1, PMSpace": {
+    "toffoli": 2295504,
+    "qubits": 1557
+  },
+  "+ CDKM square-subtract and point-add adders": {
+    "toffoli": 2298094,
+    "qubits": 1389
+  },
+  "+ CDKM dialog walk": {
+    "toffoli": 2539382,
+    "qubits": 1309
+  },
+  "+ lean replay cells (CDKM compare, chunked all-ones, borrowed increment)": {
+    "toffoli": 2830635,
+    "qubits": 1299
+  },
+  "+ CDKM squarer": {
+    "toffoli": 2897961,
+    "qubits": 1246
+  },
+  "+ Gidney where there is headroom (walk 0.94n, squarer 0.78n)": {
+    "toffoli": 2815707,
+    "qubits": 1246
+  },
+  "  (side: cond.-inverted walk, same cells -- its record is not shared)": {
+    "toffoli": 2621075,
+    "qubits": 1468
+  }
+}

@@ -14,6 +14,7 @@ from _ec_util import ok, random_curve, random_generator, section
 import ec_adders as A
 import ec_cost as CO
 import ec_gcd as G
+import ec_space as SP
 import ec_square as SQ
 import ec_window as W
 import hier as H
@@ -48,6 +49,13 @@ def main():
         "Dialog share + Fig. 1": (W.PointAddCfg(
             lookup="mbu", offsets=True,
             mul=G.Dialog(fused_cmp=True, c_pad=2.3, share=True, compress="fig1")), tab_m),
+        "space: lean cells, budgets": (W.PointAddCfg(
+            lookup="mbu", merge_xy=True, offsets=True, free_xy1=True,
+            add=G.PMSpace(q, msbs=6, lean=True),
+            square=lambda m, c, s, a, p: SP.csub_square_pm_space(
+                m, c, s, a, p, msbs=6, sqr_space=4, lean=True),
+            mul=G.Dialog(arith=G.PMSpace(q, msbs=6, lean=True), fused_cmp=True, c_pad=2.3,
+                         share=True, compress="fig1", walk_space=8)), tab_m),
         "PingPong": (W.PointAddCfg(lookup="mbu", offsets=True, mul=G.PingPong(rounds=17)), tab_m),
         "Jump2": (W.PointAddCfg(lookup="mbu", offsets=True, mul=G.Jump2(steps=9)), tab_m),
     }
@@ -61,7 +69,7 @@ def main():
         print(f"      {lab:<24} {flat['toffoli_paper']:>6} Toffoli-eq, {flat['qubits']} qubits; "
               f"{len(build(Machine, cfg, tab, q).qc.data)} flat ops -> "
               f"{h['top_level_ops']} top-level, {h['cached_nodes']} cached")
-    ok("identical on every field, six configurations")
+    ok(f"identical on every field, {len(cfgs)} configurations")
 
     try:
         from qualtran.resource_counting import QECGatesCost, get_cost_value

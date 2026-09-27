@@ -52,7 +52,8 @@ from rc_adder import rc_add as _rc_add
 def cdkm_add(ctx, x, y, carry, ctrls=()):
     """|x>|y> -> |x>|(y+x) mod 2^n>.  One clean ancilla `carry`, returned clean.
 
-    2n Toffoli; with controls, 3n.  [CDKM04].
+    2n Toffoli.  With controls, 4n: each MAJ and UMA gets them.  The
+    textbook 3n (control on the UMA only) is `ec_space.cdkm_cadd`.  [CDKM04].
     """
     assert len(x) == len(y), "operands must be the same width"
     _rc_add(ctx, x, y, carry, ctrls)

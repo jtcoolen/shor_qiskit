@@ -477,6 +477,7 @@ Part VII.
 | `ec_window.windowed_point_add_cfg` | 3 lookups + 1 merged phase repair instead of 10 recomputed lookups; x/y loaded as one word; masked tables (no O entry, no control flag); freed x1/y1; serial loading; pluggable multiplier/squarer/negation | [1128] §2, IonQ Alg 4/6, ECDSA.Fail Era III |
 | `ec_gcd.py` | one interface, five GCDs: [1128]'s dialog with fused/top-bit comparisons, width schedule, **register sharing**, the real **5-Toffoli Fig. 1** packing and x-reuse; IonQ's **conditionally-inverted** walk and replay; ECDSA.Fail's **ping-pong** and **Jump-2** walks and its **base-5** transcript codec; exact / approximate / pseudo-Mersenne replay arithmetic | [1128] §3–4, IonQ §VI, ECDSA.Fail §5.3.1–3 |
 | `ec_square.py` | dedicated squarer (n(n+3)/2 ANDs) and a pseudo-Mersenne fold for step 10 | IonQ §VII.A, ECDSA.Fail §5.3.4 |
+| `ec_space.py` | the qubit-lean cells: controlled CDKM at 3n, CDKM comparator (1 ancilla), chunked all-ones test (~2√k ancillas), constant adder whose high part is an increment on *borrowed* qubits; the same answers as `ec_approx`'s cells input for input | [1128] §3.2 / §4, [CDKM04], Gidney 2015 |
 | `ec_shor.ecdlp_windowed` | the full windowed circuit: w recycled control qubits (`semiclassical_iqft_windowed`), first window as a lookup, dropped trailing windows + search post-processing, IonQ's masks; `ecdlp_multikey_1c` reuses one P-half for many keys | [1128] §2, Babbush App A, Litinski §4, IonQ §IV |
 | `ekera_hastad.py` | factoring by a short discrete logarithm: 1.5n exponent qubits instead of 2n (s = 1) | Ekerå–Håstad, CFS 2024, Gidney 2025 |
 | `physical.py` | surface code + yoked storage + cultivation/CCZ-factory model; reproduces Gidney 2025's 897,864 qubits / 4.96 days from its inputs | Gidney 2025 §3.2 |
@@ -526,8 +527,42 @@ measurements:
 
 The Toffoli counts land where the papers put them (the IonQ-style build is 20% above IonQ's
 own figure; its arithmetic cells are composed from this package's general parts, not fused).
-The qubit counts do not: the adders here draw clean n-bit scratch where the papers use
-dirty-ancilla and hybrid adders, which is the space-optimisation work still open.
+The qubit counts in that table do not: those builds draw clean n-bit scratch everywhere.
+
+**Fewer qubits** (`bench/ec_space_256.py`, same builders at n = 256, w = 16; every row adds
+one option to the row above it).  The peak of a point addition is the Bézout replay:
+the packed GCD record, the two n-bit registers, and whatever scratch the arithmetic
+draws.  So the work is: take the scratch out of every cell that runs at that moment, then
+check where the peak went (the square-subtract, then the dialog walk, then the replay's
+constant adder, then the squarer):
+
+| one windowed point addition, secp256k1 | qubits | Toffolis |
+|---|---:|---:|
+| IonQ-style (cond.-inverted walk, PM arithmetic, IonQ replay) | 2,251 | 1,673,250 |
+| + Fig. 1 packing of the record | 2,119 | 1,678,570 |
+| + replay in x's qubits (the walk leaves them empty) | 1,863 | 1,678,570 |
+| + CDKM replay arithmetic (`PMSpace`) | 1,713 | 2,004,970 |
+| [1128] dialog + register sharing + Fig. 1, `PMSpace` | 1,557 | 2,295,504 |
+| + CDKM square-subtract and point-addition adders | 1,389 | 2,298,094 |
+| + CDKM dialog walk (`Dialog(walk_space=True)`) | 1,309 | 2,539,382 |
+| + lean replay cells (`PMSpace(lean=True)`) | 1,299 | 2,830,635 |
+| + CDKM squarer | **1,246** | 2,897,961 |
+| + Gidney adders where there is headroom (walk ≤ 0.94n, squarer ≤ 0.78n ancillas) | **1,246** | **2,815,707** |
+| published: [1128] space-optimised, secp256k1 (+16 window qubits) | 1,208 | 2,390,000 |
+| published: IonQ | ~1,457 | 1,392,608 |
+
+1,246 is 4.87n.  It breaks down as:
+
+- the packed record, 669 qubits (x's own 256 among them);
+- y and the replay accumulator, 512;
+- the window address, 16;
+- 38 qubits of scratch, 33 of them the register that holds f = 2^32 + 977 for the
+  constant adder;
+- a few flags.
+  [1128] reports 4.355n + O(√n) = 1,192 (+16).  The lean cells answer
+exactly what `ec_approx`'s do, input by input and failures included
+(`tests/test_ec_space.py`).  The subtractions they run backwards fail when the accumulator
+is below f on entry: probability ~f/q, ~2^−224 for secp256k1.
 
 Things the sources get wrong or leave out, found while reproducing them:
 - IonQ's replay needs its 0 ↔ p swap *before* the complemented adder; without it every
@@ -538,11 +573,14 @@ Things the sources get wrong or leave out, found while reproducing them:
   the published 897,864 uses 131.  Its "9.1 shots" is 9.2.
 - At toy N, the Gidney–Ekerå choice A = g^(N+1) puts d outside the short range and never
   factors; Gidney 2025's A = g^(N−1) sometimes does (d is pinned only modulo ord g).
+- And one of ours: `ec_adders.cdkm_add` documented a controlled CDKM as 3n Toffolis, but it
+  puts the control on both MAJ and UMA, which is 4n.  The textbook 3n (control on the UMA
+  only) is `ec_space.cdkm_cadd`; it takes ~200k Toffolis off every dialog replay at n = 256.
 
 Tests: `test_sparse_sim`, `test_depth`, `test_eh`, `test_physical`, `test_api_surface`,
 `test_g25_arith`, `test_coset_order` (fast tier); `test_ec_regress`, `test_ec_mbu`,
 `test_ec_window_cfg`, `test_ec_signed`, `test_ec_gcd`, `test_ec_square`, `test_ec_windowed`,
-`test_ec_padd_mont`, `test_ec_opt`, `test_hier` (ec tier).
+`test_ec_padd_mont`, `test_ec_opt`, `test_hier`, `test_ec_space` (ec tier).
 
 ## What is not implemented
 
@@ -552,8 +590,10 @@ Named rather than glossed:
   (probabilistic, failure rate measured); `ec_eea` itself remains exact.  The
   **5-Toffoli Fig. 1** packing is `ec_gcd.fig1_compress`; `ec_eea.compress_records`
   keeps its generic 57-Toffoli permutation and is still not wired into `ec_eea`.
-- **Gidney's dirty-ancilla constant adder** [Gid25]. Constant addition here uses
-  clean ancillas: correct, and more qubits than the paper's accounting.
+- **Gidney's dirty-ancilla constant adder** [Gid25], in full.  `ec_space`'s lean constant
+  adder borrows dirty qubits only for the increment above f's top bit; the bits of f
+  itself still sit in bitlen(f) clean qubits (33 for secp256k1, the largest scratch left
+  at the space variant's peak).
 - **The Ed25519 extension** of 106 §4.4 — the same out-of-place strategy in
   extended Edwards coordinates. The curve model here is short Weierstrass only.
 - **QLDPC physical estimates** (Pinnacle, Cain et al.). `physical.py` models the

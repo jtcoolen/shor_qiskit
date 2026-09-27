@@ -65,6 +65,19 @@ class Exact:
     def half(self, m, reg):
         MA.modhalf(m, reg, self.q)
 
+    # `ec_window.PointAddCfg.add`: the point addition's own y <- y +- x
+    def add(self, m, a, b, p=None):
+        assert p in (None, self.q)
+        self.cadd(m, None, a, b)
+
+    def sub(self, m, a, b, p=None):
+        """The addition run backwards.  For the pseudo-Mersenne cells this is
+        wrong exactly when b < f on entry (the forward adder never outputs
+        those values unreduced): probability ~f/q, the same class of inputs
+        every pseudo-Mersenne circuit here gets wrong."""
+        assert p in (None, self.q)
+        m.emit_inverse(self.cadd, m, None, a, b)
+
 
 class Approx(Exact):
     """[1128] Alg 6 and 9: comparisons on the top msbs bits."""
@@ -101,6 +114,33 @@ class PM(Exact):
 
     def half(self, m, reg):
         AX.modhalf_pm(m, reg, self.q, self.lsbs)
+
+
+class PMSpace(PM):
+    """PM arithmetic on CDKM adders (`ec_space`): same answers, ~2n fewer
+    scratch qubits in each cell, ~n more Toffolis.  `lean` also shrinks the
+    comparison, all-ones and constant-addition scratch (see `ec_space`)."""
+    name = "pm-space"
+
+    def __init__(self, q, lsbs=None, msbs=None, lean=False):
+        super().__init__(q, lsbs, msbs)
+        self.lean = lean
+
+    def dbl(self, m, reg):
+        import ec_space as SP
+        SP.moddbl_pm_space(m, reg, self.q, self.lsbs, self.lean)
+
+    def cadd(self, m, c, a, b):
+        import ec_space as SP
+        SP.cmodadd_pm_q_space(m, c, a, b, self.q, self.lsbs, self.msbs, self.lean)
+
+    def signadd(self, m, e, a, b):
+        import ec_space as SP
+        SP.csignadd_pm_space(m, e, a, b, self.q, self.lsbs, self.msbs, self.lean)
+
+    def half(self, m, reg):
+        import ec_space as SP
+        SP.modhalf_pm_space(m, reg, self.q, self.lsbs, self.lean)
 
 
 def arith_for(q, kind="exact", **kw):
@@ -192,13 +232,20 @@ class Dialog:
 
     def __init__(self, arith=None, fused_cmp=False, cmp_msbs=None, c_pad=None,
                  share=False, compress=None, reuse_x=False, iters=None,
-                 c_iter=2.4):
+                 c_iter=2.4, walk_space=False):
+        """`walk_space` ([1128] Sec 3.2's space variant of the walk): the
+        controlled subtraction v -= u is a controlled CDKM (`ec_space.
+        cdkm_cadd`), one carry qubit instead of the 2w copy-and-add scratch,
+        at w more Toffolis per round.  An integer is a scratch budget: rounds
+        whose copy-and-add fits in it keep it ([1128]: "we use the Gidney
+        adder ... when ancillas are available")."""
         assert not (share and reuse_x), "share hands x's qubits to the record"
         assert not share or c_pad is not None, "share needs the width schedule"
         assert compress in (None, "fig1"), compress
         self.arith, self.fused_cmp, self.cmp_msbs = arith, fused_cmp, cmp_msbs
         self.c_pad, self.share, self.compress = c_pad, share, compress
         self.reuse_x, self._iters, self.c_iter = reuse_x, iters, c_iter
+        self.walk_space = walk_space
 
     # -- schedule ------------------------------------------------------------
     def iters(self, n):
@@ -231,9 +278,19 @@ class Dialog:
             m.free(t, sc)
         for i in range(w):
             ctx.cswap(b0b1[0], u[i], v[i])
-        cp, sc = m.anc(w, "cp"), m.anc(w, "sc")
-        A.csub(ctx, b0[0], u, v, cp, sc)                 # if b0: v -= u
-        m.free(cp, sc)
+        if self.walk_space is True or (self.walk_space and 2 * w > self.walk_space):
+            import ec_space as SP
+            cy = m.anc(1, "cy")
+            for b in v:                                  # v - u = NOT(NOT(v) + u)
+                ctx.x(b)
+            SP.cdkm_cadd(ctx, b0[0], u, v, cy[0])        # if b0: v -= u
+            for b in v:
+                ctx.x(b)
+            m.free(cy)
+        else:
+            cp, sc = m.anc(w, "cp"), m.anc(w, "sc")
+            A.csub(ctx, b0[0], u, v, cp, sc)             # if b0: v -= u
+            m.free(cp, sc)
         for i in range(w - 1):                           # v /= 2
             ctx.swap(v[i], v[i + 1])
 
@@ -408,10 +465,18 @@ class CondInv:
     """
 
     def __init__(self, arith=None, cmp_msbs=None, c_pad=None, replay="ci",
-                 iters=None, c_iter=2.4):
+                 iters=None, c_iter=2.4, reuse_x=False, compress=None,
+                 walk_space=False):
+        """Space options (all default off): `reuse_x` runs the replay in x's
+        qubits, which the walk leaves empty (-n); `compress="fig1"` packs the
+        record three rounds into five qubits as it is produced (-1/6 of it);
+        `walk_space` gives the walk's adder one ancilla, so it is CDKM (-n,
+        at n more Toffolis per round)."""
         assert replay in ("ci", "standard"), replay
+        assert compress in (None, "fig1"), compress
         self.arith, self.cmp_msbs, self.c_pad = arith, cmp_msbs, c_pad
         self.replay_kind, self._iters, self.c_iter = replay, iters, c_iter
+        self.reuse_x, self.compress, self.walk_space = reuse_x, compress, walk_space
 
     iters = Dialog.iters
     widths = Dialog.widths
@@ -438,7 +503,7 @@ class CondInv:
         u, vt = Reg(U[:w + 1]), Reg(VT[:w + 1])
         ctx.cx(vt[1], a[0])
         ctx.cx(u[1], a[0])                               # a = v~[1] ^ u[1]
-        anc = m.anc(max(len(u) - 1, 1), "ci")
+        anc = m.anc(1 if self.walk_space else max(len(u) - 1, 1), "ci")
         A.ci_add(ctx, a[0], u, vt, anc)                  # v~ += (-1)^a u
         m.free(anc)
         for i in range(len(vt) - 1):                     # v~ /= 2 (even)
@@ -466,6 +531,8 @@ class CondInv:
         widths = self.widths(n)
         U, hi, VT = self._registers(m, x)
         A.encode_const(m.ctx, U, q)
+        if self.compress:
+            return self._record_packed(m, U, hi, VT, q, widths)
         recs = [(m.anc(1, "a"), m.anc(1, "m")) for _ in widths]
         self._walk(m, U, VT, recs, q, widths)
         m.ctx.x(U[0])                                    # ends at (1, 1)
@@ -473,8 +540,47 @@ class CondInv:
         m.free(U, hi)
         return recs
 
+    def _record_packed(self, m, U, hi, VT, q, widths):
+        """The walk with each three records packed as soon as they exist."""
+        recs = _Records()
+        for i, w in enumerate(widths):
+            rec = (m.anc(1, "a"), m.anc(1, "m"))
+            recs.pairs.append(rec)
+            if i == 0:
+                self._first(m, U, VT, rec, q)
+            else:
+                self._round(m, U, VT, rec, w)
+            if i % 3 == 2:
+                recs.groups.append((i - 2, None))
+                recs.pack(m, len(recs.groups) - 1)
+        m.ctx.x(U[0])
+        m.ctx.x(VT[0])
+        m.free(U, hi)
+        return recs
+
     def unrecord(self, m, x, q, recs):
         widths = self.widths(len(x))
+        if self.compress:
+            reserved = {sp for _, sp in recs.groups if sp is not None}
+            n = len(x)
+            U = _anc_excluding(m, n + 2, reserved, "u")
+            hi = _anc_excluding(m, 2, reserved, "vhi")
+            VT = Reg(list(x) + list(hi), "v~")
+            m.ctx.x(U[0])
+            m.ctx.x(VT[0])
+            for i in reversed(range(len(widths))):
+                g = recs.group_of(i)
+                if g is not None and recs.groups[g][1] is not None:
+                    recs.unpack(m, g, claim=True)
+                rec = recs.pairs[i]
+                if i == 0:
+                    m.emit_inverse(self._first, m, U, VT, rec, q)
+                else:
+                    m.emit_inverse(self._round, m, U, VT, rec, widths[i])
+                m.free(*rec)
+            A.encode_const(m.ctx, U, q)
+            m.free(U, hi)
+            return
         U, hi, VT = self._registers(m, x)
         m.ctx.x(U[0])
         m.ctx.x(VT[0])
@@ -484,18 +590,30 @@ class CondInv:
         for rec in recs:
             m.free(*rec)
 
+    def _pairs(self, recs):
+        return recs.pairs if self.compress else recs
+
+    def _spares(self, recs):
+        return {sp for _, sp in recs.groups if sp is not None} if self.compress else set()
+
     # -- replays --------------------------------------------------------------------
     def _replay_div(self, m, r, s, recs, q):
         """Forwards: (r, s) = (0, z)  ->  (z/x, z/x)."""
         arith = self.arith or Exact(q)
-        _, m0 = recs[0]
-        for a_, b_ in zip(r, s):
-            m.ctx.cswap(m0[0], a_, b_)                   # r = 0: only the swap
-        for a, mm in recs[1:]:
-            arith.signadd(m, a[0], r, s)                 # s += (-1)^a r
-            arith.half(m, s)                             # s /= 2
+        packed = self.compress is not None
+        pairs = self._pairs(recs)
+        for i in range(len(pairs)):
+            g = recs.group_of(i) if packed else None
+            if g is not None and i == recs.groups[g][0] and recs.groups[g][1] is not None:
+                recs.unpack(m, g, claim=False)
+            a, mm = pairs[i]
+            if i > 0:
+                arith.signadd(m, a[0], r, s)             # s += (-1)^a r
+                arith.half(m, s)                         # s /= 2
             for a_, b_ in zip(r, s):
-                m.ctx.cswap(mm[0], a_, b_)
+                m.ctx.cswap(mm[0], a_, b_)               # (i = 0: r = 0, only the swap)
+            if g is not None and i == recs.groups[g][0] + 2:
+                recs.repack(m, g, False)
 
     def div(self, m, x, z, q):
         """|x, z> -> |x, z / x mod q>."""
@@ -504,12 +622,16 @@ class CondInv:
             return
         n = len(x)
         recs = self.record(m, x, q)
-        r = m.anc(n, "r")
+        if self.reuse_x:
+            r = Reg(list(x), "r")                        # emptied by the walk
+        else:
+            r = _anc_excluding(m, n, self._spares(recs), "r")
         self._replay_div(m, r, z, recs, q)
         MA.modsub(m, r, z, q)                            # z~ = r: clear it
         for a_, b_ in zip(r, z):
             m.ctx.swap(a_, b_)
-        m.free(r)
+        if not self.reuse_x:
+            m.free(r)
         self.unrecord(m, x, q, recs)
 
     def mul(self, m, x, y, q):
@@ -519,13 +641,20 @@ class CondInv:
             return
         n = len(x)
         recs = self.record(m, x, q)
-        s = m.anc(n, "bz")
-        st = {"recs": _Records(), "widths": self.widths(n), "shrunk": {}}
-        st["recs"].pairs = list(recs)
-        Dialog(arith=self.arith).replay(m, y, s, st, q)
+        if self.reuse_x:
+            s = Reg(list(x), "bz")
+        else:
+            s = _anc_excluding(m, n, self._spares(recs), "bz")
+        if self.compress:
+            st = {"recs": recs, "widths": self.widths(n), "shrunk": {}}
+        else:
+            st = {"recs": _Records(), "widths": self.widths(n), "shrunk": {}}
+            st["recs"].pairs = list(recs)
+        Dialog(arith=self.arith, compress=self.compress).replay(m, y, s, st, q)
         for a_, b_ in zip(y, s):
             m.ctx.swap(a_, b_)
-        m.free(s)
+        if not self.reuse_x:
+            m.free(s)
         self.unrecord(m, x, q, recs)
 
 

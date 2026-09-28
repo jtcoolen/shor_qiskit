@@ -241,6 +241,66 @@ def test_condinv_phase():
        "halves per careful step, exact at 37 -- division and multiplication")
 
 
+def test_condinv_space():
+    section("IonQ's cells on fewer qubits: lean careful cell, CNOT ends, shared walk")
+    import ec_approx as AX
+    import ec_modarith as MA
+    for q in (61, 127):
+        n = q.bit_length()
+        builds = []
+        for lean in (False, True):
+            m = Machine("and")
+            e, x, y = m.alloc(1, "e"), m.alloc(n, "x"), m.alloc(n, "y")
+            AX.csignadd_pm(m, e[0], x, y, q, None, n, lean=lean)
+            builds.append((m, e, x, y))
+        names = [[ci.operation.name for ci in b[0].qc.data] for b in builds]
+        assert names[0] == names[1]
+        for ev in (0, 1):
+            for xv in range(q):
+                for yv in range(0, q, 1 if FULL else 3):
+                    outs = []
+                    for m, e, x, y in builds:
+                        try:
+                            rd = run(m, {e: ev, x: xv, y: yv})
+                            outs.append((rd(x), rd(y)))
+                        except SimError:
+                            outs.append(None)
+                    assert outs[0] == outs[1], (q, ev, xv, yv, outs)
+        print(f"      q={q} careful cell: {builds[0][0].qc.num_qubits} -> "
+              f"{builds[1][0].qc.num_qubits} qubits, same gates")
+    ok("lean careful cell: gate for gate the same, the same output on every input")
+
+    rnd = random.Random(12)
+    q, n = 127, 7
+    pairs = [(rnd.randrange(1, q), rnd.randrange(q)) for _ in range(300 if FULL else 150)]
+
+    def be(lean=False, c_pad=2.3, **kw):
+        return G.CondInv(arith=G.PMPhase(q, msbs=n, lean=lean), cmp_msbs=n + 1, c_pad=c_pad,
+                         replay="ci", zero_steps=37, **kw)
+    every = dict(lean=True, cnot_ends=True, share=True, compress="fig1", reuse_x=True)
+    for fn, add in (("div", MA.modsub), ("mul", MA.modadd)):
+        r0, m0 = fail_rate(q, be(), pairs, fn)
+        r1, m1 = fail_rate(q, be(**every), pairs, fn)
+        assert r0 == r1 == 0.0, (fn, r0, r1)
+        c0, c1 = CO.count(m0), CO.count(m1)
+        mc = Machine("and")
+        add(mc, mc.alloc(n, "r"), mc.alloc(n, "s"), q)
+        t_ends = CO.count(build(q, be(cnot_ends=True), fn)[0])["toffoli_paper"]
+        assert c0["toffoli_paper"] - t_ends == CO.count(mc)["toffoli_paper"], fn
+        assert c1["qubits"] < c0["qubits"]
+        print(f"      q={q} {fn}: {c0['qubits']} -> {c1['qubits']} qubits, "
+              f"{c0['toffoli_paper']} -> {c1['toffoli_paper']} Toffoli-eq (Fig. 1 packing "
+              f"adds its five per three rounds)")
+    for c_pad in (0.0, 1.0, 2.3):
+        rs = [fail_rate(q, be(c_pad=c_pad, share=s, lean=True, compress="fig1", reuse_x=True),
+                        pairs, "mul")[0] for s in (False, True)]
+        print(f"      q={q} c_pad={c_pad}: fail {100 * rs[0]:5.1f}% unshared, "
+              f"{100 * rs[1]:5.1f}% shared")
+        assert rs[0] == rs[1], (c_pad, rs)
+    ok("exact at c_pad = 2.3 with every option on; CNOT ends save exactly the two "
+       "modular additions; sharing fails exactly where the unshared walk does")
+
+
 def pingpong_worst(p):
     """Rounds the ping-pong walk needs in the worst case over all x."""
     def conv(x):
@@ -371,6 +431,7 @@ def main():
     test_pm_arith()
     test_condinv()
     test_condinv_phase()
+    test_condinv_space()
     test_pingpong()
     test_jump2()
 

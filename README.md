@@ -242,9 +242,10 @@ different from the quantum×classical-constant multiplier used throughout here.
 * The coset representation is **approximate**: deviation ~2^-cpad per addition,
   subadditive over a sequence. Everything else here is exact and asserts exact
   equality; coset tests instead measure an error *rate* against the padding budget.
-  `coset.py` supplies the adder and multiplier; **the full coset order-finding
-  circuit is not built** — the multiply/swap/uncompute of Level 4 in coset form is
-  the remaining piece.
+  `coset.order_circuit_coset` is the full order-finding circuit in coset form
+  (encoding circuit, multiply/swap/uncompute with plain additions);
+  `tests/test_coset_order.py` checks its output distribution at N = 15 against the
+  exact one, within the bound and falling as the padding grows.
 
 ---
 
@@ -478,6 +479,7 @@ Part VII.
 | `ec_gcd.py` | one interface, five GCDs: [1128]'s dialog with fused/top-bit comparisons, width schedule, **register sharing**, the real **5-Toffoli Fig. 1** packing and x-reuse; IonQ's **conditionally-inverted** walk and replay; ECDSA.Fail's **ping-pong** and **Jump-2** walks and its **base-5** transcript codec; exact / approximate / pseudo-Mersenne replay arithmetic | [1128] §3–4, IonQ §VI, ECDSA.Fail §5.3.1–3 |
 | `ec_square.py` | dedicated squarer (n(n+3)/2 ANDs) and a pseudo-Mersenne fold for step 10 | IonQ §VII.A, ECDSA.Fail §5.3.4 |
 | `ec_approx.modadd_pm_phase`, `ec_gcd.PMPhase`, `CondInv(zero_steps=...)` | IonQ's phase-approximate modular adder (carry-out flag, δ-bit phase repair), careful cells only where the replay's structural zero falls, multiplication replayed forwards | IonQ Alg 2, Table X |
+| `PMPhase(lean=True)`, `CondInv(share=True, cnot_ends=True)`, `csub_square_pm(arith=...)` | IonQ's cells on 1,457 qubits: the careful cell's scratch freed after its adder, the replay's opening copy and closing clear as CNOTs, register sharing in the conditionally inverted walk (u's high qubits, never x's), the square-subtract's fold on the phase adder | IonQ §VI, [1128] §3.1 |
 | `ec_space.py` | the qubit-lean cells: controlled CDKM at 3n, CDKM comparator (1 ancilla), chunked all-ones test (~2√k ancillas), constant adder whose high part is an increment on *borrowed* qubits; the same answers as `ec_approx`'s cells input for input | [1128] §3.2 / §4, [CDKM04], Gidney 2015 |
 | `ec_depth.py` | depth-optimised cells on the carry-lookahead adder: exact modular doubling/halving/controlled addition (`CLAArith`), the dialog walk (`Dialog(walk_cla=True)`), the squarer; shared controls fanned out with CNOTs so n controlled gates take one layer | [106] §3.1, [DKRS04] |
 | `ec_cla.py` | Draper–Kutin–Rains–Svore log-depth adder from temporary ANDs, free-uncompute comparator tree, log-depth exact modular add | [106] §3.1, [DKRS04] |
@@ -535,7 +537,7 @@ records how often each sub-bloq is called, not on which qubits or in what order.
 | IonQ's conditionally-inverted walk and replay, squarer | **1,711,194** | 1,409,170 | 2,251 |
 | ECDSA.Fail ping-pong (704 rounds), squarer | 2,117,534 | 1,932,984 | 2,155 |
 | register sharing + Fig. 1 packing (space variant), squarer | 2,006,184 | 1,505,372 | **1,873** |
-| published: [1128] 2,588,963 / IonQ 1,392,608 (Toffolis, incl. 3 lookups) | | | 1,192 / ~1,457 |
+| published: [1128] 2,588,963 / IonQ 1,392,608 (Toffolis, incl. 3 lookups) | | | 1,192 / 1,457 |
 
 The whole ECDLP-256 circuit (28 windowed additions after a first-window lookup, the last
 three windows dropped) builds to 47,978,966 Toffolis at depth 39,494,808 on 2,251 qubits with
@@ -561,15 +563,40 @@ the inverse of "measure, sometimes repair" is a recomputation that always runs. 
 | + IonQ's adder in the replay, 37 careful steps | 1,441,968 | 1,430,352 | 1,116,947 | 2,233 |
 | + the same adder in the point addition, approximate negation | 1,438,613 | 1,426,965 | 1,114,102 | 2,233 |
 | + Fig. 1 packing, replay in x's qubits | 1,443,933 | 1,432,285 | 1,255,253 | 1,845 |
-| row 3 + signed windows (2^15-entry tables) | **1,340,563** | **1,328,915** | 1,048,565 | 2,233 |
-| published: IonQ | | 1,392,608 | | 1,462 |
+| row 3 + signed windows (2^15-entry tables) | 1,340,563 | 1,328,915 | 1,048,565 | 2,233 |
+| row 4 + lean careful cell, CNOT ends, shared walk, phase fold | 1,436,519 | 1,424,871 | 1,296,204 | **1,457** |
+| the same with signed windows: **one circuit** | **1,338,469** | **1,326,821** | 1,198,152 | **1,457** |
+| published: IonQ | | 1,392,608 | | 1,457 |
 
 On IonQ's cells the whole ECDLP-256 circuit builds to 40,346,698 Toffolis (40,020,554 executed,
-2.6% above IonQ's 39.0M) at depth 29,490,972; with signed windows one addition is 4.6% below
-IonQ's.  "Executed" counts a measurement-based repair with the probability it fires
-(`toffoli_expected` in `ec_cost.count` and `hier.count`); every other column is worst case.  IonQ
-reaches its count at 1,462 qubits; that needs register sharing inside the conditionally inverted
-walk, which is not built.
+2.6% above IonQ's 39.0M) at depth 29,490,972 on 2,233 qubits.  "Executed" counts a
+measurement-based repair with the probability it fires (`toffoli_expected` in `ec_cost.count` and
+`hier.count`); every other column is worst case.
+
+**IonQ's count and IonQ's qubits in one circuit.**  IonQ reports 39.0M Toffolis at 1,457 logical
+qubits.  Starting from row 4 (1,845 qubits), the peak moved four times, and none of the four fixes
+adds a Toffoli:
+
+- the careful cell of the first 37 replay steps held its adder's scratch, and a copy register an
+  uncontrolled addition never touches, until the end: freed after the addition, the same
+  703 Toffolis run on 259 scratch qubits instead of 647 (`PMPhase(lean=True)`);
+- the replay's opening s = y (adding r into 0) and closing clear (subtracting r from r) were exact
+  modular additions, 1,023 Toffolis on 516 scratch qubits; both are copies, so n CNOTs
+  (`CondInv(cnot_ends=True)`);
+- the square-subtract's fold ran 8 exact generic subtractions beside the 2n + 1-qubit square;
+  on the phase adder each is 352 Toffolis on 258 scratch qubits (`csub_square_pm(arith=...)`);
+- the walk ended holding u at full width next to the whole record: register sharing
+  (`CondInv(share=True)`) frees u's high qubits (never x's, so the replay still runs in x) as
+  the schedule narrows, and the record grows into them.
+
+The peak is then the replay: record 669 + multiplicand and accumulator 512 + window 16 + one
+cell's scratch = **1,457**.  With signed windows one addition is 1,326,821 executed Toffolis
+(4.7% below IonQ's 1,392,608 at the same width), and the whole ECDLP-256 circuit is
+**37,535,781 Toffolis (37,209,637 executed) on 1,457 qubits**, against IonQ's 39.0M
+on 1,457.  The price is depth, 33,606,905 against 29,490,972, most of it from row 4's packing
+and reuse of x's qubits.  `tests/test_ec_gcd.py`, `test_ec_square.py` and `test_ec_space.py`
+check that the lean cell, the CNOT ends and the shared walk change no output on any input tried,
+and that the fold adds only the ~f/q inputs a pseudo-Mersenne subtraction gets wrong.
 
 **Fewer qubits** (`bench/ec_space_256.py`, same builders at n = 256, w = 16; every row adds
 one option to the row above it).  The peak of a point addition is the Bézout replay:
@@ -592,7 +619,7 @@ constant adder, then the squarer):
 | + Gidney adders where there is headroom (walk ≤ 0.94n, squarer ≤ 0.78n ancillas) | **1,246** | **2,853,603** | 2,372,502 |
 | + Luo's register-shared EEA instead of the dialog (`PointAddCfg(mul=Luo())`) | 1,107 | 86,033,905 | 66,428,000 |
 | published: [1128] space-optimised, secp256k1 (+16 window qubits) | 1,208 | 2,390,000 | |
-| published: IonQ | ~1,457 | 1,392,608 | |
+| published: IonQ | 1,457 | 1,392,608 | |
 
 1,246 is 4.87n.  It breaks down as:
 
@@ -649,15 +676,15 @@ p = 1e-3, 1 µs cycles, 10 µs reaction, six CCZ factories; plots in `doc/figure
 
 | whole algorithm | logical qubits | Toffolis | physical qubits | runtime |
 |---|---:|---:|---:|---:|
-| ECDLP-256, IonQ's cells (built) | 2,233 | 4.00e7 | 3,189,368 | 17 min |
+| ECDLP-256, IonQ's cells, signed windows (built) | 1,457 | 3.72e7 | 2,140,216 | 16 min |
 | ECDLP-256, fewest qubits (built) | 1,246 | 8.00e7 | 1,854,944 | 33 min |
 | RSA-2048, Gidney 2025 (built) | 1,467 | 6.95e9 | 973,576 | 2.1 days |
 | RSA-3072, Gidney 2025 (built) | 2,115 | 1.97e10 | 1,259,592 | 6.4 days |
 | RSA-2048, Gidney 2025 (published) | 1,399 | 6.5e9 | 881,640 | 1.9 days |
-| ECDLP-256, IonQ (published) | 1,462 | 3.9e7 | 2,146,976 | 16 min |
+| ECDLP-256, IonQ (published) | 1,457 | 3.9e7 | 2,140,216 | 16 min |
 
-At comparable logical qubit counts secp256k1 costs ~174× fewer Toffolis than RSA-2048 and
-~493× fewer than RSA-3072, its classical-security equal.  The numbers are eight times shorter
+At comparable logical qubit counts secp256k1 costs ~187× fewer Toffolis than RSA-2048 and
+~530× fewer than RSA-3072, its classical-security equal.  The numbers are eight times shorter
 (arithmetic costs ≥ n² per group operation); ECDLP needs one shot where Ekerå–Håstad with s = 8
 needs 9.2; and Gidney's residue arithmetic buys RSA its low qubit count (0.7n, the exponent in
 cold storage) with Toffolis.  Part VIII of `shor-complete.tex` sets this out.
@@ -685,7 +712,10 @@ Things the sources get wrong or leave out, found while reproducing them:
   the published 897,864 uses 131.  Its "9.1 shots" is 9.2.
 - At toy N, the Gidney–Ekerå choice A = g^(N+1) puts d outside the short range and never
   factors; Gidney 2025's A = g^(N−1) sometimes does (d is pinned only modulo ord g).
-- And one of ours: `ec_adders.cdkm_add` documented a controlled CDKM as 3n Toffolis, but it
+- And two of ours.  This package quoted IonQ's circuit at 1,462 qubits; that is the width IonQ
+  targeted ([1128]'s, window qubits included).  IonQ's own figure is "39 million Toffoli gates
+  at 1457 logical qubits" (arXiv:2609.05625, Sec. I).
+- `ec_adders.cdkm_add` documented a controlled CDKM as 3n Toffolis, but it
   puts the control on both MAJ and UMA, which is 4n.  The textbook 3n (control on the UMA
   only) is `ec_space.cdkm_cadd`; it takes ~200k Toffolis off every dialog replay at n = 256.
 
@@ -704,9 +734,6 @@ Named rather than glossed:
   (probabilistic, failure rate measured); `ec_eea` itself remains exact.  The
   **5-Toffoli Fig. 1** packing is `ec_gcd.fig1_compress`; `ec_eea.compress_records`
   keeps its generic 57-Toffoli permutation and is still not wired into `ec_eea`.
-- **IonQ's Toffoli count and IonQ's qubit count in one circuit.**  Both are reached here
-  (1.33M executed Toffolis with signed windows; 1,246 qubits), by different circuits: the
-  conditionally inverted walk has no register sharing.
 - **Luo et al.'s 3n point addition.** `ec_luo` builds their register-shared inversion at
   exactly their qubit count and a reversible 4n division; the 3n point addition needs two
   measurement-based pieces (reusing y's register after an X-measurement, and an O(1)-workspace

@@ -71,8 +71,8 @@ def main():
                      "hours_per_shot": est["hours_per_shot"],
                      "runtime_model": est["runtime_model"], "source": source})
 
-    f = tg["full_algorithm"]
-    add("ECDLP-256, IonQ's cells", "built", "ECC", f["qubits_semiclassical"], f["expected"],
+    f = tg["full_algorithm_one_circuit"]              # IonQ's count and qubits, one circuit
+    add("ECDLP-256, IonQ's cells, signed windows", "built", "ECC", f["qubits_semiclassical"], f["expected"],
         f.get("toffoli_depth"))
     sp = space_full()
     add("ECDLP-256, fewest qubits", "built", "ECC", sp["qubits"], sp["expected"],
@@ -88,7 +88,7 @@ def main():
     add("RSA-2048, Gidney 2025", "published", "RSA", 1399, 6.5e9, shots=9.2, cold=1280,
         source="arXiv:2505.15917 Table 5")
     pub = [
-        ("ECDLP-256, IonQ", "ECC", 1462, 39.0e6, "arXiv:2609.05625"),
+        ("ECDLP-256, IonQ", "ECC", 1457, 39.0e6, "arXiv:2609.05625"),
         ("ECDLP-256, [1128] space-optimised", "ECC", 1208, ADDITIONS * (2 ** 21.19 + LOOKUP),
          "ePrint 2026/1128 Table 2"),
         ("ECDLP-256, [1128] gate-optimised", "ECC", 1462, ADDITIONS * (2 ** 20.83 + LOOKUP),

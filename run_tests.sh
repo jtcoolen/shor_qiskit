@@ -6,7 +6,7 @@
 #   ./run_tests.sh full     adds end-to-end factoring  (~30 minutes)
 #   ./run_tests.sh all      adds N=21 / N=33 and ECDLP  (hours; 8 GB peak RAM)
 #   ./run_tests.sh ec       the ECDLP suite only       (~6 minutes)
-#   ./run_tests.sh doc      check Part VII matches the benchmark  (instant)
+#   ./run_tests.sh doc      check Parts VII-VIII match the benchmarks  (seconds)
 #
 # SHOR_EC_FULL=1 widens the ECDLP suite (more primes, more cases, more
 # projective representatives).  Default is the narrow sweep.
@@ -32,8 +32,8 @@ EC="test_ec_classical test_ec_quantum test_ec_arith test_ec_kaliski
     test_hier test_ec_space test_ec_cla test_ec_edwards test_ec_proj_q
     test_ec_depth test_ec_signedwin test_ec_batch test_ec_luo"
 
-# Part VII of shor-complete.tex is generated from bench/ec_ablation.json; this
-# asserts the document still matches what the benchmark measured.
+# Parts VII and VIII of shor-complete.tex are generated from bench/*.json; this
+# asserts the document still matches what the benchmarks measured.
 DOC="../bench/ec_check_tex"
 
 case "${1:-fast}" in

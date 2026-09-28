@@ -302,6 +302,10 @@ TOFF_LABELS = {
         "\\quad + Fig.~1 packing, replay in $x$'s qubits",
     "+ signed windows (2^15-entry tables), no Fig. 1":
         "\\quad row 3 + signed windows ($2^{15}$-entry tables)",
+    "+ Fig. 1, x's qubits, lean careful cell, CNOT ends, shared walk, phase fold":
+        "\\quad row 4 + lean careful cell, CNOT ends, shared walk, phase fold",
+    "  the same with signed windows: IonQ's count and qubits in one circuit":
+        "\\quad the same with signed windows (\\S\\ref{ec:sec:onecircuit})",
 }
 
 
@@ -542,6 +546,29 @@ def facts():
     fl = TG["full_algorithm"]
     f["tg_full"], f["tg_full_exp"] = num(fl["toffoli"]), num(fl["expected"])
     f["tg_full_add"] = fl["additions"]
+    # --- IonQ's count and qubits in one circuit
+    sc = TG["scratch"]
+    f["sc_care"] = num(sc["careful signed add"]["scratch"])
+    f["sc_care_lean"] = num(sc["careful signed add, lean"]["scratch"])
+    f["sc_care_t"] = num(sc["careful signed add"]["toffoli"])
+    add = sc["exact modular addition (the replay's copy and clear)"]
+    f["sc_add"], f["sc_add_t"] = num(add["scratch"]), num(add["toffoli"])
+    fold = sc["phase-approximate subtraction (the fold)"]
+    f["sc_fold"], f["sc_fold_t"] = num(fold["scratch"]), num(fold["toffoli"])
+    f["sc_fold_n"] = bin(2 ** 32 + 977).count("1") + 1         # z_lo, then f z_hi bit by bit
+    one = TG["rows"]["+ Fig. 1, x's qubits, lean careful cell, CNOT ends, shared walk, phase fold"]
+    ones = TG["rows"]["  the same with signed windows: IonQ's count and qubits in one circuit"]
+    f["tg_one_q"] = num(one["qubits"])
+    f["tg_one_t"], f["tg_one_exp"] = num(one["toffoli"]), num(one["expected"])
+    f["tg_ones_t"], f["tg_ones_exp"] = num(ones["toffoli"]), num(ones["expected"])
+    f["tg_ones_q"] = num(ones["qubits"])
+    f["tg_one_d"], f["tg_row3_d"] = num(one["toffoli_depth"]), num(rw[2]["toffoli_depth"])
+    f["tg_row4_d"] = num(rw[3]["toffoli_depth"])
+    f1 = TG["full_algorithm_one_circuit"]
+    f["tg_onefull"], f["tg_onefull_exp"] = num(f1["toffoli"]), num(f1["expected"])
+    f["tg_onefull_q"] = num(f1["qubits_semiclassical"])
+    f["tg_onefull_d"] = num(f1["toffoli_depth"])
+    f["tg_full_d"], f["tg_full_q"] = num(fl["toffoli_depth"]), num(fl["qubits_semiclassical"])
     # --- the qubit frontier
     sp = {k: v for k, v in SPC.items() if not k.startswith("_")}
     first, best = sp["IonQ-style (cond.-inverted, PM, IonQ replay)"], \

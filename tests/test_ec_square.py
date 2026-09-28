@@ -74,6 +74,37 @@ def test_square_sub():
     ok("pseudo-Mersenne fold: failures only at the ~f/q non-canonical inputs")
 
 
+def test_square_sub_phase():
+    section("square-subtract, the fold's subtractions on IonQ's phase adder")
+    import ec_gcd as G
+    for q in (61, 127):
+        u, f = AX.pseudo_mersenne(q)
+        n = q.bit_length()
+        subs = bin(f).count("1") + 1
+        cases = [(sv, av) for sv in range(q) for av in range(0, q, 1 if FULL else 2)]
+        res = {}
+        for lab, kw in (("modsub", {}), ("phase", {"arith": G.PMPhase(q, msbs=n)})):
+            m = Machine("and")
+            s, a = m.alloc(n, "s"), m.alloc(n, "a")
+            SQ.csub_square_pm(m, None, s, a, q, msbs=n, **kw)
+            bad = 0
+            for sv, av in cases:
+                try:
+                    rd = run(m, {s: sv, a: av})
+                    bad += (rd(a), rd(s)) != ((av - sv * sv) % q, sv)
+                except SimError:
+                    bad += 1
+            res[lab] = (bad / len(cases), CO.count(m))
+        (r0, c0), (r1, c1) = res["modsub"], res["phase"]
+        print(f"      q=2^{u}-{f}: {c0['qubits']} -> {c1['qubits']} qubits, "
+              f"{c0['toffoli_paper']} -> {c1['toffoli_paper']} Toffoli-eq; failure "
+              f"{100 * r0:.1f}% -> {100 * r1:.1f}% ({subs} subtractions, ~{100 * 2 * subs * f / q:.0f}% bound)")
+        assert c1["qubits"] < c0["qubits"] and c1["toffoli_paper"] < c0["toffoli_paper"]
+        assert r1 <= r0 + 2 * subs * f / q + 0.02, (q, r0, r1)
+    ok("fewer qubits and Toffolis; the extra failures are the ~f/q inputs a "
+       "pseudo-Mersenne subtraction run backwards gets wrong")
+
+
 def test_projection():
     section("cost at n = 64 and n = 256 (built, not simulated)")
     for n, q in ((64, (1 << 64) - 59), (256, 2**256 - 2**32 - 977)):
@@ -125,6 +156,7 @@ def test_karatsuba():
 def main():
     test_sqr_int()
     test_square_sub()
+    test_square_sub_phase()
     test_karatsuba()
     if FULL or True:
         test_projection()

@@ -241,7 +241,7 @@ def cmodadd_pm(m, ctrl, x, y, q, lsbs=None, msbs=None):
 
 
 # --- Algorithm 11: the same, also handling x + y == q ----------------------
-def cmodadd_pm_q(m, ctrl, x, y, q, lsbs=None, msbs=None):
+def cmodadd_pm_q(m, ctrl, x, y, q, lsbs=None, msbs=None, lean=False):
     """y <- (y + x) mod q when ctrl, for q = 2^u - f.  [1128] Algorithm 11.
 
     Algorithm 10 plus the one sum it gets wrong for certain.  x + y == q does
@@ -265,6 +265,11 @@ def cmodadd_pm_q(m, ctrl, x, y, q, lsbs=None, msbs=None):
     Toffoli-equivalents.  Accuracy: both top-bit tests can misfire, so at a
     given msbs the failure rate on random inputs is a few times Alg 10's --
     but still ~2^-msbs, and Alg 10 is certain to fail inside the replay.
+
+    `lean`: the same gates on fewer qubits.  The adder's scratch (and its copy
+    register, which an uncontrolled addition never touches) goes back to the
+    pool as soon as the addition is done, and the top-bit comparisons draw
+    msbs fresh ones: n + 3 qubits of scratch instead of 2n + 5 (uncontrolled).
     """
     pm = pseudo_mersenne(q)
     assert pm, f"q = {q} is not pseudo-Mersenne"
@@ -276,11 +281,20 @@ def cmodadd_pm_q(m, ctrl, x, y, q, lsbs=None, msbs=None):
 
     ax, ay = m.anc(1, "ax"), m.anc(1, "ay")
     xe, ye = x + ax, y + ay
-    cp, sc = m.anc(n + 1, "cp"), m.anc(n + 1, "sc")
-    if ctrl is None:
-        A.add(ctx, xe, ye, sc)
+    if lean:
+        cp = m.anc(n + 1, "cp") if ctrl is not None else None
+        sc = m.anc(n + 1, "sc")
+        if ctrl is None:
+            A.add(ctx, xe, ye, sc)
+        else:
+            A.cadd(ctx, ctrl, xe, ye, cp, sc)
+        m.free(sc, *([cp] if cp is not None else []))
     else:
-        A.cadd(ctx, ctrl, xe, ye, cp, sc)
+        cp, sc = m.anc(n + 1, "cp"), m.anc(n + 1, "sc")
+        if ctrl is None:
+            A.add(ctx, xe, ye, sc)
+        else:
+            A.cadd(ctx, ctrl, xe, ye, cp, sc)
 
     e = m.anc(1, "e")
     on = [] if ctrl is None else [ctrl]           # y < q alone: never q
@@ -293,6 +307,8 @@ def cmodadd_pm_q(m, ctrl, x, y, q, lsbs=None, msbs=None):
     A.cadd_const(ctx, ay[0], Reg(list(y[:lsbs])), f, cp2, sc2)  # += f on overflow
     m.free(cp2, sc2)
 
+    if lean:
+        sc = m.anc(msbs, "sc")                    # the comparisons' scratch
     t = m.anc(1, "t")
     A.lt_uint(ctx, top_bits(y, msbs), top_bits(x, msbs), t[0], sc)
     if ctrl is None:
@@ -306,7 +322,10 @@ def cmodadd_pm_q(m, ctrl, x, y, q, lsbs=None, msbs=None):
         ctx.and_dg(ctrl, t[0], c[0])
         m.free(c)
     A.lt_uint(ctx, top_bits(y, msbs), top_bits(x, msbs), t[0], sc)
-    m.free(t, e, cp, sc, ax, ay)
+    if lean:
+        m.free(t, e, sc, ax, ay)
+    else:
+        m.free(t, e, cp, sc, ax, ay)
 
 
 # --- measuring the approximation --------------------------------------------
@@ -335,7 +354,7 @@ def _fix_zero_q(m, ctrl, y, q, tau):
     m.free(fl)
 
 
-def csignadd_pm(m, e, x, y, q, lsbs=None, msbs=None):
+def csignadd_pm(m, e, x, y, q, lsbs=None, msbs=None, lean=False):
     """y <- (y + (-1)^e x) mod q for q = 2^u - f.  IonQ Sec VI.
 
     NOT(y) = 2^u - 1 - y == (f - 1) - y  (mod q), so complementing y, adding x
@@ -350,13 +369,14 @@ def csignadd_pm(m, e, x, y, q, lsbs=None, msbs=None):
     sums that land in [q, 2^u) without overflowing, which the pseudo-Mersenne
     adder does not reduce (Algorithm 11 shares that).  At secp256k1 sizes both
     are negligible; at toy primes f/q is not, and the tests measure it.
+    `lean`: `cmodadd_pm_q(lean=True)`, the same gates on n + 3 scratch qubits.
     """
     n = len(y)
     msbs = msbs or max(2, n // 2)
     _swap_zero_q(m, e, y, q, msbs)                # IonQ: 0 -> q before the adder
     for b in y:
         m.ctx.cx(e, b)
-    cmodadd_pm_q(m, None, x, y, q, lsbs, msbs)
+    cmodadd_pm_q(m, None, x, y, q, lsbs, msbs, lean=lean)
     for b in y:
         m.ctx.cx(e, b)
     _fix_zero_q(m, e, y, q, msbs)
@@ -555,7 +575,8 @@ def modadd_pm_phase(m, x, y, q, kappa=None, delta=None):
     m.free(ax, ay)
 
 
-def csignadd_pm_phase(m, e, x, y, q, kappa=None, delta=None, careful=False, msbs=None):
+def csignadd_pm_phase(m, e, x, y, q, kappa=None, delta=None, careful=False, msbs=None,
+                      lean=False):
     """y <- (y + (-1)^e x) mod q on the phase-approximate adder (IonQ Sec VI):
     complement under e, add, complement.
 
@@ -565,9 +586,10 @@ def csignadd_pm_phase(m, e, x, y, q, kappa=None, delta=None, careful=False, msbs
     canonical), Algorithm 11 (which reduces x + y = q), and a result q mapped
     back to 0.  The division replay needs the first, the multiplication replay
     the other two.  Elsewhere none of them arises except with probability ~1/q
-    per call."""
+    per call.  `lean` puts the careful cell on n + 3 scratch qubits, as the
+    phase-approximate one already is (`cmodadd_pm_q(lean=True)`)."""
     if careful:
-        csignadd_pm(m, e, x, y, q, kappa, msbs)
+        csignadd_pm(m, e, x, y, q, kappa, msbs, lean=lean)
         return
     for b in y:
         m.ctx.cx(e, b)

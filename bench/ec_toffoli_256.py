@@ -8,7 +8,8 @@ through `hier.tracing()`.  Three things are measured:
               Toffolis, expected-executed Toffolis (a measurement-based repair
               counted with the probability it fires -- IonQ's convention), qubits
   components  the same additions split by component (walk, replay, lookups...)
-  full        the whole 28-addition ECDLP-256 circuit on IonQ's cells
+  full        the whole 28-addition ECDLP-256 circuit on IonQ's cells, and on the
+              one circuit that reaches IonQ's Toffolis and qubits together
 
     ./venv/bin/python bench/ec_toffoli_256.py          # writes bench/ec_toffoli_256.json
 """
@@ -37,6 +38,11 @@ from ec_hier_256 import CURVE, GEN, CMP, MSBS, N, ORDER, P, WBITS
 from ec_sim import Machine
 
 ZERO_STEPS = 37                      # IonQ Table X: "rounds with x + y = p"
+# IonQ's cells on fewer qubits: the careful cell's scratch freed after its adder,
+# the replay's opening copy and closing clear as CNOTs, u's high qubits shared
+# with the record, the square-subtract's fold on the phase adder
+ONE = "+ Fig. 1, x's qubits, lean careful cell, CNOT ends, shared walk, phase fold"
+ONE_SIGNED = "  the same with signed windows: IonQ's count and qubits in one circuit"
 
 
 def cells():
@@ -63,14 +69,39 @@ def cells():
     return out
 
 
+def scratch():
+    """Scratch qubits each cell draws while the record (or the square) is held:
+    what sets the peak of a point addition on IonQ's cells."""
+    ph, phl = G.PMPhase(P, msbs=MSBS), G.PMPhase(P, msbs=MSBS, lean=True)
+    out = {}
+    for lab, fn in (
+            ("careful signed add", lambda m, e, x, y: ph.signadd(m, e, x, y, zero=True)),
+            ("careful signed add, lean", lambda m, e, x, y: phl.signadd(m, e, x, y, zero=True)),
+            ("phase-approximate signed add", lambda m, e, x, y: ph.signadd(m, e, x, y, zero=False)),
+            ("exact modular addition (the replay's copy and clear)",
+             lambda m, e, x, y: MA.modadd(m, x, y, P)),
+            ("phase-approximate subtraction (the fold)", lambda m, e, x, y: ph.sub(m, x, y, P))):
+        m = Machine("and")
+        e, x, y = m.alloc(1, "e"), m.alloc(N, "x"), m.alloc(N, "y")
+        fn(m, e[0], x, y)
+        c = CO.count(m)
+        out[lab] = {"scratch": m.qc.num_qubits - 2 * N - 1, "toffoli": c["toffoli_paper"],
+                    "expected": round(c["toffoli_expected"])}
+    return out
+
+
 def rows():
     pm, ph = G.PM(P, msbs=MSBS), G.PMPhase(P, msbs=MSBS)
+    phl = G.PMPhase(P, msbs=MSBS, lean=True)
     sq = lambda m, c, s, a, p: SQ.csub_square_pm(m, c, s, a, p, msbs=MSBS)
+    sqp = lambda m, c, s, a, p: SQ.csub_square_pm(m, c, s, a, p, msbs=MSBS, arith=ph)
     base = dict(lookup="mbu", merge_xy=True, offsets=True, free_xy1=True, square=sq)
     neg = lambda m, c, x, p: AX.cmodneg_approx(m, c, x, p)
 
     def ci(arith, **kw):
         return G.CondInv(arith=arith, cmp_msbs=CMP, c_pad=2.3, replay="ci", **kw)
+    one = ci(phl, zero_steps=ZERO_STEPS, compress="fig1", reuse_x=True, cnot_ends=True,
+             share=True)
     return {
         "IonQ-style, Alg 11 replay cells (before)": W.PointAddCfg(**base, mul=ci(pm)),
         "+ phase-approximate adder in the replay, 37 careful steps":
@@ -83,6 +114,9 @@ def rows():
         "+ signed windows (2^15-entry tables), no Fig. 1":
             ("signed", W.PointAddCfg(**base, add=ph, neg=neg,
                                      mul=ci(ph, zero_steps=ZERO_STEPS))),
+        ONE: W.PointAddCfg(**{**base, "square": sqp}, add=ph, neg=neg, mul=one),
+        ONE_SIGNED: ("signed", W.PointAddCfg(**{**base, "square": sqp}, add=ph, neg=neg,
+                                             mul=one)),
     }
 
 
@@ -164,11 +198,16 @@ def main():
     t0 = time.time()
     out = {"n": N, "w": WBITS, "msbs": MSBS, "zero_steps": ZERO_STEPS,
            "kappa": AX.phase_kappa(P), "delta": 32,
-           "published": {"IonQ": {"toffoli": 1392608, "qubits": 1462,
+           "published": {"IonQ": {"toffoli": 1392608, "qubits": 1457,   # "at 1457 logical
+                                                                          # qubits" (their target:
+                                                                          # [1128]'s 1462)
                                   "toffoli_without_lookups": 1196000}}}
     out["cells"] = cells()
     for k, v in out["cells"].items():
         print(f"  {k:<48} {v['toffoli']:>5} worst / {v['expected']:>6.1f} expected")
+    out["scratch"] = scratch()
+    for k, v in out["scratch"].items():
+        print(f"  {k:<52} {v['scratch']:>4} scratch qubits, {v['toffoli']:>5} Toffolis")
 
     tab = table()
     out["rows"] = {}
@@ -201,27 +240,30 @@ def main():
         for k, v in out["components"][name].items():
             print(f"      {k:<34} {v:>10,}")
 
-    name = names[2]
-    rng = random.Random(3)
-    k = rng.randrange(1, ORDER)
-    Q = CURVE.mul(k, GEN)
-    S0 = CURVE.mul(rng.randrange(1, ORDER), GEN)
-    t = time.time()
-    with H.tracing():
-        m, info = S.ecdlp_windowed(CURVE, GEN, Q, ORDER, WBITS, m_bits=N, offset=S0,
-                                   drop=3, masks=True, oracle="arith", cfg=rows()[name],
-                                   first_lookup=True, seed=7)
-        c = H.count(m)
-        c["toffoli_depth"] = H.exact_depth(m)
-    semi = c["qubits"] - info["bits_k"] - info["bits_l"] + WBITS
-    out["full_algorithm"] = {"config": name, "toffoli": c["toffoli_paper"],
-                             "expected": round(c["toffoli_expected"]),
-                             "toffoli_depth": c["toffoli_depth"],
-                             "additions": info["additions"], "qubits_semiclassical": semi}
-    print(f"  whole ECDLP-256 ({info['additions']} additions + first lookup): "
-          f"{c['toffoli_paper']:,} worst, {c['toffoli_expected']:,.0f} expected, "
-          f"{semi} qubits ({time.time() - t:.0f} s)")
-    print("  published: IonQ 28 x (1.196M + 3 x 2^16) = 39.0M, 1,462 qubits")
+    for key, name, signed in (("full_algorithm", names[2], False),
+                              ("full_algorithm_one_circuit", ONE_SIGNED, True)):
+        cfg = rows()[name]
+        cfg = cfg[1] if isinstance(cfg, tuple) else cfg
+        rng = random.Random(3)
+        k = rng.randrange(1, ORDER)
+        Q = CURVE.mul(k, GEN)
+        S0 = CURVE.mul(rng.randrange(1, ORDER), GEN)
+        t = time.time()
+        with H.tracing():
+            m, info = S.ecdlp_windowed(CURVE, GEN, Q, ORDER, WBITS, m_bits=N, offset=S0,
+                                       drop=3, masks=not signed, oracle="arith", cfg=cfg,
+                                       first_lookup=True, seed=7, signed=signed)
+            c = H.count(m)
+            c["toffoli_depth"] = H.exact_depth(m)
+        semi = c["qubits"] - info["bits_k"] - info["bits_l"] + WBITS
+        out[key] = {"config": name.strip(), "toffoli": c["toffoli_paper"],
+                    "expected": round(c["toffoli_expected"]),
+                    "toffoli_depth": c["toffoli_depth"],
+                    "additions": info["additions"], "qubits_semiclassical": semi}
+        print(f"  whole ECDLP-256, {name.strip()} ({info['additions']} additions + first "
+              f"lookup): {c['toffoli_paper']:,} worst, {c['toffoli_expected']:,.0f} expected, "
+              f"{semi} qubits ({time.time() - t:.0f} s)", flush=True)
+    print("  published: IonQ 28 x (1.196M + 3 x 2^16) = 39.0M, 1,457 qubits")
     (ROOT / "bench" / "ec_toffoli_256.json").write_text(json.dumps(out, indent=2))
     print(f"wrote bench/ec_toffoli_256.json ({time.time() - t0:.0f} s)")
 

@@ -1,11 +1,11 @@
 {
   "cold_record": [
     {
-      "config": "IonQ's cells",
-      "logical": 2233,
-      "record": 802,
-      "physical_all_hot": 3189368.0,
-      "physical_record_cold": 2449924.0
+      "config": "IonQ's cells, signed windows",
+      "logical": 1457,
+      "record": 669,
+      "physical_all_hot": 2140216.0,
+      "physical_record_cold": 1523398.0
     },
     {
       "config": "fewest qubits",
@@ -18,26 +18,26 @@
   "factories": [
     {
       "factories": 6,
-      "physical": 3189368.0,
-      "minutes": 16.675230833333334,
+      "physical": 2140216.0,
+      "minutes": 15.504015416666665,
       "limited_by": "CCZ-throughput"
     },
     {
       "factories": 12,
-      "physical": 3302936.0,
-      "minutes": 8.337615416666667,
+      "physical": 2253784.0,
+      "minutes": 7.752007708333332,
       "limited_by": "CCZ-throughput"
     },
     {
       "factories": 24,
-      "physical": 3530072.0,
-      "minutes": 4.915162,
+      "physical": 2480920.0,
+      "minutes": 5.6011508333333335,
       "limited_by": "reaction"
     },
     {
       "factories": 48,
-      "physical": 3984344.0,
-      "minutes": 4.915162,
+      "physical": 2935192.0,
+      "minutes": 5.6011508333333335,
       "limited_by": "reaction"
     }
   ],
@@ -47,70 +47,100 @@
       "lambda": 1,
       "toffoli_per_lookup": 32768,
       "saved_per_addition": -6,
-      "extra_qubits": 0
+      "extra_qubits": 0,
+      "live_at_lookup": 1055,
+      "one_circuit_peak": 1457,
+      "raises_peak_by": 0
     },
     {
       "w": 15,
       "lambda": 2,
       "toffoli_per_lookup": 16896,
       "saved_per_addition": 47610,
-      "extra_qubits": 512
+      "extra_qubits": 512,
+      "live_at_lookup": 1567,
+      "one_circuit_peak": 1457,
+      "raises_peak_by": 110
     },
     {
       "w": 15,
       "lambda": 3,
       "toffoli_per_lookup": 11947,
       "saved_per_addition": 62457,
-      "extra_qubits": 1024
+      "extra_qubits": 1024,
+      "live_at_lookup": 2079,
+      "one_circuit_peak": 1457,
+      "raises_peak_by": 622
     },
     {
       "w": 15,
       "lambda": 4,
       "toffoli_per_lookup": 9728,
       "saved_per_addition": 69114,
-      "extra_qubits": 1536
+      "extra_qubits": 1536,
+      "live_at_lookup": 2591,
+      "one_circuit_peak": 1457,
+      "raises_peak_by": 1134
     },
     {
       "w": 15,
       "lambda": 8,
       "toffoli_per_lookup": 7680,
       "saved_per_addition": 75258,
-      "extra_qubits": 3584
+      "extra_qubits": 3584,
+      "live_at_lookup": 4639,
+      "one_circuit_peak": 1457,
+      "raises_peak_by": 3182
     },
     {
       "w": 16,
       "lambda": 1,
       "toffoli_per_lookup": 65536,
       "saved_per_addition": -6,
-      "extra_qubits": 0
+      "extra_qubits": 0,
+      "live_at_lookup": 1055,
+      "one_circuit_peak": 1457,
+      "raises_peak_by": 0
     },
     {
       "w": 16,
       "lambda": 2,
       "toffoli_per_lookup": 33280,
       "saved_per_addition": 96762,
-      "extra_qubits": 512
+      "extra_qubits": 512,
+      "live_at_lookup": 1567,
+      "one_circuit_peak": 1457,
+      "raises_peak_by": 110
     },
     {
       "w": 16,
       "lambda": 3,
       "toffoli_per_lookup": 22870,
       "saved_per_addition": 127992,
-      "extra_qubits": 1024
+      "extra_qubits": 1024,
+      "live_at_lookup": 2079,
+      "one_circuit_peak": 1457,
+      "raises_peak_by": 622
     },
     {
       "w": 16,
       "lambda": 4,
       "toffoli_per_lookup": 17920,
       "saved_per_addition": 142842,
-      "extra_qubits": 1536
+      "extra_qubits": 1536,
+      "live_at_lookup": 2591,
+      "one_circuit_peak": 1457,
+      "raises_peak_by": 1134
     },
     {
       "w": 16,
       "lambda": 8,
       "toffoli_per_lookup": 11776,
       "saved_per_addition": 161274,
-      "extra_qubits": 3584
+      "extra_qubits": 3584,
+      "live_at_lookup": 4639,
+      "one_circuit_peak": 1457,
+      "raises_peak_by": 3182
     }
   ],
   "windows": [
@@ -118,109 +148,109 @@
       "w": 12,
       "signed": false,
       "additions": 40,
-      "toffoli": 49709896
+      "toffoli": 49626136
     },
     {
       "w": 12,
       "signed": true,
       "additions": 40,
-      "toffoli": 49464136
+      "toffoli": 49380376
     },
     {
       "w": 13,
       "signed": false,
       "additions": 36,
-      "toffoli": 45185780
+      "toffoli": 45110396
     },
     {
       "w": 13,
       "signed": true,
       "additions": 36,
-      "toffoli": 44743412
+      "toffoli": 44668028
     },
     {
       "w": 14,
       "signed": false,
       "additions": 34,
-      "toffoli": 43519690
+      "toffoli": 43448494
     },
     {
       "w": 14,
       "signed": true,
       "additions": 34,
-      "toffoli": 42684106
+      "toffoli": 42612910
     },
     {
       "w": 15,
       "signed": false,
       "additions": 32,
-      "toffoli": 42549920
+      "toffoli": 42482912
     },
     {
       "w": 15,
       "signed": true,
       "additions": 32,
-      "toffoli": 40977056
+      "toffoli": 40910048
     },
     {
       "w": 16,
       "signed": false,
       "additions": 28,
-      "toffoli": 40020556
+      "toffoli": 39961924
     },
     {
       "w": 16,
       "signed": true,
       "additions": 28,
-      "toffoli": 37268044
+      "toffoli": 37209412
     },
     {
       "w": 17,
       "signed": false,
       "additions": 28,
-      "toffoli": 45591116
+      "toffoli": 45532484
     },
     {
       "w": 17,
       "signed": true,
       "additions": 28,
-      "toffoli": 40086092
+      "toffoli": 40027460
     },
     {
       "w": 18,
       "signed": false,
       "additions": 26,
-      "toffoli": 52698658
+      "toffoli": 52644214
     },
     {
       "w": 18,
       "signed": true,
       "additions": 26,
-      "toffoli": 42475042
+      "toffoli": 42420598
     },
     {
       "w": 19,
       "signed": false,
       "additions": 24,
-      "toffoli": 67801592
+      "toffoli": 67751336
     },
     {
       "w": 19,
       "signed": true,
       "additions": 24,
-      "toffoli": 48927224
+      "toffoli": 48876968
     },
     {
       "w": 20,
       "signed": false,
       "additions": 22,
-      "toffoli": 97322446
+      "toffoli": 97276378
     },
     {
       "w": 20,
       "signed": true,
       "additions": 22,
-      "toffoli": 62719438
+      "toffoli": 62673370
     }
   ],
   "qt": [
@@ -231,6 +261,12 @@
       "qt": 1495670403
     },
     {
+      "config": "  the same with signed windows: IonQ's count and qubits in one circuit",
+      "qubits": 1457,
+      "toffoli": 1326821,
+      "qt": 1933178197
+    },
+    {
       "config": "ECDSA.Fail windowed variant (published)",
       "qubits": 1162,
       "toffoli": 1684161,
@@ -238,9 +274,15 @@
     },
     {
       "config": "IonQ (published)",
-      "qubits": 1462,
+      "qubits": 1457,
       "toffoli": 1392608,
-      "qt": 2035992896
+      "qt": 2029029856
+    },
+    {
+      "config": "+ Fig. 1, x's qubits, lean careful cell, CNOT ends, shared walk, phase fold",
+      "qubits": 1457,
+      "toffoli": 1424871,
+      "qt": 2076037047
     },
     {
       "config": "+ Fig. 1 packing, replay in x's qubits",

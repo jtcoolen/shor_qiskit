@@ -48,11 +48,13 @@ def facts():
     f["g25_phys"] = num(round(g["physical"]))
     f["g25_days"] = f"{g['days']:.2f}"
     rows = {r["label"]: r for r in CMP["rows"]}
-    ecc, ecc_min = rows["ECDLP-256, IonQ's cells"], rows["ECDLP-256, fewest qubits"]
+    ecc, ecc_min = rows["ECDLP-256, IonQ's cells, signed windows"], rows["ECDLP-256, fewest qubits"]
     rsa = rows["RSA-2048, Gidney 2025 residue arithmetic"]
     f["ecc_q"], f["ecc_q_min"], f["rsa_q"] = (num(ecc["logical_qubits"]),
                                               num(ecc_min["logical_qubits"]),
                                               num(rsa["logical_qubits"]))
+    f["ecc_n_lo"] = f"{ecc_min['logical_qubits'] / 256:.1f}"
+    f["ecc_n_hi"] = f"{ecc['logical_qubits'] / 256:.1f}"
     f["ecc_t"], f["rsa_t"] = f"${sci(ecc['toffoli'])}$"[1:-1], f"${sci(rsa['toffoli'])}$"[1:-1]
     f["ratio"] = f"{rsa['toffoli'] / ecc['toffoli']:.0f}"
     r3 = rows.get("RSA-3072, Gidney 2025 residue arithmetic")

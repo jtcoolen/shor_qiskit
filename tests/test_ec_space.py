@@ -293,15 +293,15 @@ def test_point_add():
         lookup="mbu", merge_xy=True, offsets=True, free_xy1=True,
         square=lambda m, c, s, a, p: SQ.csub_square_pm(m, c, s, a, p, msbs=n),
         mul=G.CondInv(arith=G.PM(q, msbs=n), cmp_msbs=n, c_pad=2.3, replay="ci"))
-    counts = {}
+    counts, good = {}, {}
     for lab, cfg in (("IonQ-style", ionq), ("space, lean", lean)):
         m = Machine("and")
         a, x, y = m.alloc(2, "a"), m.alloc(n, "x"), m.alloc(n, "y")
         W.windowed_point_add_cfg(m, a, x, y, tab, q, cfg)
         counts[lab] = CO.count(m)
-        if lab != "space, lean":
+        if lab == "IonQ-style":
             continue
-        good = 0
+        good[lab] = 0
         import ec_classical as C
         Rs = [R for R in curve.points() if not R.inf]
         for R in (Rs if FULL else rnd.sample(Rs, min(24, len(Rs)))):
@@ -312,12 +312,55 @@ def test_point_add():
                 if S.inf:
                     continue
                 assert outcome(m, {a: i, x: R.x, y: R.y}, (x, y, a)) == (S.x, S.y, i), (R, i)
-                good += 1
+                good[lab] += 1
     for lab, c in counts.items():
         print(f"      {lab:<12} {c['qubits']:>4} qubits {c['toffoli_paper']:>7} Toffoli-eq")
     assert counts["space, lean"]["qubits"] < counts["IonQ-style"]["qubits"]
-    ok(f"{good} (R, i) pairs on {curve.name} (p = 127) exact; fewer qubits than "
+    ok(f"{good['space, lean']} (R, i) pairs on {curve.name} (p = 127) exact; fewer qubits than "
        f"the IonQ configuration at toy size too (n = 256: bench/ec_space_256.py)")
+
+    # IonQ's cells on fewer qubits (bench/ec_toffoli_256.py): the lean careful cell, the
+    # CNOT ends and the shared walk change no output; the fold on the phase adder adds
+    # the ~f/q inputs a pseudo-Mersenne subtraction run backwards gets wrong
+    ph = G.PMPhase(q, msbs=n)
+
+    def ionq_cells(space, fold):
+        sq = (lambda m, c, s, a, p: SQ.csub_square_pm(m, c, s, a, p, msbs=n, arith=ph)) \
+            if fold else (lambda m, c, s, a, p: SQ.csub_square_pm(m, c, s, a, p, msbs=n))
+        return W.PointAddCfg(
+            lookup="mbu", merge_xy=True, offsets=True, free_xy1=True, add=ph, square=sq,
+            mul=G.CondInv(arith=G.PMPhase(q, msbs=n, lean=space), cmp_msbs=n + 1, c_pad=2.3,
+                          replay="ci", zero_steps=37, compress="fig1", reuse_x=True,
+                          cnot_ends=space, share=space))
+    import ec_classical as C
+    cases = [(R, i) for R in curve.points() if not R.inf for i, T in enumerate(tab)
+             if not C.point_add_exceptional(curve, R, T) and not curve.add(R, T).inf]
+    if not FULL:
+        cases = rnd.sample(cases, 160)
+    res = {}
+    for lab, space, fold in (("cells", False, False), ("+ space", True, False),
+                              ("one circuit", True, True)):
+        m = Machine("and")
+        a, x, y = m.alloc(2, "a"), m.alloc(n, "x"), m.alloc(n, "y")
+        W.windowed_point_add_cfg(m, a, x, y, tab, q, ionq_cells(space, fold))
+        outs = []
+        for R, i in cases:
+            try:
+                outs.append(outcome(m, {a: i, x: R.x, y: R.y}, (x, y, a)))
+            except SimError:
+                outs.append(None)
+        want = [(curve.add(R, tab[i]).x, curve.add(R, tab[i]).y, i) for R, i in cases]
+        res[lab] = (outs, {k for k, (o, w) in enumerate(zip(outs, want)) if o != w}, CO.count(m))
+    assert res["+ space"][0] == res["cells"][0]
+    extra = res["one circuit"][1] - res["cells"][1]
+    for lab, (_, bad, c) in res.items():
+        print(f"      IonQ's cells, {lab:<12} {c['qubits']:>4} qubits {c['toffoli_paper']:>6} "
+              f"Toffoli-eq, {len(bad):>3}/{len(cases)} wrong")
+    assert res["one circuit"][2]["qubits"] < res["cells"][2]["qubits"]
+    assert len(extra) <= 2 * 2 * len(cases) / q + 2, (len(extra), len(cases))
+    ok("IonQ's cells: lean careful cell, CNOT ends and shared walk give the same output on "
+       "every pair; the phase-adder fold adds only f/q-class failures (the pseudo-Mersenne "
+       "cells' toy-size failures are the same class, ~2^-224 at secp256k1)")
 
 
 def main():

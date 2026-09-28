@@ -4641,8 +4641,10 @@ cond.\ inverted walk and replay, Algorithm~11 cells (as above) & $1\,711\,194$ &
 \quad + the same adder in the addition, approximate negation & $1\,438\,613$ & $1\,426\,965$ & $2\,233$\\
 \quad + Fig.~1 packing, replay in $x$'s qubits & $1\,443\,933$ & $1\,432\,285$ & $1\,845$\\
 \quad row 3 + signed windows ($2^{15}$-entry tables) & $1\,340\,563$ & $1\,328\,915$ & $2\,233$\\
+\quad row 4 + lean careful cell, CNOT ends, shared walk, phase fold & $1\,436\,519$ & $1\,424\,871$ & $1\,457$\\
+\quad the same with signed windows (\S\ref{ec:sec:onecircuit}) & $1\,338\,469$ & $1\,326\,821$ & $1\,457$\\
 \midrule
-published \cite{ec:ionq26} & --- & $1\,392\,608$ & $1\,462$\\
+published \cite{ec:ionq26} & --- & $1\,392\,608$ & $1\,457$\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -4652,8 +4654,7 @@ IonQ's $1\,392\,608$. Built end to end on these cells, the $28$-addition algorit
 $40\,346\,698$ Toffolis ($40\,020\,554$ executed), against IonQ's
 $28\times(1.196\times10^6+3\cdot2^{16})\approx39.0\times10^6$. The qubits are another matter:
 $2\,233$, or $1\,845$ with the record packed and the replay run in $x$'s qubits,
-against IonQ's $1\,462$. Reaching both at once needs register sharing inside the
-conditionally inverted walk, which is not built here.
+against IonQ's $1\,457$. The last two rows reach both at once (\S\ref{ec:sec:onecircuit}).
 
 The last row goes past IonQ. Signed windows \cite{ec:hjnrs20,ec:kim26} read the $w$ address bits as
 an odd digit $d=2i+1-2^w$. The lookup then runs over $|d|$ on $w-1$ bits, and the sign is two
@@ -4661,7 +4662,7 @@ controlled negations of $y$, merged across consecutive windows. Each table has $
 instead of $2^{16}$ and, the digits being odd, never contains $O$. Built at $n=256$, one addition
 costs $1\,340\,563$ Toffolis, $1\,328\,915$ executed: $4.6\%$ below IonQ's
 figure, and $2\,745\,400$ fewer over the $28$ additions. The whole-circuit count above still
-uses unsigned windows.
+uses unsigned windows; \S\ref{ec:sec:onecircuit} builds the whole circuit with signed ones.
 
 Signed windows need every point the accumulator visits to have odd order, since the negation
 assumes $y\neq0$. secp256k1's group has prime order, so this holds there. At toy size it holds only
@@ -4671,6 +4672,49 @@ frequency distribution is at total variation $0.370$ from the ideal. That comes 
 the $28\%$ of inputs that meet an exceptional addition, which is unavoidable at this size.
 It finds the logarithm in one run with probability $43\%$ (ideal $77\%$), above
 IonQ's bound of $10\%$.
+
+\subsection{IonQ's count and IonQ's qubits, in one circuit}\label{ec:sec:onecircuit}
+
+The last two rows of the table are one circuit. It starts from row 4, $1\,845$ qubits,
+and applies the method of \S\ref{ec:sec:fewq}: find the step that sets the peak, take the scratch
+out of it, rebuild. On IonQ's cells the peak moved four times, and no fix added a Toffoli.
+
+\begin{itemize}\setlength\itemsep{1pt}
+\item \emph{The careful cell} of the first $37$ replay steps. Algorithm~11 allocates a copy
+register for a controlled addition even when the addition is uncontrolled, and keeps its adder's
+scratch to the end so that the top-bit comparisons can use a few of those qubits. Freeing the scratch
+as soon as the addition is done gives the same $703$ Toffolis on $259$ scratch
+qubits instead of $647$ (\texttt{PMPhase(lean=True)}).
+\item \emph{The replay's opening and closing additions.} Multiplying, the replay starts by setting
+$s=y$, an exact modular addition of $r$ into a register that is $0$. Dividing, it ends by clearing
+$\tilde s$, a subtraction of $r$ from a register that equals $r$. Both answers are copies, so both
+are $n$ CNOTs (\texttt{cnot\_ends}) instead of $1\,023$ Toffolis on $516$ scratch
+qubits.
+\item \emph{The square-subtract's fold.} It subtracts the square's low half and then $f$ times its
+high half, bit by bit, while holding the $2n+1$-qubit square: $8$ subtractions, each the
+exact generic one. The phase-approximate subtraction does each on $258$ scratch qubits and
+$352$ Toffolis (\texttt{csub\_square\_pm(arith=...)}).
+\item \emph{The end of the walk.} $u$ kept its $n+2$ qubits while the record grew beside it.
+Register sharing (\cite{ec:schrott26} Sec~3.1, \texttt{CondInv(share=True)}) frees $u$'s high
+qubits, and the two that $\tilde v$ borrows, as the width schedule narrows; the record grows into them,
+and the walk backwards claims the same qubits back at the mirror-image round. Unlike the dialog's
+sharing it never frees $x$'s own qubits, so the replay can still run in them. It adds no gates.
+\end{itemize}
+
+\noindent
+The peak is then the replay: the packed record ($669$ qubits), the multiplicand and the
+accumulator ($512$, the accumulator in $x$'s qubits), the window ($16$), and one cell's scratch ---
+$1\,457$ qubits in all. One addition costs $1\,436\,519$ Toffolis ($1\,424\,871$ executed),
+and with signed windows $1\,338\,469$ ($1\,326\,821$ executed) on $1\,457$ qubits: fewer
+Toffolis than IonQ's $1\,392\,608$ at IonQ's own width, $1\,457$ logical qubits (IonQ's target
+was \cite{ec:schrott26}'s $1\,462$, which includes the $16$ window qubits, as the counts here do). Built end to end with
+signed windows, the whole algorithm is $37\,535\,781$ Toffolis ($37\,209\,637$ executed) on
+$1\,457$ qubits, against IonQ's $39.0\times10^6$ on $1\,457$.
+
+The price is depth: $33\,606\,905$ Toffolis deep, against $29\,490\,972$ for the unsigned circuit
+on $2\,233$ qubits. Most of it is row 4's: one addition is $1\,114\,102$ deep in row 3,
+$1\,255\,253$ once the record is packed and the replay runs in $x$'s qubits, and $1\,296\,204$ with
+everything above. Reusing a qubit orders the two steps that use it.
 
 \subsection{Fewer qubits}\label{ec:sec:fewq}
 
@@ -4748,7 +4792,7 @@ scratch, most of it the register that holds $f$. \cite{ec:schrott26} reports $4.
 or $1\,192$ qubits plus the window. The price is Toffolis: $2\,853\,603$ here, against
 $1\,711\,194$ at the $2\,251$ qubits where the table starts, and against
 \cite{ec:schrott26}'s $2.39\times10^6$ for its space-optimised circuit. IonQ reports its Toffoli
-count at $1\,462$ qubits; no circuit here has both.
+count at $1\,457$ qubits; on IonQ's cells, \S\ref{ec:sec:onecircuit} reaches both.
 
 
 \subsection{Depth}\label{ec:sec:depth}
@@ -5082,10 +5126,9 @@ Named rather than glossed:
 
 \begin{itemize}\setlength\itemsep{2pt}
 \item \textbf{Register sharing} (\cite{ec:schrott26} Sec 3.1) is built beside the dialog of
-\S\ref{ec:sec:dialog}, not inside it: its failure mode is a register overflow, which the ancilla
-checks turn into a counted failure. The dialog of \S\ref{ec:sec:dialog} itself stays exact. The
-conditionally inverted walk has no sharing at all, which is why IonQ's Toffoli count and IonQ's
-qubit count are each reached here, but not by the same circuit (\S\ref{ec:sec:toffgap}).
+\S\ref{ec:sec:dialog}, not inside it, and beside IonQ's walk (\S\ref{ec:sec:onecircuit}): its
+failure mode is a register overflow, which the ancilla checks turn into a counted failure. The
+dialog of \S\ref{ec:sec:dialog} itself stays exact.
 \item \textbf{Gidney's dirty-ancilla constant adder} \cite{ec:gidney25}, in full. The lean
 constant adder of \S\ref{ec:sec:fewq} borrows dirty qubits only above the top bit of $f$; the bits
 of $f$ itself still sit in clean ones, the largest scratch left at the space variant's peak.
@@ -5225,13 +5268,13 @@ headline, $897\,864$ physical qubits and $4.96$ days.
 \toprule
 whole algorithm & logical qubits & Toffolis & physical qubits & days\\
 \midrule
-ECDLP-256, IonQ's cells & $2\,233$ & $4.00\times10^{7}$ & $3\,189\,368$ & $0.01$\\
+ECDLP-256, IonQ's cells, signed windows & $1\,457$ & $3.72\times10^{7}$ & $2\,140\,216$ & $0.01$\\
 ECDLP-256, fewest qubits & $1\,246$ & $8.00\times10^{7}$ & $1\,854\,944$ & $0.02$\\
 RSA-1024, Gidney 2025 residue arithmetic & $800$ & $1.18\times10^{9}$ & $661\,872$ & $0.34$\\
 RSA-2048, Gidney 2025 residue arithmetic & $1\,467$ & $6.95\times10^{9}$ & $973\,576$ & $2.07$\\
 RSA-3072, Gidney 2025 residue arithmetic & $2\,115$ & $1.97\times10^{10}$ & $1\,259\,592$ & $6.44$\\
 RSA-2048, Gidney 2025 \emph{(published)} & $1\,399$ & $6.50\times10^{9}$ & $881\,640$ & $1.93$\\
-ECDLP-256, IonQ \emph{(published)} & $1\,462$ & $3.90\times10^{7}$ & $2\,146\,976$ & $0.01$\\
+ECDLP-256, IonQ \emph{(published)} & $1\,457$ & $3.90\times10^{7}$ & $2\,140\,216$ & $0.01$\\
 ECDLP-256, [1128] space-optimised \emph{(published)} & $1\,208$ & $7.25\times10^{7}$ & $1\,803\,568$ & $0.02$\\
 ECDLP-256, [1128] gate-optimised \emph{(published)} & $1\,462$ & $5.77\times10^{7}$ & $2\,146\,976$ & $0.02$\\
 RSA-2048, Gidney-Ekera 2019 \emph{(published)} & $6\,189$ & $2.70\times10^{9}$ & $8\,537\,880$ & $1.20$\\
@@ -5245,11 +5288,12 @@ that throughput and the exact Toffoli depth times the reaction time; here the th
 binds. RSA's exponent register, idle except for its control windows, sits in cold yoked storage at
 a third of the hot cost. The elliptic-curve circuits recycle their control qubits and keep
 everything else busy. That is why RSA-2048 needs fewer \emph{physical} qubits than secp256k1 at a
-comparable logical count, while taking $179$ times as long.
+comparable logical count, while taking $192$ times as long.
 
-The logical qubit counts are close: $2\,233$ for secp256k1 on IonQ's cells, $1\,246$ on
-the fewest-qubit cells, against $1\,467$ for RSA-2048. The Toffoli counts are not: $4.00\times10^{7}$
-against $6.95\times10^{9}$, a factor of $174$. Four things explain that factor.
+The logical qubit counts are close: $1\,457$ for secp256k1 on IonQ's cells with signed windows
+(Part~VII, \S\ref{ec:sec:onecircuit}), $1\,246$ on
+the fewest-qubit cells, against $1\,467$ for RSA-2048. The Toffoli counts are not: $3.72\times10^{7}$
+against $6.95\times10^{9}$, a factor of $187$. Four things explain that factor.
 
 \begin{enumerate}\setlength\itemsep{2pt}
 \item \textbf{The numbers are eight times shorter.} Both algorithms spend their time on modular
@@ -5263,12 +5307,12 @@ probability. Eker\aa{}--H\aa{}stad with $s=8$ needs $s+1$ good shots, and maskin
 about $1\%$ more: $9.2$ expected shots, each a full exponentiation.
 \item \textbf{Approximation buys qubits, not Toffolis.} The residue arithmetic never holds an
 $n$-bit number in superposition except the output's top $f$ bits. That is how RSA-2048 fits in
-$1\,467$ qubits, $0.7n$, while secp256k1 needs $4.9$--$8.7n$. The price is Toffolis: per prime,
+$1\,467$ qubits, $0.7n$, while secp256k1 needs $4.9$--$5.7n$. The price is Toffolis: per prime,
 loop1 reads all $W_1=214$ exponent windows, and there are $|P|\approx n W_1/\ell\approx21\,000$
 primes, so a shot costs $\Theta(n\,m^2/(\ell\,w_1^2))$ lookups and additions of $\approx\ell$ bits.
 \item \textbf{At equal classical security the gap widens.} RSA-2048 gives 112-bit security.
 RSA-3072, the RSA size matched to secp256k1's 128 bits, costs $1.97\times10^{10}$ Toffolis here,
-$493\times$ the elliptic-curve count.
+$530\times$ the elliptic-curve count.
 \end{enumerate}
 
 \begin{center}
@@ -5276,9 +5320,9 @@ $493\times$ the elliptic-curve count.
 \end{center}
 
 \begin{keybox}[title={The gap, in one line}]
-At comparable qubit counts, breaking secp256k1 costs about $174$ times fewer Toffolis than
-factoring RSA-2048, and $493$ times fewer than RSA-3072 at equal classical security. In
-the same surface-code model that is $17$ minutes against $2.1$ days. Elliptic-curve keys
+At comparable qubit counts, breaking secp256k1 costs about $187$ times fewer Toffolis than
+factoring RSA-2048, and $530$ times fewer than RSA-3072 at equal classical security. In
+the same surface-code model that is $16$ minutes against $2.1$ days. Elliptic-curve keys
 of today's sizes fall before RSA keys of today's sizes.
 \end{keybox}
 

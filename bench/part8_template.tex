@@ -110,7 +110,8 @@ a third of the hot cost. The elliptic-curve circuits recycle their control qubit
 everything else busy. That is why RSA-2048 needs fewer \emph{physical} qubits than secp256k1 at a
 comparable logical count, while taking $@@days_ratio@@$ times as long.
 
-The logical qubit counts are close: $@@ecc_q@@$ for secp256k1 on IonQ's cells, $@@ecc_q_min@@$ on
+The logical qubit counts are close: $@@ecc_q@@$ for secp256k1 on IonQ's cells with signed windows
+(Part~VII, \S\ref{ec:sec:onecircuit}), $@@ecc_q_min@@$ on
 the fewest-qubit cells, against $@@rsa_q@@$ for RSA-2048. The Toffoli counts are not: $@@ecc_t@@$
 against $@@rsa_t@@$, a factor of $@@ratio@@$. Four things explain that factor.
 
@@ -126,7 +127,7 @@ probability. Eker\aa{}--H\aa{}stad with $s=8$ needs $s+1$ good shots, and maskin
 about $1\%$ more: $@@shots2048@@$ expected shots, each a full exponentiation.
 \item \textbf{Approximation buys qubits, not Toffolis.} The residue arithmetic never holds an
 $n$-bit number in superposition except the output's top $f$ bits. That is how RSA-2048 fits in
-$@@rsa_q@@$ qubits, $0.7n$, while secp256k1 needs $4.9$--$8.7n$. The price is Toffolis: per prime,
+$@@rsa_q@@$ qubits, $0.7n$, while secp256k1 needs $@@ecc_n_lo@@$--$@@ecc_n_hi@@n$. The price is Toffolis: per prime,
 loop1 reads all $W_1=214$ exponent windows, and there are $|P|\approx n W_1/\ell\approx21\,000$
 primes, so a shot costs $\Theta(n\,m^2/(\ell\,w_1^2))$ lookups and additions of $\approx\ell$ bits.
 \item \textbf{At equal classical security the gap widens.} RSA-2048 gives 112-bit security.

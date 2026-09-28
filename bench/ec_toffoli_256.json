@@ -8,7 +8,7 @@
   "published": {
     "IonQ": {
       "toffoli": 1392608,
-      "qubits": 1462,
+      "qubits": 1457,
       "toffoli_without_lookups": 1196000
     }
   },
@@ -32,6 +32,33 @@
     "halving, kappa = 65": {
       "toffoli": 64,
       "expected": 64.0
+    }
+  },
+  "scratch": {
+    "careful signed add": {
+      "scratch": 647,
+      "toffoli": 703,
+      "expected": 703
+    },
+    "careful signed add, lean": {
+      "scratch": 259,
+      "toffoli": 703,
+      "expected": 703
+    },
+    "phase-approximate signed add": {
+      "scratch": 258,
+      "toffoli": 352,
+      "expected": 336
+    },
+    "exact modular addition (the replay's copy and clear)": {
+      "scratch": 516,
+      "toffoli": 1023,
+      "expected": 1023
+    },
+    "phase-approximate subtraction (the fold)": {
+      "scratch": 258,
+      "toffoli": 352,
+      "expected": 352
     }
   },
   "rows": {
@@ -64,6 +91,18 @@
       "expected": 1328915,
       "qubits": 2233,
       "toffoli_depth": 1048565
+    },
+    "+ Fig. 1, x's qubits, lean careful cell, CNOT ends, shared walk, phase fold": {
+      "toffoli": 1436519,
+      "expected": 1424871,
+      "qubits": 1457,
+      "toffoli_depth": 1296204
+    },
+    "  the same with signed windows: IonQ's count and qubits in one circuit": {
+      "toffoli": 1338469,
+      "expected": 1326821,
+      "qubits": 1457,
+      "toffoli_depth": 1198152
     }
   },
   "components": {
@@ -93,5 +132,13 @@
     "toffoli_depth": 29490972,
     "additions": 28,
     "qubits_semiclassical": 2233
+  },
+  "full_algorithm_one_circuit": {
+    "config": "the same with signed windows: IonQ's count and qubits in one circuit",
+    "toffoli": 37535781,
+    "expected": 37209637,
+    "toffoli_depth": 33606905,
+    "additions": 28,
+    "qubits_semiclassical": 1457
   }
 }

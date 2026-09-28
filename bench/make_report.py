@@ -30,12 +30,14 @@ def main(out):
         J("toy_distributions.json"), J("estimates.json")
     cat = J("ec_catalogue.json")
     rows = {r["label"]: r for r in cmp_["rows"]}
-    ecc, ecc_min = rows["ECDLP-256, IonQ's cells"], rows["ECDLP-256, fewest qubits"]
+    ecc, ecc_min = rows["ECDLP-256, IonQ's cells, signed windows"], rows["ECDLP-256, fewest qubits"]
     r2048 = rows["RSA-2048, Gidney 2025 residue arithmetic"]
     r3072 = rows["RSA-3072, Gidney 2025 residue arithmetic"]
     trow = tg["rows"]
     ionq_cells = trow["+ the same adder in the point addition, approximate negation"]
     signed = trow["+ signed windows (2^15-entry tables), no Fig. 1"]
+    packed = trow["+ Fig. 1 packing, replay in x's qubits"]
+    one = trow["  the same with signed windows: IonQ's count and qubits in one circuit"]
     base = trow["IonQ-style, Alg 11 replay cells (before)"]
     sprows = {k: v for k, v in sp.items() if not k.startswith("_")}
     luo = sprows.get("+ Luo's register-shared EEA instead of the dialog (ECDSA.Fail 5.3.5)")
@@ -54,7 +56,8 @@ def main(out):
                      **({"tag": "Luo EEA", "at": [7, 4, "start"]} if "Luo" in k else {})})
     for k, c in trow.items():
         padd.append({"q": c["qubits"], "t": c["expected"], "d": c["toffoli_depth"],
-                     "s": "IonQ's cells", "l": k})
+                     "s": "IonQ's cells", "l": k.strip(),
+                     **({"tag": "one circuit", "at": [0, 16, "middle"]} if c is one else {})})
     for k, c in dp.items():
         if isinstance(c, dict):
             padd.append({"q": c["qubits"], "t": c["expected"], "d": c["toffoli_depth"],
@@ -62,7 +65,7 @@ def main(out):
     # label placement [dx, dy, anchor], so the four crosses' names do not collide
     pub = [{"q": 1208, "t": 2 ** 21.19 + 3 * 2 ** 16, "l": "[1128] space", "at": [-7, 4, "end"]},
            {"q": 1462, "t": 2 ** 20.83 + 3 * 2 ** 16, "l": "[1128] gate", "at": [7, 14, "start"]},
-           {"q": 1462, "t": ionq_pub, "l": "IonQ", "at": [7, 4, "start"]},
+           {"q": 1457, "t": ionq_pub, "l": "IonQ", "at": [7, 4, "start"]},
            {"q": 1162, "t": 1684161, "l": "ECDSA.Fail (windowed)", "tag": "ECDSA.Fail",
             "at": [-7, 4, "end"]}]
     wtag = {"ECDLP-256, fewest qubits": ("ECDLP-256", [0, -9, "middle"]),
@@ -92,6 +95,10 @@ def main(out):
          f"one addition {f(base['toffoli'])} &rarr; {f(ionq_cells['expected'])} executed"),
         ("Odd signed windows (2<sup>15</sup>-entry tables)", "[HJN+20], [106] &sect;6.1",
          f"&rarr; {f(signed['expected'])} executed, {100 * (1 - signed['expected'] / ionq_pub):.1f}% below IonQ"),
+        ("Lean careful cell, CNOT ends, register sharing in IonQ's walk, phase-adder fold",
+         "IonQ &sect;VI, [1128] &sect;3.1",
+         f"{f(packed['qubits'])} &rarr; {f(one['qubits'])} qubits at {f(one['expected'])} executed: "
+         f"IonQ's count and qubits in one circuit"),
         ("CDKM cells, lean comparator / all-ones / constant adder, headroom budgets",
          "[1128] &sect;3.2", f"2,251 &rarr; {f(best_space['qubits'])} qubits"),
         ("Luo's register-shared EEA", "ECDSA.Fail &sect;5.3.5",
@@ -118,7 +125,11 @@ def main(out):
     fac = e["factories"]
     ss = [r for r in e["select_swap"] if r["w"] == 15 and r["lambda"] in (2, 3, 4)]
     win = {(r["w"], r["signed"]): r for r in e["windows"]}
-    qt = e["qt"][:6]
+    qtd = {r["config"]: r["qt"] for r in e["qt"]}
+    qtn = {"one": one["qubits"] * one["expected"],
+           "fail": qtd["ECDSA.Fail best Q x T (published, classical addend)"],
+           "failw": qtd["ECDSA.Fail windowed variant (published)"],
+           "ionq": qtd["IonQ (published)"]}
     t = toy["rsa"]
     m7 = next(x for x in t["masks"] if x["mask_bits"] == 7)
     sd = toy["ecdlp_signed"]
@@ -200,10 +211,10 @@ code {{ font: 13px "IBM Plex Mono", ui-monospace, monospace; }}
 </header>
 
 <section aria-label="Headline figures" class="tiles">
-  <div class="tile ecc"><span>ECDLP-256, whole algorithm (IonQ's cells)</span><b>{sci(ecc['toffoli'])}</b><span>Toffolis on {f(ecc['logical_qubits'])} qubits &middot; {ecc['days'] * 1440:.0f} min in the surface-code model</span></div>
+  <div class="tile ecc"><span>ECDLP-256, whole algorithm (IonQ's cells, signed windows)</span><b>{sci(ecc['toffoli'])}</b><span>Toffolis on {f(ecc['logical_qubits'])} qubits &middot; {ecc['days'] * 1440:.0f} min in the surface-code model</span></div>
   <div class="tile rsa"><span>RSA-2048, Gidney 2025 residue arithmetic</span><b>{sci(r2048['toffoli'])}</b><span>Toffolis per factoring on {f(r2048['logical_qubits'])} qubits &middot; {r2048['days']:.1f} days</span></div>
   <div class="tile ecc"><span>fewest qubits, one point addition</span><b>{f(luo['qubits'] if luo else best_space['qubits'])}</b><span>Luo's EEA; {f(best_space['qubits'])} with the dialog at {sci(best_space['toffoli'], 1)} Toffolis</span></div>
-  <div class="tile ecc"><span>one point addition, signed windows</span><b>{f(signed['expected'])}</b><span>executed Toffolis, {100 * (1 - signed['expected'] / ionq_pub):.1f}% below IonQ's published 1,392,608</span></div>
+  <div class="tile ecc"><span>one point addition, one circuit</span><b>{f(one['expected'])}</b><span>executed Toffolis on {f(one['qubits'])} qubits; IonQ publishes 1,392,608 on 1,457</span></div>
 </section>
 
 <section>
@@ -255,7 +266,7 @@ code {{ font: 13px "IBM Plex Mono", ui-monospace, monospace; }}
     <li><span><b>One shot against nine.</b> The windowed ECDLP circuit succeeds in one run with high probability;
     Eker&aring;&ndash;H&aring;stad with s&nbsp;=&nbsp;8 needs s&nbsp;+&nbsp;1 good runs, 9.2 expected.</span></li>
     <li><span><b>RSA's approximation buys qubits with Toffolis.</b> Residue arithmetic never holds an n-bit number
-    except the output's top f&nbsp;=&nbsp;33 bits: 0.7n qubits for RSA-2048 against 4.9&ndash;8.7n for secp256k1, paid for by reading all
+    except the output's top f&nbsp;=&nbsp;33 bits: 0.7n qubits for RSA-2048 against {ecc_min['logical_qubits'] / 256:.1f}&ndash;{ecc['logical_qubits'] / 256:.1f}n for secp256k1, paid for by reading all
     214 exponent windows for each of ~21,000 primes.</span></li>
     <li><span><b>At equal classical security the gap widens.</b> RSA-3072 (128-bit, like secp256k1) costs
     {sci(r3072['toffoli'])} Toffolis, {r3072['toffoli'] / ecc['toffoli']:.0f}&times; the elliptic-curve count.</span></li>
@@ -282,7 +293,7 @@ code {{ font: 13px "IBM Plex Mono", ui-monospace, monospace; }}
   </ul>
   <p class="note">Found along the way: the GCD's top-bit comparisons need 40&nbsp;+&nbsp;2.3&radic;n bits because the width schedule
   pads with leading zeros (a flat 24 bits failed 15 of 40 multiplications at n&nbsp;=&nbsp;64); this repository's controlled CDKM adder cost 4n,
-  not the documented 3n; IonQ's replay also needs a p&nbsp;&rarr;&nbsp;0 repair when multiplying; Gidney 2025's qubit formula gives 1,432, not the 1,409 in its text.</p>
+  not the documented 3n; IonQ's replay also needs a p&nbsp;&rarr;&nbsp;0 repair when multiplying; IonQ's circuit is 1,457 qubits (1,462 is its target width, which this repository had quoted); Gidney 2025's qubit formula gives 1,432, not the 1,409 in its text.</p>
 </section>
 
 <section class="est">
@@ -292,7 +303,7 @@ code {{ font: 13px "IBM Plex Mono", ui-monospace, monospace; }}
     <h3>Cold storage for the GCD record<span>&minus;{100 * (1 - cold[1]['physical_record_cold'] / cold[1]['physical_all_hot']):.0f}% physical qubits</span></h3>
     <p>The packed record is read two bits per round, so it can live in yoked storage like RSA's exponent.
     Fewest-qubit configuration: {f(cold[1]['physical_all_hot'])} &rarr; {f(cold[1]['physical_record_cold'])} physical qubits;
-    IonQ's cells: {f(cold[0]['physical_all_hot'])} &rarr; {f(cold[0]['physical_record_cold'])}. The cost is the latency of fetching a
+    IonQ's cells with signed windows: {f(cold[0]['physical_all_hot'])} &rarr; {f(cold[0]['physical_record_cold'])}. The cost is the latency of fetching a
     record bit, which the walk can prefetch one round ahead.</p>
   </article>
   <article>
@@ -305,8 +316,9 @@ code {{ font: 13px "IBM Plex Mono", ui-monospace, monospace; }}
     <h3>SELECT-SWAP lookups<span>&minus;{f(ss[0]['saved_per_addition'])} Toffolis per addition</span></h3>
     <p>A lookup of 2<sup>w</sup> entries costs 2<sup>w</sup>/&lambda; + &lambda;b Toffolis for (&lambda;&minus;1)b extra qubits (b&nbsp;=&nbsp;512). With signed windows
     (2<sup>15</sup> entries): &lambda;&nbsp;=&nbsp;2 saves {f(ss[0]['saved_per_addition'])} per addition for {ss[0]['extra_qubits']} qubits, &lambda;&nbsp;=&nbsp;3 saves
-    {f(ss[1]['saved_per_addition'])} for {ss[1]['extra_qubits']}. The lookups run between the two GCDs, when the record is not live, so the
-    extra qubits fit under the peak of the IonQ-cell configuration. Estimated one addition: {f(signed['expected'] - ss[0]['saved_per_addition'])} Toffolis.</p>
+    {f(ss[1]['saved_per_addition'])} for {ss[1]['extra_qubits']}. The lookups run between the two GCDs, when the record is not live: 4n&nbsp;+&nbsp;2w&nbsp;&minus;&nbsp;1&nbsp;=&nbsp;{f(ss[0]['live_at_lookup'] - ss[0]['extra_qubits'])}
+    qubits are live there, so &lambda;&nbsp;=&nbsp;2 raises the one circuit's {f(ss[0]['one_circuit_peak'])}-qubit peak by {ss[0]['raises_peak_by']}.
+    Estimated one addition: {f(one['expected'] - ss[0]['saved_per_addition'])} Toffolis on {f(ss[0]['one_circuit_peak'] + ss[0]['raises_peak_by'])} qubits.</p>
   </article>
   <article>
     <h3>Window size<span>w&nbsp;=&nbsp;16 stays optimal</span></h3>
@@ -315,17 +327,10 @@ code {{ font: 13px "IBM Plex Mono", ui-monospace, monospace; }}
     {sci(win[(16, True)]['toffoli'])}, below IonQ's 3.90&times;10<sup>7</sup>.</p>
   </article>
   <article>
-    <h3>Register sharing inside the conditionally inverted walk<span>~1.5k qubits at ~1.35M Toffolis</span></h3>
-    <p>IonQ reaches its count at 1,462 qubits; here that count and a 1.5k-qubit width come from different circuits
-    because the conditionally inverted walk does not yet hand its shrinking registers to the record. With sharing and Fig.&nbsp;1 packing,
-    the replay's peak is the record (669), the two n-bit registers (512), the window (16) and the phase-approximate adder's scratch
-    (~330): about 1,530 qubits, with signed windows about 1.33M Toffolis. Rough estimate from the measured parts.</p>
-  </article>
-  <article>
     <h3>Qubits &times; Toffolis<span>ECDSA.Fail's score</span></h3>
-    <p>Best built: {html.escape(qt[3]['config'])} at {qt[3]['qt'] / 1e9:.2f}&times;10<sup>9</sup>; ECDSA.Fail's best classical-addend circuit
-    {qt[0]['qt'] / 1e9:.2f}&times;10<sup>9</sup>, its windowed variant {qt[1]['qt'] / 1e9:.2f}&times;10<sup>9</sup>, IonQ {qt[2]['qt'] / 1e9:.2f}&times;10<sup>9</sup>.
-    Sharing plus signed windows would put this repository near 2.0&times;10<sup>9</sup>.</p>
+    <p>Best built: the one circuit, {f(one['qubits'])} &times; {f(one['expected'])} = {qtn['one'] / 1e9:.2f}&times;10<sup>9</sup>.
+    Published: ECDSA.Fail's best classical-addend circuit {qtn['fail'] / 1e9:.2f}&times;10<sup>9</sup> (a classical addend, not windowed Shor),
+    its windowed variant {qtn['failw'] / 1e9:.2f}&times;10<sup>9</sup>, IonQ {qtn['ionq'] / 1e9:.2f}&times;10<sup>9</sup>.</p>
   </article>
 </section>
 

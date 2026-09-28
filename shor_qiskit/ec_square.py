@@ -115,10 +115,17 @@ def _csub_times_const(m, ctrl, v, c, acc, q, dbl, half, sub):
         half(m, v)
 
 
-def csub_square_pm(m, ctrl, src, acc, q, lsbs=None, msbs=None):
+def csub_square_pm(m, ctrl, src, acc, q, lsbs=None, msbs=None, arith=None):
     """acc <- acc - src^2 mod q (when ctrl), q = 2^n - f pseudo-Mersenne.
 
     Signature of `ec_window._csub_square`, so it drops into PointAddCfg.square.
+
+    `arith` (an `ec_gcd` arithmetic, e.g. `PMPhase`): the fold's uncontrolled
+    subtractions -- popcount(f) + 1 of them, each while the 2n + 1-qubit
+    square is held -- use `arith.sub` instead of the exact generic `modsub`
+    (for PMPhase: 352 Toffolis on n + 2 scratch instead of 4n on 2n + 4).
+    Pseudo-Mersenne subtraction is the addition run backwards, so it fails
+    when acc < f on entry: ~f/q, as every such cell here.
     """
     pm = AX.pseudo_mersenne(q)
     assert pm, f"{q} is not pseudo-Mersenne"
@@ -130,7 +137,9 @@ def csub_square_pm(m, ctrl, src, acc, q, lsbs=None, msbs=None):
     lo, hi = Reg(z[:n], "zlo"), Reg(z[n:2 * n], "zhi")
 
     def sub(mm, c, v, a):
-        if c is None:
+        if c is None and arith is not None:
+            arith.sub(mm, v, a, q)
+        elif c is None:
             MA.modsub(mm, v, a, q)
         else:
             MA.cmodsub(mm, c, v, a, q)

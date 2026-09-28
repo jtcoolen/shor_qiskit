@@ -1160,8 +1160,7 @@ IonQ's $@@tg_pub@@$. Built end to end on these cells, the $@@tg_full_add@@$-addi
 $@@tg_full@@$ Toffolis ($@@tg_full_exp@@$ executed), against IonQ's
 $28\times(1.196\times10^6+3\cdot2^{16})\approx39.0\times10^6$. The qubits are another matter:
 $@@tg_q_after@@$, or $@@tg_q_packed@@$ with the record packed and the replay run in $x$'s qubits,
-against IonQ's $@@tg_pub_q@@$. Reaching both at once needs register sharing inside the
-conditionally inverted walk, which is not built here.
+against IonQ's $@@tg_pub_q@@$. The last two rows reach both at once (\S\ref{ec:sec:onecircuit}).
 
 The last row goes past IonQ. Signed windows \cite{ec:hjnrs20,ec:kim26} read the $w$ address bits as
 an odd digit $d=2i+1-2^w$. The lookup then runs over $|d|$ on $w-1$ bits, and the sign is two
@@ -1169,7 +1168,7 @@ controlled negations of $y$, merged across consecutive windows. Each table has $
 instead of $2^{16}$ and, the digits being odd, never contains $O$. Built at $n=256$, one addition
 costs $@@tg_signed@@$ Toffolis, $@@tg_signed_exp@@$ executed: $@@tg_signed_gap@@\%$ below IonQ's
 figure, and $@@tg_signed_28@@$ fewer over the $28$ additions. The whole-circuit count above still
-uses unsigned windows.
+uses unsigned windows; \S\ref{ec:sec:onecircuit} builds the whole circuit with signed ones.
 
 Signed windows need every point the accumulator visits to have odd order, since the negation
 assumes $y\neq0$. secp256k1's group has prime order, so this holds there. At toy size it holds only
@@ -1179,6 +1178,49 @@ frequency distribution is at total variation $@@sd_tvd@@$ from the ideal. That c
 the $@@sd_wrong@@\%$ of inputs that meet an exceptional addition, which is unavoidable at this size.
 It finds the logarithm in one run with probability $@@sd_succ@@\%$ (ideal $@@sd_ideal@@\%$), above
 IonQ's bound of $@@sd_bound@@\%$.
+
+\subsection{IonQ's count and IonQ's qubits, in one circuit}\label{ec:sec:onecircuit}
+
+The last two rows of the table are one circuit. It starts from row 4, $@@tg_q_packed@@$ qubits,
+and applies the method of \S\ref{ec:sec:fewq}: find the step that sets the peak, take the scratch
+out of it, rebuild. On IonQ's cells the peak moved four times, and no fix added a Toffoli.
+
+\begin{itemize}\setlength\itemsep{1pt}
+\item \emph{The careful cell} of the first $@@tg_zero@@$ replay steps. Algorithm~11 allocates a copy
+register for a controlled addition even when the addition is uncontrolled, and keeps its adder's
+scratch to the end so that the top-bit comparisons can use a few of those qubits. Freeing the scratch
+as soon as the addition is done gives the same $@@sc_care_t@@$ Toffolis on $@@sc_care_lean@@$ scratch
+qubits instead of $@@sc_care@@$ (\texttt{PMPhase(lean=True)}).
+\item \emph{The replay's opening and closing additions.} Multiplying, the replay starts by setting
+$s=y$, an exact modular addition of $r$ into a register that is $0$. Dividing, it ends by clearing
+$\tilde s$, a subtraction of $r$ from a register that equals $r$. Both answers are copies, so both
+are $n$ CNOTs (\texttt{cnot\_ends}) instead of $@@sc_add_t@@$ Toffolis on $@@sc_add@@$ scratch
+qubits.
+\item \emph{The square-subtract's fold.} It subtracts the square's low half and then $f$ times its
+high half, bit by bit, while holding the $2n+1$-qubit square: $@@sc_fold_n@@$ subtractions, each the
+exact generic one. The phase-approximate subtraction does each on $@@sc_fold@@$ scratch qubits and
+$@@sc_fold_t@@$ Toffolis (\texttt{csub\_square\_pm(arith=...)}).
+\item \emph{The end of the walk.} $u$ kept its $n+2$ qubits while the record grew beside it.
+Register sharing (\cite{ec:schrott26} Sec~3.1, \texttt{CondInv(share=True)}) frees $u$'s high
+qubits, and the two that $\tilde v$ borrows, as the width schedule narrows; the record grows into them,
+and the walk backwards claims the same qubits back at the mirror-image round. Unlike the dialog's
+sharing it never frees $x$'s own qubits, so the replay can still run in them. It adds no gates.
+\end{itemize}
+
+\noindent
+The peak is then the replay: the packed record ($@@sp_rec@@$ qubits), the multiplicand and the
+accumulator ($512$, the accumulator in $x$'s qubits), the window ($16$), and one cell's scratch ---
+$@@tg_one_q@@$ qubits in all. One addition costs $@@tg_one_t@@$ Toffolis ($@@tg_one_exp@@$ executed),
+and with signed windows $@@tg_ones_t@@$ ($@@tg_ones_exp@@$ executed) on $@@tg_ones_q@@$ qubits: fewer
+Toffolis than IonQ's $@@tg_pub@@$ at IonQ's own width, $@@tg_pub_q@@$ logical qubits (IonQ's target
+was \cite{ec:schrott26}'s $1\,462$, which includes the $16$ window qubits, as the counts here do). Built end to end with
+signed windows, the whole algorithm is $@@tg_onefull@@$ Toffolis ($@@tg_onefull_exp@@$ executed) on
+$@@tg_onefull_q@@$ qubits, against IonQ's $39.0\times10^6$ on $@@tg_pub_q@@$.
+
+The price is depth: $@@tg_onefull_d@@$ Toffolis deep, against $@@tg_full_d@@$ for the unsigned circuit
+on $@@tg_full_q@@$ qubits. Most of it is row 4's: one addition is $@@tg_row3_d@@$ deep in row 3,
+$@@tg_row4_d@@$ once the record is packed and the replay runs in $x$'s qubits, and $@@tg_one_d@@$ with
+everything above. Reusing a qubit orders the two steps that use it.
 
 \subsection{Fewer qubits}\label{ec:sec:fewq}
 
@@ -1225,7 +1267,7 @@ scratch, most of it the register that holds $f$. \cite{ec:schrott26} reports $4.
 or $1\,192$ qubits plus the window. The price is Toffolis: $@@sp_best_t@@$ here, against
 $@@sp_start_t@@$ at the $@@sp_start_q@@$ qubits where the table starts, and against
 \cite{ec:schrott26}'s $2.39\times10^6$ for its space-optimised circuit. IonQ reports its Toffoli
-count at $@@tg_pub_q@@$ qubits; no circuit here has both.
+count at $@@tg_pub_q@@$ qubits; on IonQ's cells, \S\ref{ec:sec:onecircuit} reaches both.
 
 
 \subsection{Depth}\label{ec:sec:depth}
@@ -1477,10 +1519,9 @@ Named rather than glossed:
 
 \begin{itemize}\setlength\itemsep{2pt}
 \item \textbf{Register sharing} (\cite{ec:schrott26} Sec 3.1) is built beside the dialog of
-\S\ref{ec:sec:dialog}, not inside it: its failure mode is a register overflow, which the ancilla
-checks turn into a counted failure. The dialog of \S\ref{ec:sec:dialog} itself stays exact. The
-conditionally inverted walk has no sharing at all, which is why IonQ's Toffoli count and IonQ's
-qubit count are each reached here, but not by the same circuit (\S\ref{ec:sec:toffgap}).
+\S\ref{ec:sec:dialog}, not inside it, and beside IonQ's walk (\S\ref{ec:sec:onecircuit}): its
+failure mode is a register overflow, which the ancilla checks turn into a counted failure. The
+dialog of \S\ref{ec:sec:dialog} itself stays exact.
 \item \textbf{Gidney's dirty-ancilla constant adder} \cite{ec:gidney25}, in full. The lean
 constant adder of \S\ref{ec:sec:fewq} borrows dirty qubits only above the top bit of $f$; the bits
 of $f$ itself still sit in clean ones, the largest scratch left at the space variant's peak.

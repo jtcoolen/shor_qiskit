@@ -23,7 +23,7 @@ PUBLISHED_PADD = [
     ("[1128] gate", 1446 + 16, 2 ** 20.83 + LOOKUPS),
     ("Babbush space", 1175 + 16, 2 ** 21.36 + LOOKUPS),
     ("Babbush gate", 1425 + 16, 2 ** 21.00 + LOOKUPS),
-    ("IonQ", 1462, 1.196e6 + LOOKUPS),
+    ("IonQ", 1457, 1.196e6 + LOOKUPS),
     ("ECDSA.Fail (windowed)", 1162, 1_684_161),
 ]
 
@@ -122,7 +122,7 @@ def fig_padd_depth():
 
 
 SHORT = {
-    "ECDLP-256, IonQ's cells": "ours, IonQ's cells",
+    "ECDLP-256, IonQ's cells, signed windows": "ours, IonQ's cells, signed",
     "ECDLP-256, fewest qubits": "ours, fewest qubits",
     "RSA-1024, Gidney 2025 residue arithmetic": "RSA-1024",
     "RSA-2048, Gidney 2025 residue arithmetic": "RSA-2048",
@@ -164,7 +164,7 @@ def fig_ecc_rsa():
 
 def fig_security():
     rsa = J("rsa_g25.json")
-    tg = J("ec_toffoli_256.json")["full_algorithm"]
+    tg = J("ec_toffoli_256.json")["full_algorithm_one_circuit"]
     sec = {1024: 80, 2048: 112, 3072: 128}              # NIST SP 800-57 Part 1, Table 2
     fig, axs = plt.subplots(1, 2, figsize=(10, 4.0))
     ax = axs[0]

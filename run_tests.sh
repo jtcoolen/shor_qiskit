@@ -19,7 +19,7 @@ FAST="qft_check test_qrom test_tempand test_fixup test_mbu test_unlookup
       test_essentials test_rc test_windowed test_nested test_coset_law
       test_semiclassical test_resources test_api_surface test_depth
       test_sparse_sim test_eh test_physical test_g25_arith
-      test_coset_order"
+      test_coset_order test_rns"
 E2E="test_rc_l4 test_win_l4 test_acc_mbu test_win_full test_nested_e2e test_win_e2e test_1c"
 SLOW="test_precision test_n21 test_win_n21 test_n33"
 

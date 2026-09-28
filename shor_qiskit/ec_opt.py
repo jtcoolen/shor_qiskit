@@ -15,8 +15,15 @@ forms are the ones that need no sampling:
 
 Both are exact by construction -- they only use values that hold in every
 branch -- and the tests re-run the exhaustive suites on the optimised
-circuits.  The fire-census stripping ECDSA.Fail also used (dropping gates that
-never fired on a billion samples) is deliberately absent: it is not exact.
+circuits.
+
+The third pass, `census` + `strip_unfired`, is ECDSA.Fail's fire census and is
+*not* exact: it runs a sample of inputs, records which Toffoli-class gates ever
+fired (all controls 1), and deletes the ones that never did.  On inputs outside
+the sample the stripped circuit may be wrong -- an AND-dagger then finds a
+target the deleted AND never set, and the ancilla checks report it.  So it is
+kept apart from `peephole`, and its tests measure the failure rate on fresh
+inputs as the sample grows, which is the only honest way to state its gain.
 
 Ancilla checks are kept, re-indexed, and a cancellation never spans a check on
 one of its qubits, so every "freed ancilla is |0>" assertion still holds.
@@ -161,6 +168,81 @@ def peephole(m, inputs, rounds=3):
         if len(m.qc.data) == before:
             break
     return m
+
+
+# =============================================================================
+# ECDSA.Fail's fire census: measured, not exact
+# =============================================================================
+_TOFFOLI_CLASS = ("ecand", "ccx", "mcx", "cswap")
+
+
+def census(m, samples):
+    """Indices of the top-level Toffoli-class gates that fire on any of the
+    `samples` ({Reg: int} dicts).  Only for circuits of primitive gates (X,
+    CX, SWAP, CCX, MCX, CSWAP, AND, AND-dagger, diagonal gates)."""
+    qc = m.qc
+    idx = {q: i for i, q in enumerate(qc.qubits)}
+    prog = [(ci.operation.name, [idx[q] for q in ci.qubits]) for ci in qc.data]
+    fired = set()
+    for inp in samples:
+        bits = [0] * qc.num_qubits
+        for reg, val in inp.items():
+            for i, q in enumerate(reg):
+                bits[idx[q]] = (val >> i) & 1
+        for pos, (name, w) in enumerate(prog):
+            if name == "x":
+                bits[w[0]] ^= 1
+            elif name == "cx":
+                bits[w[1]] ^= bits[w[0]]
+            elif name == "swap":
+                bits[w[0]], bits[w[1]] = bits[w[1]], bits[w[0]]
+            elif name in ("ccx", "ecand"):
+                if bits[w[0]] & bits[w[1]]:
+                    fired.add(pos)
+                    bits[w[2]] ^= 1
+            elif name == "ecand_dg":
+                bits[w[2]] = 0
+            elif name == "mcx":
+                if all(bits[c] for c in w[:-1]):
+                    fired.add(pos)
+                    bits[w[-1]] ^= 1
+            elif name == "cswap":
+                if bits[w[0]]:
+                    fired.add(pos)
+                    bits[w[1]], bits[w[2]] = bits[w[2]], bits[w[1]]
+            elif name in ("cz", "z", "s", "sdg", "t", "tdg", "p", "barrier"):
+                pass
+            else:
+                raise ValueError(f"census: {name!r} is not a primitive gate")
+    return fired
+
+
+def strip_unfired(m, fired):
+    """A copy of m without the Toffoli-class gates outside `fired`; an AND's
+    matching AND-dagger (same three qubits, next on its target) goes with it.
+    Not exact: see `census`."""
+    data = [(ci.operation, list(ci.qubits)) for ci in m.qc.data]
+    drop = set()
+    open_and = {}                                   # target qubit -> (pos, dropped?)
+    for pos, (op, qs) in enumerate(data):
+        name = op.name
+        if name == "ecand":
+            open_and[qs[2]] = pos
+            if pos not in fired:
+                drop.add(pos)
+        elif name == "ecand_dg":
+            j = open_and.pop(qs[2], None)
+            if j is not None and j in drop and list(data[j][1]) == qs:
+                drop.add(pos)
+        elif name in _TOFFOLI_CLASS and pos not in fired:
+            drop.add(pos)
+    out, old_to_new = [], []
+    for pos, d in enumerate(data):
+        old_to_new.append(len(out))
+        if pos not in drop:
+            out.append(d)
+    old_to_new.append(len(out))
+    return _rebuild(m, out, old_to_new)
 
 
 def _rebuild(m, ops, old_to_new):

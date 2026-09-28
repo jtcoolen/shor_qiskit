@@ -1,0 +1,33 @@
+{
+  "lookup_depth_floor": 196608,
+  "dialog, PM replay (ripple adders)": {
+    "toffoli": 2000864,
+    "expected": 2000864,
+    "qubits": 2251,
+    "toffoli_depth": 1503533
+  },
+  "+ carry-lookahead replay": {
+    "toffoli": 6769556,
+    "expected": 6769556,
+    "qubits": 2601,
+    "toffoli_depth": 936530
+  },
+  "+ carry-lookahead walk": {
+    "toffoli": 8655996,
+    "expected": 8655996,
+    "qubits": 2601,
+    "toffoli_depth": 456379
+  },
+  "+ carry-lookahead squarer": {
+    "toffoli": 9184472,
+    "expected": 9184472,
+    "qubits": 2601,
+    "toffoli_depth": 394281
+  },
+  "+ register sharing, Fig. 1": {
+    "toffoli": 9189792,
+    "expected": 9189792,
+    "qubits": 2223,
+    "toffoli_depth": 394917
+  }
+}

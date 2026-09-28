@@ -236,6 +236,8 @@ def _build(fn, label, key, args, kwargs, qubits, parent):
                 local, kids)
     node._st, node._fi = _node_timing(child, len(qubits) + child._nanc)
     node.depth = max([f for f in node._fi if f is not None], default=0)
+    idx = {q: i for i, q in enumerate(child.qc.qubits)}
+    node.ops = [(ci.operation, tuple(idx[q] for q in ci.qubits)) for ci in child.qc.data]
     return node
 
 
@@ -357,9 +359,47 @@ Node.timing = _timing
 
 
 def block_depth(m):
-    """The Toffoli depth of a (hierarchical) circuit: see `_schedule`."""
+    """A fast estimate of the Toffoli depth: see `_schedule`.  Not a bound
+    either way -- `exact_depth` is the number."""
     ready, _ = _schedule(getattr(m, "qc", m))
     return max(ready.values(), default=0)
+
+
+def exact_depth(m):
+    """The Toffoli depth of the *flat* circuit, without building it: every
+    cached call is expanded on the fly from its node's gate list (run
+    backwards, gate by gate inverted, for an inverted call) and scheduled
+    as soon as possible per qubit, as `depth.toffoli_depth` does on a flat
+    circuit -- a Toffoli, AND or Fredkin takes one step, an AND-dagger none,
+    a logical gate its carried cost; qubits shared by two gates order them.
+    Time linear in the flat gate count; memory that of the cache."""
+    qc = getattr(m, "qc", m)
+    idx = {q: i for i, q in enumerate(qc.qubits)}
+    ready = [0] * qc.num_qubits
+    inv_depth = {}
+
+    def leaf(op, inverted):
+        if not inverted:
+            return _leaf_depth(op)
+        key = id(op)
+        if key not in inv_depth:
+            inv_depth[key] = (op, _leaf_depth(op.inverse()))
+        return inv_depth[key][1]
+
+    def run(ops, qmap, inverted):
+        for op, qs in (reversed(ops) if inverted else ops):
+            w = [qmap[i] for i in qs]
+            if isinstance(op, NodeGate):
+                run(op.node.ops, w, inverted ^ op.inverted)
+                continue
+            d = leaf(op, inverted)
+            t = max(ready[j] for j in w) + d if w else 0
+            for j in w:
+                ready[j] = t
+
+    top = [(ci.operation, tuple(idx[q] for q in ci.qubits)) for ci in qc.data]
+    run(top, list(range(qc.num_qubits)), False)
+    return max(ready, default=0)
 
 
 def count(m):
@@ -379,7 +419,6 @@ def count(m):
             "toffoli_expected": ands + toffs + cswaps + mbu_exp,
             "toffoli_equiv": ands + dgs + toffs + cswaps + mbu,
             "t": ands * AND_T + (toffs + cswaps) * TOFFOLI_T + mbu * AND_T,
-            "toffoli_depth": block_depth(m),
             "cached_nodes": len(_CACHE), "top_level_ops": len(qc.data)}
 
 
@@ -408,6 +447,17 @@ DEFAULT_TARGETS = [
                   "carry_out_cdkm", "lt_cdkm", "all_ones_lean", "eq_top_lean",
                   "inc_borrowed", "_cadd_const_lean", "_zero_q"]),
     ("ec_window", ["_lookup", "_csub_square", "windowed_point_add_cfg"]),
+    ("ec_cla", ["cla_add", "cla_sub", "cla_carry_out", "cla_lt", "cla_geq_const",
+                "cla_modadd", "cla_modsub"]),
+    ("ec_proj_q", ["jacobian_add_q", "jacobian_add_q_ctrl", "to_affine"]),
+    ("ec_signedwin", ["cneg_y", "windowed_point_add_signed", "signed_windows"]),
+    ("ec_luo", ["eea_step", "eea_init", "eea_finish", "r_compare", "r_subtract", "t_add",
+                "t_compare", "loc_swap", "update_lengths", "mul_acc_reg", "moddbl_reg",
+                "cmodadd_reg", ("Luo", "div")]),
+    ("ec_batch", ["batch_mod_inv", "batch_mod_div", "point_add_ctrl_batch"]),
+    ("ec_kaliski", ["kaliski_round"]),
+    ("ec_depth", ["moddbl_cla", "modhalf_cla", "cla_csub", "cla_gt_ctrl", "sqr_int_cla",
+                  "csub_square_cla", "fan_cswap", "fan_and"]),
     ("ec_gcd", [("Dialog", "_round"), ("CondInv", "_round"), ("CondInv", "_first"),
                 ("Jump2", "_walk_body"), ("Jump2Packed", "_step")]),
 ]

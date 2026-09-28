@@ -33,7 +33,7 @@ import ec_shor as S
 import ec_square as SQ
 import ec_window as W
 import hier as H
-from ec_hier_256 import CURVE, GEN, MSBS, N, ORDER, P, WBITS
+from ec_hier_256 import CURVE, GEN, CMP, MSBS, N, ORDER, P, WBITS
 from ec_sim import Machine
 
 ZERO_STEPS = 37                      # IonQ Table X: "rounds with x + y = p"
@@ -70,7 +70,7 @@ def rows():
     neg = lambda m, c, x, p: AX.cmodneg_approx(m, c, x, p)
 
     def ci(arith, **kw):
-        return G.CondInv(arith=arith, cmp_msbs=MSBS, c_pad=2.3, replay="ci", **kw)
+        return G.CondInv(arith=arith, cmp_msbs=CMP, c_pad=2.3, replay="ci", **kw)
     return {
         "IonQ-style, Alg 11 replay cells (before)": W.PointAddCfg(**base, mul=ci(pm)),
         "+ phase-approximate adder in the replay, 37 careful steps":
@@ -80,6 +80,9 @@ def rows():
         "+ Fig. 1 packing, replay in x's qubits":
             W.PointAddCfg(**base, add=ph, neg=neg,
                           mul=ci(ph, zero_steps=ZERO_STEPS, compress="fig1", reuse_x=True)),
+        "+ signed windows (2^15-entry tables), no Fig. 1":
+            ("signed", W.PointAddCfg(**base, add=ph, neg=neg,
+                                     mul=ci(ph, zero_steps=ZERO_STEPS))),
     }
 
 
@@ -169,13 +172,21 @@ def main():
 
     tab = table()
     out["rows"] = {}
+    import ec_signedwin as SW
+    rng = random.Random(1)
+    B = CURVE.mul(rng.randrange(1, ORDER), GEN)
+    stab, _ = SW.signed_window_points(CURVE, B, WBITS, order=ORDER)
     for name, cfg in rows().items():
         t = time.time()
         with H.tracing():
             m = H.HierMachine("and", "padd256")
             a, x, y = m.alloc(WBITS, "a"), m.alloc(N, "x"), m.alloc(N, "y")
-            W.windowed_point_add_cfg(m, a, x, y, tab, P, cfg)
+            if isinstance(cfg, tuple):                    # a signed window
+                SW.windowed_point_add_signed(m, a, x, y, stab, P, cfg[1])
+            else:
+                W.windowed_point_add_cfg(m, a, x, y, tab, P, cfg)
             c = H.count(m)
+            c["toffoli_depth"] = H.exact_depth(m)
         out["rows"][name] = {"toffoli": c["toffoli_paper"],
                              "expected": round(c["toffoli_expected"]), "qubits": c["qubits"],
                              "toffoli_depth": c["toffoli_depth"]}
@@ -201,6 +212,7 @@ def main():
                                    drop=3, masks=True, oracle="arith", cfg=rows()[name],
                                    first_lookup=True, seed=7)
         c = H.count(m)
+        c["toffoli_depth"] = H.exact_depth(m)
     semi = c["qubits"] - info["bits_k"] - info["bits_l"] + WBITS
     out["full_algorithm"] = {"config": name, "toffoli": c["toffoli_paper"],
                              "expected": round(c["toffoli_expected"]),

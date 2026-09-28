@@ -34,7 +34,8 @@ from ec_sim import Machine, Reg
 
 P256K1 = 2**256 - 2**32 - 977
 N = 256
-MSBS = 48            # [1128]: 40-50 comparison bits at n = 256
+MSBS = 48            # [1128]: 40-50 comparison bits at n = 256 (modular arithmetic)
+CMP = 40 + math.ceil(2.3 * math.sqrt(256))   # GCD: 40 + the schedule's padding (IonQ Table X)
 
 
 def toff(m):
@@ -154,22 +155,22 @@ def main():
         "ec_eea.inplace_mul")
 
     # 2. [1128] with every refinement: fused + truncated compare, schedule, PM
-    d1 = G.Dialog(fused_cmp=True, cmp_msbs=MSBS, c_pad=2.3)
+    d1 = G.Dialog(fused_cmp=True, cmp_msbs=CMP, c_pad=2.3)
     a, b = dialog_round(d1, 200), dialog_round(d1, 100)
     walk = [b + (a - b) * (w - 100) // 100 for w in sched]
-    over, _, qb, qp = overhead(lambda L: G.Dialog(fused_cmp=True, cmp_msbs=MSBS,
+    over, _, qb, qp = overhead(lambda L: G.Dialog(fused_cmp=True, cmp_msbs=CMP,
                                                   arith=pm, iters=L), None)
-    add("[1128] Dialog, fused cmp48, c_pad 2.3, PM", walk,
+    add("[1128] Dialog, fused cmp77, c_pad 2.3, PM", walk,
         replay_step("dialog", pm), it, over, qb, qp, "1128 Sec 3-4")
 
     # 3. IonQ conditionally-inverted walk, both replays
-    c1 = G.CondInv(cmp_msbs=MSBS, c_pad=2.3)
+    c1 = G.CondInv(cmp_msbs=CMP, c_pad=2.3)
     a, b = condinv_round(c1, 200), condinv_round(c1, 100)
     walk = [b + (a - b) * (w - 100) // 100 for w in sched]
     for rk in ("standard", "ci"):
-        over, _, qb, qp = overhead(lambda L, rk=rk: G.CondInv(arith=pm, cmp_msbs=MSBS,
+        over, _, qb, qp = overhead(lambda L, rk=rk: G.CondInv(arith=pm, cmp_msbs=CMP,
                                                                replay=rk, iters=L), None)
-        add(f"IonQ CondInv, cmp48, c_pad 2.3, PM, replay={rk}", walk,
+        add(f"IonQ CondInv, cmp77, c_pad 2.3, PM, replay={rk}", walk,
             replay_step("dialog" if rk == "standard" else "ci", pm), it, over,
             qb, qp, "IonQ Sec VI")
 

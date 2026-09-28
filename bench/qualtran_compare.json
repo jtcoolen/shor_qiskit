@@ -13,23 +13,23 @@
       "clifford": 31811202,
       "measurement": 4348679
     },
-    "[1128] dialog, fused cmp48, schedule, PM": {
-      "toffoli": 2934431,
+    "[1128] dialog, fused cmp77, schedule, PM": {
+      "toffoli": 2972327,
       "qubits": 2251,
-      "clifford": 14777902,
-      "measurement": 2291235
+      "clifford": 15118966,
+      "measurement": 2329131
     },
     "+ dedicated squarer": {
-      "toffoli": 1962968,
+      "toffoli": 2000864,
       "qubits": 2251,
-      "clifford": 7884668,
-      "measurement": 1320284
+      "clifford": 8225732,
+      "measurement": 1358180
     },
     "IonQ: cond.-inverted walk + replay, squarer": {
-      "toffoli": 1673250,
+      "toffoli": 1711194,
       "qubits": 2251,
-      "clifford": 8581608,
-      "measurement": 1028966
+      "clifford": 8923104,
+      "measurement": 1066910
     },
     "ECDSA.Fail ping-pong (704 rounds), squarer": {
       "toffoli": 2117534,
@@ -38,10 +38,10 @@
       "measurement": 1921450
     },
     "space: dialog + register sharing + Fig. 1 packing, squarer": {
-      "toffoli": 1968288,
+      "toffoli": 2006184,
       "qubits": 1873,
-      "clifford": 7893180,
-      "measurement": 1320284
+      "clifford": 8234244,
+      "measurement": 1358180
     }
   },
   "published": {

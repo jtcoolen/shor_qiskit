@@ -50,6 +50,46 @@ def main():
     ok("constant propagation + cancellation: exact, a few percent, no sampling")
 
 
+def fail_rate(m, regs, want, cases):
+    from ec_sim import SimError
+    bad = 0
+    for c in cases:
+        try:
+            rd = run(m, dict(zip(regs, c)))
+            bad += [rd(r) for r in regs] != want(c)
+        except SimError:
+            bad += 1
+    return bad / len(cases)
+
+
+def test_census():
+    section("ECDSA.Fail's fire census: measured, not exact")
+    rnd = random.Random(7)
+    q, n = 61, 6
+    m = Machine("and")
+    x, y = m.alloc(n, "x"), m.alloc(n, "y")
+    G.Dialog(fused_cmp=True).mul(m, x, y, q)
+    want = lambda c: [c[0], c[0] * c[1] % q]
+    everything = [(a, b) for a in range(1, q) for b in range(q)]
+    full = O.strip_unfired(m, O.census(m, [{x: a, y: b} for a, b in everything]))
+    assert fail_rate(full, [x, y], want, everything) == 0.0
+    t0, tf = CO.count(m)["toffoli_paper"], CO.count(full)["toffoli_paper"]
+    print(f"      census over every input (exact dead code): {t0} -> {tf} Toffoli-eq")
+    fresh = rnd.sample(everything, 400)
+    prev = 1.0
+    for k in (3, 10, 30, 100, 300):
+        sample = rnd.sample(everything, k)
+        mk = O.strip_unfired(m, O.census(m, [{x: a, y: b} for a, b in sample]))
+        r = fail_rate(mk, [x, y], want, fresh)
+        print(f"      sample of {k:>3}: {CO.count(mk)['toffoli_paper']:>5} Toffoli-eq, "
+              f"fresh inputs wrong {100 * r:5.1f}%")
+        assert r <= prev + 0.05
+        prev = r
+    ok("exact when the census covers every input; on a sample, cheaper and wrong "
+       "on a measured fraction of fresh inputs")
+
+
 if __name__ == "__main__":
     main()
+    test_census()
     print("\ntest_ec_opt: all passed")

@@ -239,6 +239,59 @@ def test_oracle_success():
        "where most inputs hit an exceptional case) and well above noise")
 
 
+def _prime_odd_curve(seed=21, pmin=17, pmax=31):
+    """A toy curve whose whole group has odd prime order (so every point, the
+    offset's coset included, has odd order: what signed windows need)."""
+    from _ec_util import random_curve
+    rnd = random.Random(seed)
+    while True:
+        curve, _ = random_curve(rnd, pmax=pmax, pmin=pmin)
+        pts = list(curve.points())
+        r = len(pts)
+        if r % 2 and all(r % d for d in range(2, int(r ** 0.5) + 1)):
+            P = next(Pt for Pt in pts if not Pt.inf)
+            return curve, P, r
+
+
+def test_signed_distribution():
+    section("signed windows: the real oracle's output distribution against the ideal")
+    from ec_sim import SimError
+    curve, P, order = _prime_odd_curve() if not FULL else _prime_odd_curve(pmin=37, pmax=61)
+    k = 7 % order
+    Q = curve.mul(k, P)
+    m, info = S.ecdlp_windowed(curve, P, Q, order, 2, oracle="arith", signed=True,
+                               first_lookup=True, seed=3,
+                               cfg=W.PointAddCfg(offsets=True))
+    kr, lr, px, py = info["regs"]
+    bk, bl = info["bits_k"], info["bits_l"]
+    S0, shift = info["offset"], info["shift"]
+    f, bad = [], 0
+    for u in range(1 << bk):
+        row = []
+        for v in range(1 << bl):
+            ideal = curve.add(curve.add(curve.add(S0, curve.mul(u, P)), curve.mul(v, Q)), shift)
+            try:
+                rd = run(m, {kr: u, lr: v})
+                got = (rd(px), rd(py))
+            except SimError:
+                got = ("dirty", u, v)
+            bad += ideal.inf or got != (ideal.x, ideal.y)
+            row.append(got)
+        f.append(row)
+    pf = bad / (1 << (bk + bl))
+    Pideal = ST.ecdlp_probs2(order, k, bk, bl)
+    Preal = ST.ecdlp_probs_oracle(f, bk, bl)
+    P0 = ST.success_probability(Pideal, order, k, bk, bl, curve, P, Q)
+    Pt = ST.success_probability(Preal, order, k, bk, bl, curve, P, Q)
+    bound = max(0.0, math.sqrt(P0) - 2 * pf) ** 2
+    print(f"      {curve.name} (group order {order}), k = {k}: {100 * pf:.1f}% of (u, v) "
+          f"wrong (exceptional additions); TVD to the ideal {ST.tvd(Preal, Pideal):.3f}; "
+          f"success {100 * Pt:.1f}% (ideal {100 * P0:.1f}%, IonQ bound {100 * bound:.1f}%)")
+    assert Pt >= bound - 1e-12
+    ok("the signed-window oracle, run on every input: its output distribution is "
+       "the ideal one up to its exceptional inputs, and above IonQ's bound")
+
+
 def main():
     test_windowed_qft()
     test_distributions()
@@ -246,6 +299,7 @@ def main():
     test_multikey()
     test_arith()
     test_oracle_success()
+    test_signed_distribution()
 
 
 if __name__ == "__main__":

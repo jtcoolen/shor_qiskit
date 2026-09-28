@@ -11,6 +11,7 @@ hierarchical count equals the flat one, `tests/test_hier.py`).
 Writes bench/ec_hier_256.json.
 """
 import json
+import math
 import pathlib
 import random
 import resource
@@ -30,6 +31,10 @@ import hier as H
 CURVE, GEN, ORDER = C.SECP256K1, C.SECP256K1_G, C.SECP256K1_N
 P = CURVE.p
 N, WBITS, MSBS = 256, 16, 48
+# top-bit comparisons in the GCD see registers padded by the width schedule
+# (2.3 sqrt(n) bits of leading zeros), so they need 40 significant bits *plus*
+# the padding: IonQ Table X, "comparison bits in gcd: 40 + 2.3 sqrt(n)" = 77
+CMP = 40 + math.ceil(2.3 * math.sqrt(N))
 
 
 def configs():
@@ -39,18 +44,18 @@ def configs():
     return {
         "[1128] dialog, exact arithmetic (MBU lookups, masks)":
             W.PointAddCfg(**base),
-        "[1128] dialog, fused cmp48, schedule, PM":
-            W.PointAddCfg(**base, mul=G.Dialog(arith=pm, fused_cmp=True, cmp_msbs=MSBS, c_pad=2.3)),
+        "[1128] dialog, fused cmp77, schedule, PM":
+            W.PointAddCfg(**base, mul=G.Dialog(arith=pm, fused_cmp=True, cmp_msbs=CMP, c_pad=2.3)),
         "+ dedicated squarer":
-            W.PointAddCfg(**base, mul=G.Dialog(arith=pm, fused_cmp=True, cmp_msbs=MSBS, c_pad=2.3),
+            W.PointAddCfg(**base, mul=G.Dialog(arith=pm, fused_cmp=True, cmp_msbs=CMP, c_pad=2.3),
                           square=sq),
         "IonQ: cond.-inverted walk + replay, squarer":
-            W.PointAddCfg(**base, mul=G.CondInv(arith=pm, cmp_msbs=MSBS, c_pad=2.3, replay="ci"),
+            W.PointAddCfg(**base, mul=G.CondInv(arith=pm, cmp_msbs=CMP, c_pad=2.3, replay="ci"),
                           square=sq),
         "ECDSA.Fail ping-pong (704 rounds), squarer":
             W.PointAddCfg(**base, mul=G.PingPong(arith=pm, rounds=704), square=sq),
         "space: dialog + register sharing + Fig. 1 packing, squarer":
-            W.PointAddCfg(**base, mul=G.Dialog(arith=pm, fused_cmp=True, cmp_msbs=MSBS,
+            W.PointAddCfg(**base, mul=G.Dialog(arith=pm, fused_cmp=True, cmp_msbs=CMP,
                                                c_pad=2.3, share=True, compress="fig1"),
                           square=sq),
     }
@@ -65,7 +70,9 @@ def one_addition(cfg, table):
     m = H.HierMachine("and", "padd256")
     addr, x, y = m.alloc(WBITS, "a"), m.alloc(N, "x"), m.alloc(N, "y")
     W.windowed_point_add_cfg(m, addr, x, y, table, P, cfg)
-    return H.count(m)
+    c = H.count(m)
+    c["toffoli_depth"] = H.exact_depth(m)
+    return c
 
 
 def main():
@@ -98,6 +105,7 @@ def main():
                                        drop=3, masks=True, oracle="arith", cfg=cfg,
                                        first_lookup=True, seed=7)
             c = H.count(m)
+            c["toffoli_depth"] = H.exact_depth(m)
         semi = c["qubits"] - info["bits_k"] - info["bits_l"] + WBITS
         c.update(seconds=round(time.time() - t, 1), additions=info["additions"],
                  bits_k=info["bits_k"], bits_l=info["bits_l"], qubits_semiclassical=semi)

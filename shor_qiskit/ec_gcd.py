@@ -256,7 +256,7 @@ class Dialog:
 
     def __init__(self, arith=None, fused_cmp=False, cmp_msbs=None, c_pad=None,
                  share=False, compress=None, reuse_x=False, iters=None,
-                 c_iter=2.4, walk_space=False):
+                 c_iter=2.4, walk_space=False, walk_cla=False):
         """`walk_space` ([1128] Sec 3.2's space variant of the walk): the
         controlled subtraction v -= u is a controlled CDKM (`ec_space.
         cdkm_cadd`), one carry qubit instead of the 2w copy-and-add scratch,
@@ -270,6 +270,7 @@ class Dialog:
         self.c_pad, self.share, self.compress = c_pad, share, compress
         self.reuse_x, self._iters, self.c_iter = reuse_x, iters, c_iter
         self.walk_space = walk_space
+        self.walk_cla = walk_cla          # log-depth comparison and subtraction (ec_depth)
 
     # -- schedule ------------------------------------------------------------
     def iters(self, n):
@@ -289,7 +290,10 @@ class Dialog:
         ctx, w = m.ctx, len(u)
         b0, b0b1 = rec
         ctx.cx(v[0], b0[0])                              # b0 = v mod 2
-        if self.fused_cmp or self.cmp_msbs:
+        if self.walk_cla:
+            import ec_depth as DP
+            DP.cla_gt_ctrl(m, b0[0], u, v, b0b1[0], self.cmp_msbs)
+        elif self.fused_cmp or self.cmp_msbs:
             k = min(self.cmp_msbs or w, w)
             sc = m.anc(k, "sc")
             A.gt_top(ctx, u, v, b0b1[0], sc, k, ctrl=b0[0])
@@ -300,9 +304,14 @@ class Dialog:
             ctx.and_(b0[0], t[0], b0b1[0])
             A.gt_uint(ctx, u, v, t[0], sc)
             m.free(t, sc)
-        for i in range(w):
-            ctx.cswap(b0b1[0], u[i], v[i])
-        if self.walk_space is True or (self.walk_space and 2 * w > self.walk_space):
+        if self.walk_cla:
+            DP.fan_cswap(m, b0b1[0], u, v)
+        else:
+            for i in range(w):
+                ctx.cswap(b0b1[0], u[i], v[i])
+        if self.walk_cla:
+            DP.cla_csub(m, b0[0], u, v)                  # if b0: v -= u
+        elif self.walk_space is True or (self.walk_space and 2 * w > self.walk_space):
             import ec_space as SP
             cy = m.anc(1, "cy")
             for b in v:                                  # v - u = NOT(NOT(v) + u)
@@ -408,8 +417,11 @@ class Dialog:
             b0, b0b1 = recs.pairs[i]
             arith.dbl(m, s)                              # s <- 2s
             arith.cadd(m, b0[0], r, s)                   # if b0: s += r
-            for a, b in zip(r, s):
-                m.ctx.cswap(b0b1[0], a, b)               # if b0b1: swap
+            if hasattr(arith, "cswap"):                  # (a fanned-out swap: ec_depth)
+                arith.cswap(m, b0b1[0], r, s)
+            else:
+                for a, b in zip(r, s):
+                    m.ctx.cswap(b0b1[0], a, b)           # if b0b1: swap
             if g is not None and i == recs.groups[g][0]:
                 recs.repack(m, g, False)
 

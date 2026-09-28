@@ -36,55 +36,61 @@
   },
   "rows": {
     "IonQ-style, Alg 11 replay cells (before)": {
-      "toffoli": 1673250,
-      "expected": 1673250,
+      "toffoli": 1711194,
+      "expected": 1711194,
       "qubits": 2251,
-      "toffoli_depth": 1566023
+      "toffoli_depth": 1409170
     },
     "+ phase-approximate adder in the replay, 37 careful steps": {
-      "toffoli": 1404024,
-      "expected": 1392408,
+      "toffoli": 1441968,
+      "expected": 1430352,
       "qubits": 2233,
-      "toffoli_depth": 1330746
+      "toffoli_depth": 1116947
     },
     "+ the same adder in the point addition, approximate negation": {
-      "toffoli": 1400669,
-      "expected": 1389021,
+      "toffoli": 1438613,
+      "expected": 1426965,
       "qubits": 2233,
-      "toffoli_depth": 1327361
+      "toffoli_depth": 1114102
     },
     "+ Fig. 1 packing, replay in x's qubits": {
-      "toffoli": 1405989,
-      "expected": 1394341,
+      "toffoli": 1443933,
+      "expected": 1432285,
       "qubits": 1845,
-      "toffoli_depth": 1398036
+      "toffoli_depth": 1255253
+    },
+    "+ signed windows (2^15-entry tables), no Fig. 1": {
+      "toffoli": 1340563,
+      "expected": 1328915,
+      "qubits": 2233,
+      "toffoli_depth": 1048565
     }
   },
   "components": {
     "IonQ-style, Alg 11 replay cells (before)": {
       "table lookups and repair": 197364,
-      "GCD walk and its undoing": 555488,
+      "GCD walk and its undoing": 593432,
       "  of which signed additions": 569600,
       "Bezout replay": 833312,
       "square-subtract": 79160,
       "everything else": 7926,
-      "total": 1673250
+      "total": 1711194
     },
     "+ the same adder in the point addition, approximate negation": {
       "table lookups and repair": 197364,
-      "GCD walk and its undoing": 555488,
+      "GCD walk and its undoing": 593432,
       "  of which signed additions": 307574,
       "Bezout replay": 564086,
       "square-subtract": 79160,
       "everything else": 4571,
-      "total": 1400669
+      "total": 1438613
     }
   },
   "full_algorithm": {
     "config": "+ the same adder in the point addition, approximate negation",
-    "toffoli": 39284266,
-    "expected": 38958122,
-    "toffoli_depth": 35462224,
+    "toffoli": 40346698,
+    "expected": 40020554,
+    "toffoli_depth": 29490972,
     "additions": 28,
     "qubits_semiclassical": 2233
   }

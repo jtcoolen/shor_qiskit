@@ -1,68 +1,73 @@
 {
   "IonQ-style (cond.-inverted, PM, IonQ replay)": {
-    "toffoli": 1673250,
+    "toffoli": 1711194,
     "qubits": 2251,
-    "toffoli_depth": 1566023
+    "toffoli_depth": 1409170
   },
   "+ Fig. 1 record packing": {
-    "toffoli": 1678570,
+    "toffoli": 1716514,
     "qubits": 2119,
-    "toffoli_depth": 1636187
+    "toffoli_depth": 1505184
   },
   "+ replay in x's qubits": {
-    "toffoli": 1678570,
+    "toffoli": 1716514,
     "qubits": 1863,
-    "toffoli_depth": 1636641
+    "toffoli_depth": 1505403
   },
   "+ CDKM replay arithmetic (PMSpace)": {
-    "toffoli": 2004970,
+    "toffoli": 2042914,
     "qubits": 1713,
-    "toffoli_depth": 1931841
+    "toffoli_depth": 1835003
   },
   "+ CDKM walk adder": {
-    "toffoli": 2246826,
+    "toffoli": 2284770,
     "qubits": 1713,
-    "toffoli_depth": 2173697
+    "toffoli_depth": 1996568
   },
   "same, dialog replay instead of IonQ's": {
-    "toffoli": 2300900,
+    "toffoli": 2338844,
     "qubits": 1557,
-    "toffoli_depth": 2179117
+    "toffoli_depth": 1979989
   },
   "[1128] dialog + sharing + Fig. 1, PMSpace": {
-    "toffoli": 2295504,
+    "toffoli": 2333400,
     "qubits": 1557,
-    "toffoli_depth": 2174707
+    "toffoli_depth": 1916396
   },
   "+ CDKM square-subtract and point-add adders": {
-    "toffoli": 2298094,
+    "toffoli": 2335990,
     "qubits": 1389,
-    "toffoli_depth": 2175070
+    "toffoli_depth": 1917407
   },
   "+ CDKM dialog walk": {
-    "toffoli": 2539382,
+    "toffoli": 2577278,
     "qubits": 1309,
-    "toffoli_depth": 2178278
+    "toffoli_depth": 2159123
   },
   "+ lean replay cells (CDKM compare, chunked all-ones, borrowed increment)": {
-    "toffoli": 2830635,
+    "toffoli": 2868531,
     "qubits": 1299,
-    "toffoli_depth": 2419412
+    "toffoli_depth": 2387717
   },
   "+ CDKM squarer": {
-    "toffoli": 2897961,
+    "toffoli": 2935857,
     "qubits": 1246,
-    "toffoli_depth": 2487689
+    "toffoli_depth": 2455813
   },
   "+ Gidney where there is headroom (walk 0.94n, squarer 0.78n)": {
-    "toffoli": 2815707,
+    "toffoli": 2853603,
     "qubits": 1246,
-    "toffoli_depth": 2444424
+    "toffoli_depth": 2372502
+  },
+  "+ Luo's register-shared EEA instead of the dialog (ECDSA.Fail 5.3.5)": {
+    "toffoli": 86033905,
+    "qubits": 1107,
+    "toffoli_depth": 66428000
   },
   "  (side: cond.-inverted walk, same cells -- its record is not shared)": {
-    "toffoli": 2621075,
+    "toffoli": 2659019,
     "qubits": 1468,
-    "toffoli_depth": 2447104
+    "toffoli_depth": 2235837
   },
   "_record_qubits": 669
 }

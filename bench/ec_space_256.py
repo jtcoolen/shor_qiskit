@@ -19,7 +19,7 @@ import ec_space as SP
 import ec_square as SQ
 import ec_window as W
 import hier as H
-from ec_hier_256 import CURVE, GEN, MSBS, N, ORDER, P, WBITS
+from ec_hier_256 import CURVE, GEN, CMP, MSBS, N, ORDER, P, WBITS
 
 
 def rows():
@@ -37,11 +37,11 @@ def rows():
             m, c, s, a, p, msbs=MSBS, sqr_space=budget, lean=True))
 
     def dialog(arith, **kw):
-        return G.Dialog(arith=arith, fused_cmp=True, cmp_msbs=MSBS, c_pad=2.3, share=True,
+        return G.Dialog(arith=arith, fused_cmp=True, cmp_msbs=CMP, c_pad=2.3, share=True,
                         compress="fig1", **kw)
 
     def ci(**kw):
-        return W.PointAddCfg(**base, mul=G.CondInv(cmp_msbs=MSBS, c_pad=2.3, **kw))
+        return W.PointAddCfg(**base, mul=G.CondInv(cmp_msbs=CMP, c_pad=2.3, **kw))
     return {
         "IonQ-style (cond.-inverted, PM, IonQ replay)": ci(arith=pm, replay="ci"),
         "+ Fig. 1 record packing": ci(arith=pm, replay="ci", compress="fig1"),
@@ -54,7 +54,7 @@ def rows():
                                                     compress="fig1", reuse_x=True,
                                                     walk_space=True),
         "[1128] dialog + sharing + Fig. 1, PMSpace": W.PointAddCfg(
-            **base, mul=G.Dialog(arith=pms, fused_cmp=True, cmp_msbs=MSBS, c_pad=2.3,
+            **base, mul=G.Dialog(arith=pms, fused_cmp=True, cmp_msbs=CMP, c_pad=2.3,
                                  share=True, compress="fig1")),
         "+ CDKM square-subtract and point-add adders": W.PointAddCfg(
             **lean, mul=dialog(pms)),
@@ -64,9 +64,11 @@ def rows():
         "+ CDKM squarer": W.PointAddCfg(**squarer(True), mul=dialog(pml, walk_space=True)),
         "+ Gidney where there is headroom (walk 0.94n, squarer 0.78n)": W.PointAddCfg(
             **squarer(200), mul=dialog(pml, walk_space=240)),
+        "+ Luo's register-shared EEA instead of the dialog (ECDSA.Fail 5.3.5)":
+            W.PointAddCfg(**squarer(True), mul=__import__("ec_luo").Luo()),
         "  (side: cond.-inverted walk, same cells -- its record is not shared)":
             W.PointAddCfg(**squarer(200), mul=G.CondInv(
-                arith=pml, cmp_msbs=MSBS, c_pad=2.3, replay="standard", compress="fig1",
+                arith=pml, cmp_msbs=CMP, c_pad=2.3, replay="standard", compress="fig1",
                 reuse_x=True, walk_space=True)),
     }
 
@@ -87,6 +89,7 @@ def main():
             a, x, y = m.alloc(WBITS, "a"), m.alloc(N, "x"), m.alloc(N, "y")
             W.windowed_point_add_cfg(m, a, x, y, table, P, cfg)
             c = H.count(m)
+            c["toffoli_depth"] = H.exact_depth(m)
         out[name] = {"toffoli": c["toffoli_paper"], "qubits": c["qubits"],
                      "toffoli_depth": c["toffoli_depth"]}
         print(f"  {name:<46} {c['qubits']:>5} qubits  {c['toffoli_paper']:>10,} Toffolis  "

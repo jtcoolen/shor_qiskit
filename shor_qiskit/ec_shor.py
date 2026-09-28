@@ -378,7 +378,7 @@ def _windowed_layout(order, w, m_bits, drop):
 
 def ecdlp_windowed(curve, P, Q, order, w, m_bits=None, offset=None, drop=0,
                    masks=False, seed=0, oracle="table", one_control=False,
-                   cfg=None, first_lookup=False):
+                   cfg=None, first_lookup=False, signed=False):
     """Shor's ECDLP with w-bit windows.  Returns (circuit or Machine, info).
 
     oracle="table"   permutation oracle: simulable, for the distribution
@@ -391,6 +391,9 @@ def ecdlp_windowed(curve, P, Q, order, w, m_bits=None, offset=None, drop=0,
                      S + [u]P + [v]Q + sum(mu), a constant shift)
     first_lookup     (arith) the first window is a lookup of S + T_0[i] into the
                      empty accumulator instead of an addition (Babbush et al.)
+    signed           (arith) odd signed digits ([HJN+20] Sec 5.1, `ec_signedwin`):
+                     2^(w-1)-entry tables, never O, the sign a negation of y;
+                     the accumulator ends shifted by Delta_P + Delta_Q
     """
     p = curve.p
     n = p.bit_length()
@@ -403,6 +406,9 @@ def ecdlp_windowed(curve, P, Q, order, w, m_bits=None, offset=None, drop=0,
             "shift": shift, "order": order, "tables": (tP, tQ),
             "windows": nwk + nwl, "oracle": oracle}
 
+    if oracle == "arith" and signed:
+        return _ecdlp_signed_arith(curve, P, Q, order, p, n, S, nwk, nwl, w, bk, bl, cfg,
+                                   first_lookup, info)
     if oracle == "arith":
         return _ecdlp_windowed_arith(curve, p, n, S, tP, tQ, w, bk, bl, cfg,
                                      masks, first_lookup, info)
@@ -473,6 +479,39 @@ def _ecdlp_windowed_arith(curve, p, n, S, tP, tQ, w, bk, bl, cfg, masks,
         W.windowed_point_add_cfg(m, Reg(list(addr)), px, py, T, p, cfg)
     info.update(regs=(kr, lr, px, py), qubits=m.qc.num_qubits,
                 additions=len(jobs), first_lookup=first_lookup, cfg=cfg)
+    return m, info
+
+
+def _ecdlp_signed_arith(curve, P, Q, order, p, n, S, nwk, nwl, w, bk, bl, cfg,
+                        first_lookup, info):
+    import ec_mbu as MB
+    import ec_signedwin as SW
+    cfg = cfg or SW.SIGNED_IONQ
+    tP, dP = SW.signed_window_tables(curve, P, w, nwk, order)
+    tQ, dQ = SW.signed_window_tables(curve, Q, w, nwl, order)
+    m = Machine("and", "ecdlp-signed")
+    kr, lr = m.alloc(bk, "k"), m.alloc(bl, "l")
+    px, py = m.alloc(n, "px"), m.alloc(n, "py")
+    addrs = [Reg(list(kr[J * w:(J + 1) * w])) for J in range(nwk)] + \
+            [Reg(list(lr[J * w:(J + 1) * w])) for J in range(nwl)]
+    tables = tP + tQ
+    if first_lookup:
+        # window 0 adds [i] P + delta_0: look up S + that into the empty accumulator
+        d0 = curve.mul(((1 - (1 << w)) * ((order + 1) // 2)) % order, P)
+        first = [curve.add(S, curve.add(curve.mul(i, P), d0)) for i in range(1 << w)]
+        assert not any(F.inf for F in first), "S + [i]P + delta_0 must avoid O"
+        MB.lookup(m, addrs[0], Reg(list(px) + list(py)), [F.x | (F.y << n) for F in first])
+        addrs, tables = addrs[1:], tables[1:]
+    else:
+        for i in range(n):
+            if (S.x >> i) & 1:
+                m.ctx.x(px[i])
+            if (S.y >> i) & 1:
+                m.ctx.x(py[i])
+    SW.signed_windows(m, addrs, px, py, tables, p, cfg)
+    info.update(regs=(kr, lr, px, py), qubits=m.qc.num_qubits, additions=len(addrs),
+                first_lookup=first_lookup, cfg=cfg, signed=True,
+                shift=curve.add(dP, dQ))
     return m, info
 
 

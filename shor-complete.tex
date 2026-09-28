@@ -4408,9 +4408,9 @@ counted and combined with the paper's round budget:
 in-place multiplication, $n=256$ & rounds & walk/round & replay/step & Toffolis\\
 \midrule
 dialog \cite{ec:schrott26}, exact, full width (before) & $401$ & $1\,285$ & $2\,306$ & $1\,955\,276$\\
-dialog, fused 48-bit compare, width schedule, PM & $401$ & $496$ & $1\,108$ & $842\,330$\\
-cond.\ inverted \cite{ec:ionq26}, dialog replay & $401$ & $349$ & $1\,108$ & $723\,994$\\
-cond.\ inverted \cite{ec:ionq26}, IonQ replay & $401$ & $349$ & $1\,041$ & $697\,365$\\
+dialog, fused 77-bit compare, width schedule, PM & $401$ & $525$ & $1\,108$ & $865\,588$\\
+cond.\ inverted \cite{ec:ionq26}, dialog replay & $401$ & $378$ & $1\,108$ & $747\,194$\\
+cond.\ inverted \cite{ec:ionq26}, IonQ replay & $401$ & $378$ & $1\,041$ & $720\,565$\\
 ping-pong \cite{ec:ecdsafail26} & $704$ & $257$ & $785$ & $917\,565$\\
 Jump-2 \cite{ec:ecdsafail26} & $261$ & $1\,284$ & $1\,878$ & $1\,161\,099$\\
 \bottomrule
@@ -4463,21 +4463,21 @@ def sqr_int(m, x, z):
 \toprule
 windowed point addition, $n=256$, $w=16$ & before & after\\
 \midrule
-two in-place multiplications & $3\,910\,552$ & $1\,394\,730$\\
+two in-place multiplications & $3\,910\,552$ & $1\,441\,130$\\
 square-subtract & $1\,050\,623$ & $79\,160$\\
 table lookups & $1\,310\,700$ & $197\,364$\\
 five modular additions & $5\,115$ & $5\,115$\\
 \midrule
-total & $6\,276\,990$ & $1\,676\,369$\\
+total & $6\,276\,990$ & $1\,722\,769$\\
 published: \cite{ec:schrott26} / \cite{ec:ionq26} & $2\,588\,962$ & $1\,392\,608$\\
 \bottomrule
 \end{tabular}
 \end{center}
 
-A $3.7\times$ reduction per addition, and with the first window replaced by a lookup and
+A $3.6\times$ reduction per addition, and with the first window replaced by a lookup and
 the last three dropped (recovered by a classical search, as \cite{ec:babbush26} and
 \cite{ec:ionq26} do), $28$ additions instead of $34$: $213\,417\,660$ Toffolis for the whole
-algorithm become $46\,938\,332$. The ``after'' column uses the approximate settings at the papers'
+algorithm become $48\,237\,532$. The ``after'' column uses the approximate settings at the papers'
 parameters; their failure rates are measured at toy sizes, not at $n=256$.
 
 \begin{warnbox}[title={What reproducing the sources turned up}]
@@ -4485,6 +4485,12 @@ IonQ's replay needs its $0\leftrightarrow p$ swap \emph{before} the complemented
 every $e=1$, $y=0$ step leaves an ancilla dirty. ECDSA.Fail's ping-pong budget $L=2.75n$ is not a
 worst case. And at toy sizes the round budgets distort any comparison of GCDs --- which is why the
 table above is assembled at $n=256$ rather than read off a toy circuit.
+
+One more, found while building at $n=64$: the GCD's top-bit comparisons act on registers the width
+schedule pads with $2.3\sqrt n$ bits of leading zeros, so a comparison on $k$ top bits sees only
+$k-2.3\sqrt n$ significant ones. IonQ's ``$40+2.3\sqrt n$'' comparison bits ($77$ at $n=256$) is
+that correction. A flat $24$ bits at $n=64$ fails on $15$ of $40$ multiplications, and every
+$n=256$ count here uses $77$.
 \end{warnbox}
 
 \section{At cryptographic size}\label{ec:sec:n256}
@@ -4516,19 +4522,19 @@ one windowed point addition, secp256k1, $w=16$ & Toffolis & qubits\\
 \midrule
 Qualtran's \texttt{ECAdd} \cite{ec:litinski23}, for reference & $8\,346\,972$ & $1\,798$\\
 dialog \cite{ec:schrott26}, exact arithmetic, MBU lookups, masked tables & $5\,163\,617$ & $2\,104$\\
-\quad + 48-bit comparisons, width schedule, pseudo-Mersenne replay & $2\,934\,431$ & $2\,251$\\
-\quad + dedicated squarer and fold & $1\,962\,968$ & $2\,251$\\
-cond.\ inverted walk and replay \cite{ec:ionq26}, squarer & $1\,673\,250$ & $2\,251$\\
+\quad + 77-bit comparisons, width schedule, pseudo-Mersenne replay & $2\,972\,327$ & $2\,251$\\
+\quad + dedicated squarer and fold & $2\,000\,864$ & $2\,251$\\
+cond.\ inverted walk and replay \cite{ec:ionq26}, squarer & $1\,711\,194$ & $2\,251$\\
 ping-pong walk, 704 rounds \cite{ec:ecdsafail26}, squarer & $2\,117\,534$ & $2\,155$\\
-dialog, register sharing and Fig.~1 packing, squarer & $1\,968\,288$ & $1\,873$\\
+dialog, register sharing and Fig.~1 packing, squarer & $2\,006\,184$ & $1\,873$\\
 \bottomrule
 \end{tabular}
 \end{center}
 
 The whole algorithm builds too: a first-window lookup, then $28$ windowed additions
-with the last three windows dropped, $46\,916\,534$ Toffolis on $2\,251$ qubits with the
-control qubits recycled. On the same tree Qualtran counts $240\,285\,024$ Cliffords and
-$28\,811\,048$ measurements. Two gaps remain. The best row is $20\%$ above IonQ's
+with the last three windows dropped, $47\,978\,966$ Toffolis on $2\,251$ qubits with the
+control qubits recycled. On the same tree Qualtran counts $249\,846\,912$ Cliffords and
+$29\,873\,480$ measurements. Two gaps remain. The best row is $23\%$ above IonQ's
 figure, and every row needs far more qubits than any paper reports.
 
 \subsection{Matching IonQ's Toffoli count}\label{ec:sec:toffgap}
@@ -4541,13 +4547,13 @@ Splitting the IonQ-style addition by component locates the first gap:
 one windowed point addition, $n=256$ & before & after\\
 \midrule
 table lookups and their repair & $197\,364$ & $197\,364$\\
-GCD walks and their undoing & $555\,488$ & $555\,488$\\
+GCD walks and their undoing & $593\,432$ & $593\,432$\\
 B\'ezout replays & $833\,312$ & $564\,086$\\
 \quad of which signed additions & $569\,600$ & $307\,574$\\
 square-subtract & $79\,160$ & $79\,160$\\
 everything else & $7\,926$ & $4\,571$\\
 \midrule
-one windowed point addition & $1\,673\,250$ & $1\,400\,669$\\
+one windowed point addition & $1\,711\,194$ & $1\,438\,613$\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -4630,23 +4636,41 @@ and each halving from $73$ to $64$ with the shorter correction.
 \toprule
 one windowed point addition, $n=256$ & Toffolis & executed & qubits\\
 \midrule
-cond.\ inverted walk and replay, Algorithm~11 cells (as above) & $1\,673\,250$ & $1\,673\,250$ & $2\,251$\\
-\quad + IonQ's adder in the replay, 37 careful steps & $1\,404\,024$ & $1\,392\,408$ & $2\,233$\\
-\quad + the same adder in the addition, approximate negation & $1\,400\,669$ & $1\,389\,021$ & $2\,233$\\
-\quad + Fig.~1 packing, replay in $x$'s qubits & $1\,405\,989$ & $1\,394\,341$ & $1\,845$\\
+cond.\ inverted walk and replay, Algorithm~11 cells (as above) & $1\,711\,194$ & $1\,711\,194$ & $2\,251$\\
+\quad + IonQ's adder in the replay, 37 careful steps & $1\,441\,968$ & $1\,430\,352$ & $2\,233$\\
+\quad + the same adder in the addition, approximate negation & $1\,438\,613$ & $1\,426\,965$ & $2\,233$\\
+\quad + Fig.~1 packing, replay in $x$'s qubits & $1\,443\,933$ & $1\,432\,285$ & $1\,845$\\
+\quad row 3 + signed windows ($2^{15}$-entry tables) & $1\,340\,563$ & $1\,328\,915$ & $2\,233$\\
 \midrule
 published \cite{ec:ionq26} & --- & $1\,392\,608$ & $1\,462$\\
 \bottomrule
 \end{tabular}
 \end{center}
 
-That is $1\,400\,669$ Toffolis, or $1\,389\,021$ counting what executes, within $0.3\%$ of
+That is $1\,438\,613$ Toffolis, or $1\,426\,965$ counting what executes, within $2.5\%$ of
 IonQ's $1\,392\,608$. Built end to end on these cells, the $28$-addition algorithm is
-$39\,284\,266$ Toffolis ($38\,958\,122$ executed), against IonQ's
+$40\,346\,698$ Toffolis ($40\,020\,554$ executed), against IonQ's
 $28\times(1.196\times10^6+3\cdot2^{16})\approx39.0\times10^6$. The qubits are another matter:
 $2\,233$, or $1\,845$ with the record packed and the replay run in $x$'s qubits,
 against IonQ's $1\,462$. Reaching both at once needs register sharing inside the
 conditionally inverted walk, which is not built here.
+
+The last row goes past IonQ. Signed windows \cite{ec:hjnrs20,ec:kim26} read the $w$ address bits as
+an odd digit $d=2i+1-2^w$. The lookup then runs over $|d|$ on $w-1$ bits, and the sign is two
+controlled negations of $y$, merged across consecutive windows. Each table has $2^{15}$ entries
+instead of $2^{16}$ and, the digits being odd, never contains $O$. Built at $n=256$, one addition
+costs $1\,340\,563$ Toffolis, $1\,328\,915$ executed: $4.6\%$ below IonQ's
+figure, and $2\,745\,400$ fewer over the $28$ additions. The whole-circuit count above still
+uses unsigned windows.
+
+Signed windows need every point the accumulator visits to have odd order, since the negation
+assumes $y\neq0$. secp256k1's group has prime order, so this holds there. At toy size it holds only
+on curves of odd order, and the check there is the one that matters most: the whole output
+distribution. Run on every input of a curve of order $43$, the signed circuit's exact
+frequency distribution is at total variation $0.370$ from the ideal. That comes entirely from
+the $28\%$ of inputs that meet an exceptional addition, which is unavoidable at this size.
+It finds the logarithm in one run with probability $43\%$ (ideal $77\%$), above
+IonQ's bound of $10\%$.
 
 \subsection{Fewer qubits}\label{ec:sec:fewq}
 
@@ -4700,19 +4724,20 @@ def cdkm_cadd(ctx, ctrl, x, y, carry):
 \toprule
 one windowed point addition, secp256k1, $w=16$ & qubits & Toffolis\\
 \midrule
-cond.\ inverted, pseudo-Mersenne, IonQ replay (the start) & $2\,251$ & $1\,673\,250$\\
-\quad + Fig.~1 packing of the record & $2\,119$ & $1\,678\,570$\\
-\quad + replay in $x$'s qubits & $1\,863$ & $1\,678\,570$\\
-\quad + CDKM replay cells & $1\,713$ & $2\,004\,970$\\
-\quad + CDKM walk adder & $1\,713$ & $2\,246\,826$\\
-\quad dialog replay instead of IonQ's & $1\,557$ & $2\,300\,900$\\
-dialog, register sharing, Fig.~1, CDKM replay cells & $1\,557$ & $2\,295\,504$\\
-\quad + CDKM square-subtract and point-addition adders & $1\,389$ & $2\,298\,094$\\
-\quad + CDKM dialog walk & $1\,309$ & $2\,539\,382$\\
-\quad + lean replay cells & $1\,299$ & $2\,830\,635$\\
-\quad + CDKM squarer & $1\,246$ & $2\,897\,961$\\
-\quad + Gidney adders where there is headroom & $1\,246$ & $2\,815\,707$\\
-(cond.\ inverted walk, same cells: its record is not shared) & $1\,468$ & $2\,621\,075$\\
+cond.\ inverted, pseudo-Mersenne, IonQ replay (the start) & $2\,251$ & $1\,711\,194$\\
+\quad + Fig.~1 packing of the record & $2\,119$ & $1\,716\,514$\\
+\quad + replay in $x$'s qubits & $1\,863$ & $1\,716\,514$\\
+\quad + CDKM replay cells & $1\,713$ & $2\,042\,914$\\
+\quad + CDKM walk adder & $1\,713$ & $2\,284\,770$\\
+\quad dialog replay instead of IonQ's & $1\,557$ & $2\,338\,844$\\
+dialog, register sharing, Fig.~1, CDKM replay cells & $1\,557$ & $2\,333\,400$\\
+\quad + CDKM square-subtract and point-addition adders & $1\,389$ & $2\,335\,990$\\
+\quad + CDKM dialog walk & $1\,309$ & $2\,577\,278$\\
+\quad + lean replay cells & $1\,299$ & $2\,868\,531$\\
+\quad + CDKM squarer & $1\,246$ & $2\,935\,857$\\
+\quad + Gidney adders where there is headroom & $1\,246$ & $2\,853\,603$\\
+\quad + Luo's register-shared EEA instead of the dialog \cite{ec:ecdsafail26} & $1\,107$ & $86\,033\,905$\\
+(cond.\ inverted walk, same cells: its record is not shared) & $1\,468$ & $2\,659\,019$\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -4720,10 +4745,201 @@ dialog, register sharing, Fig.~1, CDKM replay cells & $1\,557$ & $2\,295\,504$\\
 The best row is $1\,246$ qubits, $4.87n$: the record's $669$ ($x$'s own $256$
 among them), $512$ for the multiplicand and the accumulator, $16$ for the window, and a few dozen of
 scratch, most of it the register that holds $f$. \cite{ec:schrott26} reports $4.355n+O(\sqrt n)$,
-or $1\,192$ qubits plus the window. The price is Toffolis: $2\,815\,707$ here, against
-$1\,673\,250$ at the $2\,251$ qubits where the table starts, and against
+or $1\,192$ qubits plus the window. The price is Toffolis: $2\,853\,603$ here, against
+$1\,711\,194$ at the $2\,251$ qubits where the table starts, and against
 \cite{ec:schrott26}'s $2.39\times10^6$ for its space-optimised circuit. IonQ reports its Toffoli
 count at $1\,462$ qubits; no circuit here has both.
+
+
+\subsection{Depth}\label{ec:sec:depth}
+
+A qubit count is paid for as long as the computation runs, so the other axis that matters is time,
+and on an error-corrected machine time is Toffoli depth (times the reaction time). It is measured
+here exactly: \texttt{hier.exact\_depth} expands the cached hierarchy gate by gate as it
+schedules, without ever building the flat circuit, and at toy sizes it equals the flat circuit's
+depth. Every construction so far ripples, and the GCD's rounds are sequential anyway, so their
+depth is $0.8$--$0.95$ times their Toffoli count. \cite{ec:kim26} makes the other choice:
+carry-lookahead adders \cite{ec:dkrs04} of depth $\approx4\log_2 n$ for $\approx7n$ Toffolis.
+Put where the depth is --- the replay's doubling and controlled addition, the walk's comparison and
+subtraction, the squarer --- they change the round cost from $O(n)$ to $O(\log n)$. A second, easily
+missed ingredient: $n$ Toffolis sharing one control take $n$ steps, because a qubit takes part in
+one gate at a time. So each shared control, of a controlled copy or of the replay's swap, is first
+fanned out to $n$ copies with CNOTs, which cost no Toffoli depth.
+
+\begin{center}\small
+\begin{tabular}{lrrr}
+\toprule
+one windowed point addition, $n=256$, $w=16$ & qubits & Toffolis & Toffoli depth\\
+\midrule
+dialog, pseudo-Mersenne replay (ripple adders) & $2\,251$ & $2\,000\,864$ & $1\,503\,533$\\
+\quad + carry-lookahead replay & $2\,601$ & $6\,769\,556$ & $936\,530$\\
+\quad + carry-lookahead walk & $2\,601$ & $8\,655\,996$ & $456\,379$\\
+\quad + carry-lookahead squarer & $2\,601$ & $9\,184\,472$ & $394\,281$\\
+\quad + register sharing, Fig.~1 & $2\,223$ & $9\,189\,792$ & $394\,917$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The lookups do not move: unary iteration over $2^{16}$ entries is $2^{16}$ steps deep, so three
+of them set a floor of $196\,608$ that no arithmetic reaches below. The two frontiers, every
+configuration built in this part:
+
+\begin{center}
+\includegraphics[width=0.49\textwidth]{doc/figures/ecdlp_padd_qubits_toffoli.pdf}\hfill
+\includegraphics[width=0.49\textwidth]{doc/figures/ecdlp_padd_qubits_depth.pdf}
+\end{center}
+
+\section{The rest of the catalogues}\label{ec:sec:catalogue}
+
+\cite{ec:kim26} and ECDSA.Fail \cite{ec:ecdsafail26} name more constructions than the ones that set
+the headline numbers above. Each one below is built as its own module, tested exhaustively or on
+large samples at toy sizes, and measured here. Signed windows are the one that moved a headline,
+and \S\ref{ec:sec:toffgap} already counts them.
+
+\subsection{Carry-lookahead addition}
+
+The Draper--Kutin--Rains--Svore adder \cite{ec:dkrs04} (\texttt{ec\_cla}) computes all carries as a
+prefix over (generate, propagate) pairs in $O(\log n)$ rounds. Its propagate rounds write clean
+ancillas, so they are temporary ANDs whose uncompute is free. Only the generate and carry rounds
+stay Toffolis:
+
+\begin{center}\small
+\begin{tabular}{rrrrrrr}
+\toprule
+& \multicolumn{3}{c}{carry-lookahead} & \multicolumn{3}{c}{Gidney ripple}\\
+$n$ & Toffolis & depth & qubits & Toffolis & depth & qubits\\
+\midrule
+$8$ & $27$ & $11$ & $25$ & $7$ & $7$ & $23$\\
+$32$ & $179$ & $19$ & $117$ & $31$ & $31$ & $95$\\
+$64$ & $395$ & $23$ & $243$ & $63$ & $63$ & $191$\\
+$128$ & $835$ & $27$ & $497$ & $127$ & $127$ & $383$\\
+$256$ & $1\,723$ & $31$ & $1\,007$ & $255$ & $255$ & $767$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent That trade, roughly $7\times$ the Toffolis for $\log n$ depth, is what
+\S\ref{ec:sec:depth} spends.
+
+\subsection{Projective coordinates with a quantum addend, and twisted Edwards curves}
+
+\cite{ec:kim26}'s Algorithm~4 is an out-of-place Jacobian addition. With the addend looked up rather
+than classical (\texttt{ec\_proj\_q}) it costs, at $n=32$:
+
+\begin{center}\small
+\begin{tabular}{lrr}
+\toprule
+one addition, $n=32$ & qubits & Toffolis\\
+\midrule
+affine in place, ctrl (ec\_pointadd) & $540$ & $262\,797$\\
+Jacobian + classical affine (ec\_proj) & $742$ & $157\,680$\\
+Jacobian + quantum affine & $806$ & $174\,900$\\
+Jacobian + quantum affine, ctrl & $903$ & $175\,250$\\
+Jacobian + quantum Jacobian & $998$ & $257\,460$\\
+Jacobian + quantum Jacobian, ctrl & $1\,095$ & $257\,810$\\
+to\_affine (once per run) & $571$ & $139\,066$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent A cheaper addition does not make a cheaper oracle. A projective triple depends on the path
+that produced it, so the chain must be undone before the phase estimation reads anything. Undoing
+it doubles the additions, and at toy size the whole projective oracle costs about twice the affine
+one. Extended twisted Edwards coordinates (\texttt{ec\_edwards}, \cite{ec:kim26} Sec 4.4) have a
+\emph{complete} law, with no exceptional cases, and need 7 multiplications where Jacobian needs 11.
+With a classical addend:
+
+\begin{center}\small
+\begin{tabular}{rrrrr}
+\toprule
+& \multicolumn{2}{c}{Edwards (Ed25519-shaped)} & \multicolumn{2}{c}{Weierstrass Jacobian}\\
+$n$ & Toffolis & qubits & Toffolis & qubits\\
+\midrule
+$32$ & $44\,438$ & $550$ & $143\,796$ & $742$\\
+$64$ & $172\,090$ & $1\,094$ & $566\,132$ & $1\,478$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Batch inversion}
+
+Montgomery's trick inverts $k$ field elements with one inversion and $3(k-1)$ multiplications.
+Litinski \cite{ec:litinski23} shares one inversion across $k$ independent affine additions this
+way. Built clean, with every intermediate uncomputed, it costs 2 inversions plus $5(k-1)$
+multiplications against $2k$ inversions (\texttt{ec\_batch}):
+
+\begin{center}\small
+\begin{tabular}{rrlrrrr}
+\toprule
+$n$ & $k$ & what & Toffolis, separate & batched & qubits, separate & batched\\
+\midrule
+$64$ & $2$ & inversions & $703\,732$ & $516\,346$ & $1\,054$ & $1\,118$\\
+$64$ & $4$ & inversions & $1\,407\,464$ & $845\,306$ & $1\,310$ & $1\,502$\\
+$64$ & $8$ & inversions & $2\,814\,928$ & $1\,503\,226$ & $1\,822$ & $2\,510$\\
+$256$ & $4$ & inversions & $22\,169\,576$ & $13\,414\,394$ & $5\,156$ & $5\,924$\\
+$256$ & $4$ & point additions & $65\,369\,012$ & $46\,815\,704$ & $5\,672$ & $7\,445$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Batching always wins on Toffolis and always costs qubits. It serves the Kaliski path only:
+in the dialog, a multiplication costs as much as an inversion.
+
+\subsection{The register-shared Euclidean algorithm}
+
+ECDSA.Fail's narrowest circuit (\S5.3.5 of \cite{ec:ecdsafail26}) replaces the dialog with Luo et
+al.'s extended Euclidean algorithm. The two remainders and the two cross-cofactors share two banks
+of $n+3$ qubits: the remainders shrink, the cofactors grow into the lanes they free. Each quotient is
+built one bit at a time by testing shifted multiples, and a rotation cursor aligns
+$2^\ell\rho'$ without copying it. \texttt{ec\_luo} builds it from a bit-level model that
+reproduces Luo's worked example row by row. The division is fully reversible: the EEA forward, a
+multiplication by the inverse, the EEA backward, and the product cleared:
+
+\begin{center}\small
+\begin{tabular}{rrrrrrrr}
+\toprule
+& & \multicolumn{2}{c}{inversion} & \multicolumn{2}{c}{division} & \multicolumn{2}{c}{dialog division}\\
+$n$ & $2n+6\lfloor\log_2n\rfloor+19$ & qubits & Toffolis & qubits & Toffolis & qubits & Toffolis\\
+\midrule
+$32$ & $113$ & $113$ & $374\,232$ & $177$ & $779\,682$ & $284$ & $32\,686$\\
+$64$ & $183$ & $183$ & $1\,383\,179$ & $311$ & $2\,890\,248$ & $546$ & $120\,780$\\
+$128$ & $317$ & $317$ & $5\,259\,375$ & $573$ & $11\,012\,304$ & $1\,064$ & $456\,874$\\
+$256$ & $579$ & $579$ & $20\,433\,078$ & $1\,091$ & $42\,836\,318$ & $2\,088$ & $1\,749\,162$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The inversion lands on Luo's formula exactly. The division needs about half the dialog's
+qubits for about twenty times its Toffolis. Plugged into the point addition with the lean cells, it
+gives the narrowest configuration built here, in the last rows of the table in \S\ref{ec:sec:fewq}.
+Luo's $3n$ point addition would also reuse $y$'s register after an $X$-measurement and use a
+constant-workspace constant adder. Both are measurement-based pieces this package's basis-state
+checks cannot verify, so they are not built.
+
+\subsection{ECDSA.Fail's fire census}
+
+Most of ECDSA.Fail's commits removed gates. Its exact passes (constant propagation and
+cancellation, \texttt{ec\_opt.peephole}) are exact here too. Its census is not. It runs a sample of
+inputs, records which Toffolis ever fired, and deletes the others (\texttt{ec\_opt.census},
+\texttt{strip\_unfired}). On the $q=61$ dialog multiplier, whose $1\,680$ Toffolis drop to
+$991$ when the census covers \emph{every} input, which makes it exact dead-code removal:
+
+\begin{center}\small
+\begin{tabular}{rrr}
+\toprule
+sample size & Toffolis left & fresh inputs wrong\\
+\midrule
+$10$ & $752$ & $98.0\%$\\
+$30$ & $891$ & $65.2\%$\\
+$100$ & $957$ & $10.2\%$\\
+$300$ & $984$ & $2.8\%$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The dead code at this size is the round budget's padding. At $n=256$ the same padding is
+the $2.4\sqrt n$ rounds the schedule adds, and a census could only find what those rounds never do
+on the inputs it saw.
 
 \section{Verifying it}\label{ec:sec:verify}
 
@@ -4904,6 +5120,166 @@ basis state, which for a permutation is the whole truth, but at $69$ qubits for 
 seven-element field it cannot be run in superposition. The end-to-end demonstration uses a
 permutation oracle of identical circuit shape. Both halves are tested; the join between them is an
 argument, not a simulation.
+\end{keybox}
+
+\clearpage
+\part*{Part VIII --- Factoring at size, and why elliptic curves fall first}
+\addcontentsline{toc}{part}{Part VIII --- Factoring at size, and why elliptic curves fall first}
+
+Parts I--VI factor with the textbook modular exponentiation: $4n$ Fourier adders per
+multiplication and $2n$ counting qubits, verified exhaustively on numbers a laptop can simulate.
+Part VII built the elliptic-curve discrete logarithm up to secp256k1. This part does the same for
+RSA with the construction that holds the current record, Gidney's 2025 approximate residue
+arithmetic \cite{ec:gidney25rsa}. It builds that construction at $n=1024$--$4096$ and puts the two
+side by side, which is what the comparison ``ECDSA or RSA, which falls first'' actually needs.
+
+\section{Gidney 2025, built}\label{rsa:sec:g25}
+
+\subsection{What the circuit computes}
+
+Shor's algorithm with Eker\aa{}--H\aa{}stad's short discrete logarithm needs $V=g^e\bmod N$ for an
+exponent $e$ of $m=n/2+n/s$ qubits. With $e$ read $w_1$ bits at a time, $g^e$ is the exact integer
+product of $W_1=\lceil m/w_1\rceil$ classical factors below $N$. So it is determined by its residues
+modulo any set $P$ of small primes whose product $L$ exceeds $N^{W_1}$, and those residues can be
+computed one prime at a time in registers of $\ell\approx21$ qubits. For each prime $p$:
+\begin{enumerate}\setlength\itemsep{1pt}
+\item \emph{loop1} adds looked-up discrete logarithms, $S_p=\sum_j\mathrm{dlog}_{g_p}M_{j,e_j}$, so the
+multiplications become additions. It adds the \emph{difference} between this prime's table and the
+previous one's, so computing prime $i$ and uncomputing prime $i-1$ is a single pass.
+\item \emph{loop2} reduces $S_p$ modulo $p-1$ by binary long division.
+\item \emph{loop3} computes $V_p=g_p^{S_p}\bmod p$ by windowed multiplications, measuring each
+old result out instead of uncomputing it.
+\item \emph{loop4} adds the top $f$ bits of $V_p u_p\bmod L\bmod N$ (the CRT basis) into the output.
+\item \emph{unloop3} and \emph{unloop2} undo loops 3 and 2.
+\end{enumerate}
+Only the output accumulator is large, and it keeps just $f=33$ bits. It starts from a random mask,
+which is what makes the truncation harmless to period finding. Every modular addition is a
+subtraction with an extra borrow qubit that is cleared by measurement, and every lookup is
+unloaded the same way.
+
+\subsection{How it is checked}
+
+The circuit (\texttt{rns.py}) is built on this package's machine from the same adders and lookups
+as Part VII. A bit-exact integer model (\texttt{rns\_classical.reference}) replays every register:
+the dlog sums, the long division, the windowed exponentiation, and the truncated, masked
+accumulation. At $N=1003$ and $N=3127$ the circuit's output equals the model on every exponent,
+with random masks and every ancilla checked clean. Separately, the model's approximation stays
+within \cite{ec:gidney25rsa}'s deviation bound for every exponent at three toy moduli.
+
+Knowing the answer, the whole output distribution can be checked too. The circuit is a permutation
+on basis states, so its frequency distribution follows exactly from what it computes on each
+exponent: Fourier transform each set of exponents the masked output register cannot tell apart,
+and add the squares. For Eker\aa{}--H\aa{}stad at $N=241\times251$ with $s=2$, the residue system
+has $7$ primes, none dividing $N$, and $L\bmod N=6$; with $f=13$ kept
+bits the worst deviation is $0.11\%$ of $N$ (bound $2.1\%$). The textbook oracle's
+distribution equals the closed form to $10^{-16}$. The approximate, masked one is at total variation
+$0.105$ from it and puts $0.893$ of its mass on the pairs that carry $90\%$ of the exact
+distribution ($0.900$ for the exact oracle): the same peaks. The masks trade one way: the
+window of values they blur together must stay well below the period ($1\,024$ against
+$3\,000$ here), and wider masks move the distance up. At smaller moduli
+\cite{ec:gidney25rsa}'s bound $3|P|\ell/2^f$ exceeds one, and the approximation is visibly
+unfaithful. That is a statement about toy sizes, not about $n=2048$, where the bound is
+$\approx10^{-3}$.
+
+\subsection{At size}
+
+A shot is $|P|$ iterations of one prime's loops, plus a final loop1 and one merged phase repair
+per exponent window. Every iteration is the same circuit up to its tables, and no gate count here
+depends on the tables: lookups are unary or ANF, adders and comparisons have fixed width. The
+bench builds the iteration for three different primes of a real random residue system, checks
+that their counts agree, and multiplies by $|P|$:
+
+\begin{center}\small
+\begin{tabular}{rrrrrrr}
+\toprule
+$n$ & $|P|$ & one iteration & per shot & per factoring & \cite{ec:gidney25rsa} & qubits (paper)\\
+\midrule
+$1024$ & $6\,242$ & $20\,109$ & $1.26\times10^{8}$ & $1.18\times10^{9}$ & $1.10\times10^{9}$ & $800$ ($742$)\\
+$1536$ & $11\,956$ & $30\,446$ & $3.64\times10^{8}$ & $3.39\times10^{9}$ & $3.10\times10^{9}$ & $1\,138$ ($1\,074$)\\
+$2048$ & $21\,320$ & $35\,449$ & $7.56\times10^{8}$ & $6.95\times10^{9}$ & $6.50\times10^{9}$ & $1\,467$ ($1\,399$)\\
+$3072$ & $47\,814$ & $44\,858$ & $2.14\times10^{9}$ & $1.97\times10^{10}$ & $1.90\times10^{10}$ & $2\,115$ ($2\,043$)\\
+$4096$ & $74\,245$ & $62\,774$ & $4.66\times10^{9}$ & $4.29\times10^{10}$ & $4.00\times10^{10}$ & $2\,766$ ($2\,692$)\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The Toffolis are executed ones (a measured repair counted at its probability), for
+comparison with the paper, whose Table~5 does the same. Per factoring means per shot times the
+expected $9.2$ shots. The built counts are $7\%$ above the paper's at $n=2048$.
+Part of the difference is that loop3's lookup repairs are done in place here, not merged into
+unloop3's.
+
+The qubit counts follow the paper's formula $m+3f+2\ell+\mathrm{len}\,m$ plus the adders'
+scratch. The paper's own Table~5 is lower than its formula: $1\,399$ against
+$1\,432$ at $n=2048$. Fed to the surface-code model, the paper's own inputs give its
+headline, $897\,864$ physical qubits and $4.96$ days.
+
+\section{ECDSA against RSA}\label{rsa:sec:gap}
+
+\begin{center}
+\includegraphics[width=\textwidth]{doc/figures/ecc_vs_rsa.pdf}
+\end{center}
+
+\begin{center}\small
+\begin{tabular}{lrrrr}
+\toprule
+whole algorithm & logical qubits & Toffolis & physical qubits & days\\
+\midrule
+ECDLP-256, IonQ's cells & $2\,233$ & $4.00\times10^{7}$ & $3\,189\,368$ & $0.01$\\
+ECDLP-256, fewest qubits & $1\,246$ & $8.00\times10^{7}$ & $1\,854\,944$ & $0.02$\\
+RSA-1024, Gidney 2025 residue arithmetic & $800$ & $1.18\times10^{9}$ & $661\,872$ & $0.34$\\
+RSA-2048, Gidney 2025 residue arithmetic & $1\,467$ & $6.95\times10^{9}$ & $973\,576$ & $2.07$\\
+RSA-3072, Gidney 2025 residue arithmetic & $2\,115$ & $1.97\times10^{10}$ & $1\,259\,592$ & $6.44$\\
+RSA-2048, Gidney 2025 \emph{(published)} & $1\,399$ & $6.50\times10^{9}$ & $881\,640$ & $1.93$\\
+ECDLP-256, IonQ \emph{(published)} & $1\,462$ & $3.90\times10^{7}$ & $2\,146\,976$ & $0.01$\\
+ECDLP-256, [1128] space-optimised \emph{(published)} & $1\,208$ & $7.25\times10^{7}$ & $1\,803\,568$ & $0.02$\\
+ECDLP-256, [1128] gate-optimised \emph{(published)} & $1\,462$ & $5.77\times10^{7}$ & $2\,146\,976$ & $0.02$\\
+RSA-2048, Gidney-Ekera 2019 \emph{(published)} & $6\,189$ & $2.70\times10^{9}$ & $8\,537\,880$ & $1.20$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Every row uses the same physical model: $p=10^{-3}$, a $1\,\mu$s cycle, a $10\,\mu$s
+reaction time, and six CCZ factories giving one CCZ every $25\,\mu$s. Runtime is the larger of
+that throughput and the exact Toffoli depth times the reaction time; here the throughput always
+binds. RSA's exponent register, idle except for its control windows, sits in cold yoked storage at
+a third of the hot cost. The elliptic-curve circuits recycle their control qubits and keep
+everything else busy. That is why RSA-2048 needs fewer \emph{physical} qubits than secp256k1 at a
+comparable logical count, while taking $179$ times as long.
+
+The logical qubit counts are close: $2\,233$ for secp256k1 on IonQ's cells, $1\,246$ on
+the fewest-qubit cells, against $1\,467$ for RSA-2048. The Toffoli counts are not: $4.00\times10^{7}$
+against $6.95\times10^{9}$, a factor of $174$. Four things explain that factor.
+
+\begin{enumerate}\setlength\itemsep{2pt}
+\item \textbf{The numbers are eight times shorter.} Both algorithms spend their time on modular
+arithmetic, whose cost grows at least as $n^2$ per group operation. An elliptic-curve group operation
+needs an inversion, dozens of multiplications' worth. That buys a far smaller $n$ at the same
+classical security: generic attacks on elliptic curves run in $2^{n/2}$, while factoring has the
+sub-exponential number field sieve. Shor is polynomial in both cases, so the quantum cost follows
+$n$, not the classical security level.
+\item \textbf{One shot against nine.} The windowed ECDLP circuit succeeds in one run with high
+probability. Eker\aa{}--H\aa{}stad with $s=8$ needs $s+1$ good shots, and masking and deviation cost
+about $1\%$ more: $9.2$ expected shots, each a full exponentiation.
+\item \textbf{Approximation buys qubits, not Toffolis.} The residue arithmetic never holds an
+$n$-bit number in superposition except the output's top $f$ bits. That is how RSA-2048 fits in
+$1\,467$ qubits, $0.7n$, while secp256k1 needs $4.9$--$8.7n$. The price is Toffolis: per prime,
+loop1 reads all $W_1=214$ exponent windows, and there are $|P|\approx n W_1/\ell\approx21\,000$
+primes, so a shot costs $\Theta(n\,m^2/(\ell\,w_1^2))$ lookups and additions of $\approx\ell$ bits.
+\item \textbf{At equal classical security the gap widens.} RSA-2048 gives 112-bit security.
+RSA-3072, the RSA size matched to secp256k1's 128 bits, costs $1.97\times10^{10}$ Toffolis here,
+$493\times$ the elliptic-curve count.
+\end{enumerate}
+
+\begin{center}
+\includegraphics[width=0.62\textwidth]{doc/figures/security_vs_toffoli.pdf}
+\end{center}
+
+\begin{keybox}[title={The gap, in one line}]
+At comparable qubit counts, breaking secp256k1 costs about $174$ times fewer Toffolis than
+factoring RSA-2048, and $493$ times fewer than RSA-3072 at equal classical security. In
+the same surface-code model that is $17$ minutes against $2.1$ days. Elliptic-curve keys
+of today's sizes fall before RSA keys of today's sizes.
 \end{keybox}
 
 \begin{thebibliography}{99}\small
@@ -5103,6 +5479,16 @@ ECDSA.Fail contributors,
 \emph{ECDSA.Fail: open autoresearch for optimizing elliptic-curve point addition in Shor's
 algorithm},
 arXiv:2609.09582, 2026.
+
+\bibitem{ec:dkrs04}
+T.~G. Draper, S.~A. Kutin, E.~M. Rains, and K.~M. Svore,
+\emph{A logarithmic-depth quantum carry-lookahead adder},
+Quantum Inf.\ Comput.\ \textbf{6}(4--5):351--369, 2006. arXiv:quant-ph/0406142.
+
+\bibitem{ec:gidney25rsa}
+C.~Gidney,
+\emph{How to factor 2048 bit RSA integers with less than a million noisy qubits},
+arXiv:2505.15917, 2025.
 
 \bibitem{ec:litinski23}
 D.~Litinski,

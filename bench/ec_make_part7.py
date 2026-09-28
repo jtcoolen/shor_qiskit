@@ -22,6 +22,9 @@ HB = json.loads((ROOT / "bench" / "ec_hier_256.json").read_text())
 QC = json.loads((ROOT / "bench" / "qualtran_compare.json").read_text())
 TG = json.loads((ROOT / "bench" / "ec_toffoli_256.json").read_text())
 SPC = json.loads((ROOT / "bench" / "ec_space_256.json").read_text())
+DPT = json.loads((ROOT / "bench" / "ec_depth_256.json").read_text())
+CAT = json.loads((ROOT / "bench" / "ec_catalogue.json").read_text())
+TOYD = json.loads((ROOT / "bench" / "toy_distributions.json").read_text())
 
 
 def expand_listings(text):
@@ -223,11 +226,11 @@ def rows_space():
 REFINE_LABELS = {
     "[1128] Dialog, exact, full width (repo today)":
         "dialog \\cite{ec:schrott26}, exact, full width (before)",
-    "[1128] Dialog, fused cmp48, c_pad 2.3, PM":
-        "dialog, fused 48-bit compare, width schedule, PM",
-    "IonQ CondInv, cmp48, c_pad 2.3, PM, replay=standard":
+    "[1128] Dialog, fused cmp77, c_pad 2.3, PM":
+        "dialog, fused 77-bit compare, width schedule, PM",
+    "IonQ CondInv, cmp77, c_pad 2.3, PM, replay=standard":
         "cond.\\ inverted \\cite{ec:ionq26}, dialog replay",
-    "IonQ CondInv, cmp48, c_pad 2.3, PM, replay=ci":
+    "IonQ CondInv, cmp77, c_pad 2.3, PM, replay=ci":
         "cond.\\ inverted \\cite{ec:ionq26}, IonQ replay",
     "ECDSA.Fail ping-pong, 704 rounds, PM": "ping-pong \\cite{ec:ecdsafail26}",
     "ECDSA.Fail Jump-2, 261 steps, PM": "Jump-2 \\cite{ec:ecdsafail26}",
@@ -266,8 +269,8 @@ def rows_refine_padd():
 HIER_LABELS = {
     "[1128] dialog, exact arithmetic (MBU lookups, masks)":
         "dialog \\cite{ec:schrott26}, exact arithmetic, MBU lookups, masked tables",
-    "[1128] dialog, fused cmp48, schedule, PM":
-        "\\quad + 48-bit comparisons, width schedule, pseudo-Mersenne replay",
+    "[1128] dialog, fused cmp77, schedule, PM":
+        "\\quad + 77-bit comparisons, width schedule, pseudo-Mersenne replay",
     "+ dedicated squarer": "\\quad + dedicated squarer and fold",
     "IonQ: cond.-inverted walk + replay, squarer":
         "cond.\\ inverted walk and replay \\cite{ec:ionq26}, squarer",
@@ -297,6 +300,8 @@ TOFF_LABELS = {
         "\\quad + the same adder in the addition, approximate negation",
     "+ Fig. 1 packing, replay in x's qubits":
         "\\quad + Fig.~1 packing, replay in $x$'s qubits",
+    "+ signed windows (2^15-entry tables), no Fig. 1":
+        "\\quad row 3 + signed windows ($2^{15}$-entry tables)",
 }
 
 
@@ -346,6 +351,8 @@ SPACE_LABELS = {
     "+ CDKM squarer": "\\quad + CDKM squarer",
     "+ Gidney where there is headroom (walk 0.94n, squarer 0.78n)":
         "\\quad + Gidney adders where there is headroom",
+    "+ Luo's register-shared EEA instead of the dialog (ECDSA.Fail 5.3.5)":
+        "\\quad + Luo's register-shared EEA instead of the dialog \\cite{ec:ecdsafail26}",
     "  (side: cond.-inverted walk, same cells -- its record is not shared)":
         "(cond.\\ inverted walk, same cells: its record is not shared)",
 }
@@ -358,6 +365,72 @@ def rows_space256():
             continue
         out.append(f"{SPACE_LABELS[name]} & ${num(c['qubits'])}$ & ${num(c['toffoli'])}$\\\\")
     return "\n".join(out)
+
+
+DEPTH_LABELS = {
+    "dialog, PM replay (ripple adders)": "dialog, pseudo-Mersenne replay (ripple adders)",
+    "+ carry-lookahead replay": "\\quad + carry-lookahead replay",
+    "+ carry-lookahead walk": "\\quad + carry-lookahead walk",
+    "+ carry-lookahead squarer": "\\quad + carry-lookahead squarer",
+    "+ register sharing, Fig. 1": "\\quad + register sharing, Fig.~1",
+}
+
+
+def rows_depth256():
+    out = []
+    for name, lab in DEPTH_LABELS.items():
+        c = DPT[name]
+        out.append(f"{lab} & ${num(c['qubits'])}$ & ${num(c['toffoli'])}$ & "
+                   f"${num(c['toffoli_depth'])}$\\\\")
+    return "\n".join(out)
+
+
+def rows_cat_cla():
+    return "\n".join(
+        f"${r['n']}$ & ${num(r['cla']['toffoli'])}$ & ${num(r['cla']['depth'])}$ & "
+        f"${num(r['cla']['qubits'])}$ & ${num(r['gidney']['toffoli'])}$ & "
+        f"${num(r['gidney']['depth'])}$ & ${num(r['gidney']['qubits'])}$\\\\" for r in CAT["cla"])
+
+
+PROJ_LABELS = {}
+
+
+def rows_cat_proj():
+    out = []
+    for r in CAT["projective"]:
+        lab = r["label"].replace("_", "\\_")
+        out.append(f"{lab} & ${num(r['qubits'])}$ & ${num(r['toffoli'])}$\\\\")
+    return "\n".join(out)
+
+
+def rows_cat_ed():
+    return "\n".join(
+        f"${r['n']}$ & ${num(r['edwards_const']['toffoli'])}$ & ${num(r['edwards_const']['qubits'])}$ & "
+        f"${num(r['jacobian_const']['toffoli'])}$ & ${num(r['jacobian_const']['qubits'])}$\\\\"
+        for r in CAT["edwards"])
+
+
+def rows_cat_batch():
+    what = {"inv": "inversions", "padd": "point additions", "div": "divisions"}
+    return "\n".join(
+        f"${r['n']}$ & ${r['k']}$ & {what[r['kind']]} & ${num(r['separate']['toffoli'])}$ & "
+        f"${num(r['batched']['toffoli'])}$ & ${num(r['separate']['qubits'])}$ & "
+        f"${num(r['batched']['qubits'])}$\\\\" for r in CAT.get("batch", []))
+
+
+def rows_cat_luo():
+    out = []
+    for r in CAT.get("luo", []) or []:
+        out.append(f"${r['n']}$ & ${num(r['formula'])}$ & ${num(r['inverse']['qubits'])}$ & "
+                   f"${num(r['inverse']['toffoli'])}$ & ${num(r['division']['qubits'])}$ & "
+                   f"${num(r['division']['toffoli'])}$ & ${num(r['dialog']['qubits'])}$ & "
+                   f"${num(r['dialog']['toffoli'])}$\\\\")
+    return "\n".join(out)
+
+
+def rows_cat_census():
+    return "\n".join(f"${r['k']}$ & ${num(r['toffoli'])}$ & ${100 * r['fresh_wrong']:.1f}\\%$\\\\"
+                      for r in CAT["census"]["samples"])
 
 
 # ---- values quoted in prose, so they too come from the benchmark ----------
@@ -462,6 +535,10 @@ def facts():
     before, after = list(TG["components"].values())
     f["tg_sa_tot_old"] = num(before["  of which signed additions"])
     f["tg_sa_tot_new"] = num(after["  of which signed additions"])
+    sg = TG["rows"]["+ signed windows (2^15-entry tables), no Fig. 1"]
+    f["tg_signed"], f["tg_signed_exp"] = num(sg["toffoli"]), num(sg["expected"])
+    f["tg_signed_gap"] = f"{100 * (1 - sg['expected'] / pub['toffoli']):.1f}"
+    f["tg_signed_28"] = num(28 * (rw[2]["expected"] - sg["expected"]))
     fl = TG["full_algorithm"]
     f["tg_full"], f["tg_full_exp"] = num(fl["toffoli"]), num(fl["expected"])
     f["tg_full_add"] = fl["additions"]
@@ -474,6 +551,13 @@ def facts():
     f["sp_best_n"] = f"{best['qubits'] / 256:.2f}"
     f["sp_1128"] = num(sp["[1128] dialog + sharing + Fig. 1, PMSpace"]["qubits"])
     f["sp_rec"] = num(SPC["_record_qubits"])
+    f["dp_floor"] = num(DPT["lookup_depth_floor"])
+    f["cat_base"], f["cat_all"] = num(CAT["census"]["base"]), num(CAT["census"]["all_inputs"])
+    sd = TOYD["ecdlp_signed"]
+    f["sd_order"], f["sd_tvd"] = sd["order"], f"{sd['tvd']:.3f}"
+    f["sd_wrong"] = f"{100 * sd['wrong_fraction']:.0f}"
+    f["sd_succ"], f["sd_ideal"] = f"{100 * sd['success']:.0f}", f"{100 * sd['ideal_success']:.0f}"
+    f["sd_bound"] = f"{100 * sd['ionq_bound']:.0f}"
     return f
 
 
@@ -486,7 +570,10 @@ if __name__ == "__main__":
             "TEMPAND": rows_tempand(), "WINDOW": rows_window(), "FULL": rows_full(),
             "SPACE": rows_space(), "REFINE_GCD": rows_refine_gcd(),
             "REFINE_PADD": rows_refine_padd(), "HIER": rows_hier(), "TOFF": rows_toff(),
-            "TOFF_PARTS": rows_toff_parts(), "SPACE256": rows_space256()}
+            "TOFF_PARTS": rows_toff_parts(), "SPACE256": rows_space256(),
+            "DEPTH256": rows_depth256(), "CAT_CLA": rows_cat_cla(), "CAT_PROJ": rows_cat_proj(),
+            "CAT_ED": rows_cat_ed(), "CAT_BATCH": rows_cat_batch(),
+            "CAT_CENSUS": rows_cat_census(), "CAT_LUO": rows_cat_luo()}
     for k, v in subs.items():
         tpl = tpl.replace(f"%%{k}%%", v)
     for k, v in facts().items():

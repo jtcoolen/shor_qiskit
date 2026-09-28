@@ -389,13 +389,21 @@ class VentGate(Gate):
             bits[q] ^= (v >> i) & 1
 
     def inverse(self, annotated=False):
-        return self                                  # XOR by the same function
+        # Run backwards, a vent would be a *recomputation* of f(data) -- which
+        # costs whatever computing f costs, not zero -- and its Z fix would
+        # come before its measurement.  Builders that must be undone build
+        # their inverse forwards (ec_cqadd.GidneyArith.csub / half).
+        raise NotImplementedError(
+            "a vent cannot be run backwards; build the inverse forwards")
 
 
 class ZFixGate(Gate):
     """Z on the qubits of reg where the outcome of `VentGate(key)` has a 1.
     Placed where reg again holds the vented value, it cancels the vent's
-    phase.  Diagonal: the identity on basis states."""
+    phase.  `key` may also be a list, one vent per qubit of reg (Z on
+    reg[i] when vent key[i] read 1): [Gid25b]'s classically controlled Zs.
+    An outcome can be used more than once.  Diagonal: the identity on basis
+    states."""
 
     def __init__(self, nreg, key):
         self.nreg, self.key = nreg, key
@@ -658,7 +666,10 @@ def run_live(qc, init=None, state=None, outcomes=None, seed=0, checks=(),
         elif name == "ec_vent":
             vented[op.key] = S.mx(op._split(qs)[1])
         elif name == "ec_zfix":
-            b = vented.pop(op.key)
+            if isinstance(op.key, list):                # one vent per qubit
+                b = sum((vented[k] & 1) << i for i, k in enumerate(op.key))
+            else:
+                b = vented[op.key]
             if b:
                 run_ops(lambda c, q: [c.z(qs[i]) for i in range(op.nreg) if (b >> i) & 1], [])
         seg_start = pos + 1

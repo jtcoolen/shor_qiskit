@@ -1467,11 +1467,11 @@ check can see what the vent does.
 
 The multiplications now take $p$ as a classical constant, because the bank that held it holds $z$.
 \cite{ec:luo26} does its modular reductions with Gidney's constant-workspace classical--quantum
-adder \cite{ec:gidney25}, for any $p$; that adder is not built here. At toy size the generic exact
-cells serve, and the division and multiplication are exact on every input, at exactly
-$3n+6\lfloor\log_2n\rfloor+19$ qubits. For secp256k1 the lean pseudo-Mersenne cells of
-\S\ref{ec:sec:fewq} serve: they need about $38$ clean qubits, fewer than the EEA leaves idle while
-the multiplications run, so the width stays the EEA's. Luo et al.'s point addition (their Fig.~14)
+adder \cite{ec:gidney25}, for any $p$, built in \S\ref{ec:sec:cqadd}. On it the division and
+multiplication are exact for every odd $p$, at exactly $3n+6\lfloor\log_2n\rfloor+19$ qubits. For
+secp256k1 the lean pseudo-Mersenne cells of \S\ref{ec:sec:fewq} also serve, a little cheaper: they
+need about $38$ clean qubits, fewer than the EEA leaves idle while the multiplications run, so the
+width stays the EEA's. The table uses them. Luo et al.'s point addition (their Fig.~14)
 adds a classical point under a control. Their Shor circuit uses signed windows instead, with the
 looked-up point loaded one coordinate at a time into the one free register --- their five lookups,
 this package's \texttt{serial\_load}:
@@ -1491,6 +1491,64 @@ exactly, and the windowed addition adds the $16$ window qubits: $@@l3_win_q@@$, 
 ECDSA.Fail's published range. The price is Toffolis: $@@l3_win_t@@$ per addition, and $@@l3_full_t@@$
 for the whole algorithm on $@@l3_full_q@@$ qubits, $@@l3_ratio@@$ times the circuit of
 \S\ref{ec:sec:ssw}.
+
+\subsection{Gidney's classical-quantum adder}\label{ec:sec:cqadd}
+
+Adding a classical constant $d$ into a quantum register is where the other constructions spend their
+workspace: the constant is written into $n$ clean qubits and added with a quantum--quantum adder.
+\cite{ec:gidney25} does it with three clean qubits and about $4n$ Toffolis, by \emph{venting}
+carries. Its key identity is that the carries of an addition are reproduced by adding $d$ into the
+bitwise complement of the result,
+$$\mathrm{carry}(\sim\! x', d, c_0)=\mathrm{carry}(x, d, c_0),\qquad x'=x+d+c_0,$$
+so once bit $k$ is summed, the carry into it is a function of the finished result. A streaming adder
+therefore holds each carry in one of two clean qubits only while it is needed, then measures it in
+the $X$ basis. That costs $n-1$ ANDs and leaves, for each outcome $m_k=1$, a phase flip by the carry
+$c_k$ to be done later.
+
+Those phases are done with a dirty register $g$, using $Z_qCX_{c\to q}Z_qCX_{c\to q}=Z_c$: apply
+$Z^m$ to $g$, XOR the carries into $g$, apply $Z^m$ again, XOR them again. That leaves $g$ as it was
+and applies exactly $(-1)^{m\cdot c}$. What remains is a circuit that XORs every carry of an addition
+into a dirty register. \cite{ec:gidney25} takes one from \cite{ec:hrs17} and gives it as a figure;
+the one here is derived. Write $w_k=c_k\oplus x_k$ and $y_k=x_k\oplus d_k$. Then
+$$w_{k+1}=(x_k\oplus x_{k+1})\oplus y_k\,w_k,$$
+whose only product is $y_kw_k$. Let $P$ be the ascending pass $g_{k+1}\mathrel{\oplus}=
+(x_k\oplus x_{k+1})\oplus y_kg_k$, and $Q$ the same pass without the constant terms. For any $g$,
+$P(g)=w\oplus Q(g)$, and $Q$ is linear and invertible, so $P(Q^{-1}(g))=g\oplus w$: run $Q$
+descending, then $P$, then XOR $x_k$ in to turn $w$ into $c$. That is about $2n$ Toffolis and no
+ancilla, and $d$ enters only through $X$ and CNOT gates, so a control on the constant costs nothing:
+%%LST ec_cqadd.carry_xor drop%%
+If the streaming adder also XORs each carry into $g$ as it makes it, one carry-XOR finishes the
+repair: $3n$ Toffolis with $n-1$ dirty qubits and two clean ones. Without dirty qubits, each half of
+the target serves as the other's dirty register, for $4n$ Toffolis and three clean qubits.
+\cite{ec:luo26}'s modular addition is then a quantum--quantum CDKM addition, a subtraction of $p$,
+a controlled addition of $p$ back, and a comparison that clears the flag. Its doubling is a
+subtraction of $p$ and a controlled addition back. Every addition of $\pm p$ is Gidney's adder,
+borrowing the addend as its dirty register. At $n=256$:
+
+\begin{center}\small
+\begin{tabular}{lrrr}
+\toprule
+cell, $n=256$ & Toffolis & per $n$ & clean qubits\\
+\midrule
+%%CQCELLS%%
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The modular addition costs $@@cq_add_pn@@n$ and the doubling $@@cq_dbl_pn@@n$, against
+\cite{ec:luo26}'s $11n$ and $6n$. A vent cannot be run backwards: its inverse would be a
+recomputation, not a free measurement, and its $Z$ fix would come before the measurement. So the
+subtraction and the halving are built forwards, from the same steps in reverse with each classical
+addition of $d$ replaced by one of $2^w-d$, and the package refuses to invert a vent. On these cells
+the three-register blocks are exact for every odd $p$. The tests check this on every input at
+$p=7,11,13$, at exactly $3n+6\lfloor\log_2n\rfloor+19$ qubits, with every vent measured and every $Z$
+applied from its outcome. At $n=256$ the division is $@@cqg_div_q@@$ qubits and $@@cqg_div_t@@$
+Toffolis, and the windowed addition $@@cqg_win_q@@$ qubits and $@@cqg_win_t@@$ Toffolis, against
+$@@l3_div_t@@$ and $@@l3_win_t@@$ on the pseudo-Mersenne cells.
+
+The same adder would take the $33$ qubits that hold $f$ out of the fewest-qubit dialog of
+\S\ref{ec:sec:fewq}. It cannot be dropped in, though: the dialog divides by running its
+multiplier backwards, so those cells would first need their inverses built forwards.
 
 \subsection{ECDSA.Fail's fire census}
 

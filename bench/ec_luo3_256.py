@@ -13,6 +13,9 @@ multiplications and the constant steps:
             lookup.  Its depth is not scheduled (2.4G Toffolis): the additions
             run one after another on the same registers, so 28 x one
             addition's exact depth bounds it.
+  gidney    the same blocks on `ec_cqadd.GidneyArith` -- [Gid25b]'s constant-
+            workspace classical-quantum adder, exact for any odd p -- and its
+            cells alone (the 3n and 4n adders, a modular addition, a doubling)
 
     ./venv/bin/python bench/ec_luo3_256.py        # writes bench/ec_luo3_256.json
 """
@@ -26,6 +29,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "shor_qiskit"))
 sys.path.insert(0, str(ROOT / "bench"))
 
+import ec_cost as CO
+import ec_cqadd as CQ
 import ec_gcd as G
 import ec_luo3 as L3
 import ec_shor as S
@@ -82,6 +87,52 @@ def main():
         a, x, y = m.alloc(WBITS, "a"), m.alloc(N, "x"), m.alloc(N, "y")
         SW.windowed_point_add_signed(m, a, x, y, stab, P, cfg, neg=L3.neg_lean)
     build("signed windowed addition", win)
+
+    # --- the same on Gidney's classical-quantum adder (any odd p)
+    from ec_sim import Machine
+    cells = {}
+    for label, fn in (
+            ("classical-quantum adder, n - 1 dirty", lambda m, x, y: CQ.cq_add_dirty(m, x, P, y[:N - 1])),
+            ("classical-quantum adder, 3 clean", lambda m, x, y: CQ.cq_add(m, x, P)),
+            ("modular addition b += c a", lambda m, x, y: CQ.GidneyArith(P).cadd(m, y[0], x, y[1:])),
+            ("modular doubling, dirty-assisted",
+             lambda m, x, y: CQ.GidneyArith(P).dbl(m, x, dirty=list(y)))):
+        m = Machine("and")
+        x, y = m.alloc(N, "x"), m.alloc(N + 1, "y")
+        fn(m, x, y)
+        c = CO.count(m)
+        cells[label] = {"toffoli": c["toffoli_paper"], "per_n": round(c["toffoli_paper"] / N, 3),
+                        "clean": c["qubits"] - 2 * N - 1, "measure": c["measure"]}
+        print(f"  {label:<40} {c['toffoli_paper']:>6} Toffolis ({c['toffoli_paper'] / N:.2f} n), "
+              f"{c['qubits'] - 2 * N - 1} clean", flush=True)
+    out["gidney_cells"] = cells
+    beg = L3.Luo3(arith=CQ.GidneyArith(P))
+    out_g = {}
+
+    def blk_g(name):
+        def fn(m):
+            x, y = m.alloc(N, "x"), m.alloc(N, "y")
+            getattr(beg, name)(m, x, y, P)
+        return fn
+    saved = dict(out)
+    build("division", blk_g("div"), depth=False)
+    out_g["division"] = out["division"]
+
+    def padd_g(m):
+        c, x, y = m.alloc(1, "c"), m.alloc(N, "x"), m.alloc(N, "y")
+        L3.point_add_ctrl_luo(m, c[0], x, y, T.x, T.y, P, beg)
+    build("controlled addition", padd_g, depth=False)
+    out_g["controlled addition"] = out["controlled addition"]
+    cfg_g = L3.windowed_cfg(P, CQ.GidneyArith(P))
+
+    def win_g(m):
+        a, x, y = m.alloc(WBITS, "a"), m.alloc(N, "x"), m.alloc(N, "y")
+        SW.windowed_point_add_signed(m, a, x, y, stab, P, cfg_g, neg=L3.neg_lean)
+    build("signed windowed addition", win_g, depth=False)
+    out_g["signed windowed addition"] = out["signed windowed addition"]
+    for k in ("division", "controlled addition", "signed windowed addition"):
+        out[k] = saved[k]
+    out["gidney"] = out_g
 
     t = time.time()
     r3 = random.Random(3)

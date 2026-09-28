@@ -51,19 +51,59 @@ from ec_sim import Reg
 _keys = itertools.count()
 
 
+def _fwd(arith):
+    """True for an arithmetic whose inverses are built forwards (`csub`,
+    `half`): measurement-based cells (`ec_cqadd.GidneyArith`), which cannot
+    be run backwards gate by gate."""
+    return getattr(arith, "forward_inverse", False)
+
+
+def _dirty(arith, *regs, skip=()):
+    """The operand registers, lent to `dbl` as dirty qubits when it takes them."""
+    if not _fwd(arith):
+        return {}
+    seen, out = set(skip), []
+    for r in regs:
+        for q in r:
+            if q not in seen:
+                seen.add(q)
+                out.append(q)
+    return {"dirty": out}
+
+
 def mul_acc(m, arith, a, b, acc):
     """acc <- a b mod p from acc = 0: Horner over a, most significant bit first.
     Each bit of a is copied into a fresh qubit to control its addition, so a
     may be b (a square)."""
     n = len(a)
+    kw = _dirty(arith, a, b, skip=acc)
     for i in reversed(range(n)):
         if i != n - 1:
-            arith.dbl(m, acc)
+            arith.dbl(m, acc, **kw)
         c = m.anc(1, "mc")
         m.ctx.cx(a[i], c[0])
         arith.cadd(m, c[0], b, acc)                  # acc += c b
         m.ctx.cx(a[i], c[0])
         m.free(c)
+
+
+def mul_unacc(m, arith, a, b, acc):
+    """acc <- 0 from acc = a b: `mul_acc` backwards -- gate by gate for a
+    unitary arithmetic, step by step through `csub` and `half` for one whose
+    inverses are built forwards."""
+    if not _fwd(arith):
+        m.emit_inverse(mul_acc, m, arith, a, b, acc)
+        return
+    n = len(a)
+    kw = _dirty(arith, a, b, skip=acc)
+    for i in range(n):
+        c = m.anc(1, "mc")
+        m.ctx.cx(a[i], c[0])
+        arith.csub(m, c[0], b, acc)                  # acc -= c b
+        m.ctx.cx(a[i], c[0])
+        m.free(c)
+        if i != n - 1:
+            arith.half(m, acc, **kw)
 
 
 def _quotient(p):
@@ -92,7 +132,7 @@ def div3(m, x, y, p, arith, steps=None, lean=True):
     with L._lent(m, bk.meta() + bk.consumed + bk.W1[n:]):
         mul_acc(m, arith, x, a, y)                           # y again ...
         MB.zfix(m, y, key)                                   # ... cancels the phase
-        m.emit_inverse(mul_acc, m, arith, x, a, y)
+        mul_unacc(m, arith, x, a, y)
     for q1, q2 in zip(y, a):
         ctx.swap(q1, q2)
     bk.free(m)
@@ -116,7 +156,7 @@ def mul3(m, x, y, p, arith, steps=None, lean=True):
     with L._lent(m, idle):
         mul_acc(m, arith, xinv, a, y)                        # y again ...
         MB.zfix(m, y, key)                                   # ... cancels the phase
-        m.emit_inverse(mul_acc, m, arith, xinv, a, y)
+        mul_unacc(m, arith, xinv, a, y)
     m.emit_inverse(L.eea_forward, m, bk2, p, None, steps, True, True)
     for q1, q2 in zip(y, a):
         ctx.swap(q1, q2)
@@ -199,8 +239,11 @@ def point_add_ctrl_luo(m, ctrl, x, y, x2, y2, p, backend=None):
     _const_op(m, ctrl, x, 3 * x2 % p, p, add)               # x <- x + c 3 x2
     s = m.anc(len(x), "sq")                                  # the third register:
     mul_acc(m, ar, y, y, s)                                  #   s = lambda^2
-    m.emit_inverse(ar.cadd, m, ctrl, s, x)                   # x <- x - c lambda^2
-    m.emit_inverse(mul_acc, m, ar, y, y, s)                  #   s = 0
+    if _fwd(ar):
+        ar.csub(m, ctrl, s, x)                               # x <- x - c lambda^2
+    else:
+        m.emit_inverse(ar.cadd, m, ctrl, s, x)
+    mul_unacc(m, ar, y, y, s)                                #   s = 0
     m.free(s)
     be.mul(m, x, y, p)                                       # y <- lambda x
     _cneg(m, ctrl, x, p)                                     # x <- -x when c
@@ -217,9 +260,11 @@ def square_sub(arith):
         mul_acc(m, arith, src, src, s)
         if ctrl is None:
             arith.sub(m, s, acc, p)
+        elif _fwd(arith):
+            arith.csub(m, ctrl, s, acc)
         else:
             m.emit_inverse(arith.cadd, m, ctrl, s, acc)
-        m.emit_inverse(mul_acc, m, arith, src, src, s)
+        mul_unacc(m, arith, src, src, s)
         m.free(s)
     return sq
 

@@ -123,6 +123,10 @@ def main(out):
          "[Luo26] &sect;5",
          f"&rarr; {f(w3['qubits'])} qubits (windowed), {f(l3['controlled addition']['qubits'])} "
          f"for a classical point"),
+        ("Gidney's classical-quantum adder: vented carries, a carry-XOR into a dirty register",
+         "arXiv:2507.23079, [Luo26] App. B",
+         f"adder {l3['gidney_cells']['classical-quantum adder, n - 1 dirty']['per_n']:.2f}n on 2 clean qubits; "
+         f"3 registers exact for any p: {f(l3['gidney']['signed windowed addition']['qubits'])} qubits"),
         ("Carry-lookahead adders with fanned-out controls", "[106] &sect;3.1, [DKRS04]",
          f"depth 1,503,533 &rarr; {f(cla['toffoli_depth'])}"),
         ("Gidney 2025 residue arithmetic, built at size", "arXiv:2505.15917",

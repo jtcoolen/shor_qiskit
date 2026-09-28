@@ -462,6 +462,13 @@ def rows_luo3():
     return "\n".join(out)
 
 
+def rows_cqcells():
+    out = []
+    for label, c in L3J["gidney_cells"].items():
+        out.append(f"{label} & ${num(c['toffoli'])}$ & ${c['per_n']:.2f}n$ & ${c['clean']}$\\\\")
+    return "\n".join(out)
+
+
 def rows_cat_census():
     return "\n".join(f"${r['k']}$ & ${num(r['toffoli'])}$ & ${100 * r['fresh_wrong']:.1f}\\%$\\\\"
                       for r in CAT["census"]["samples"])
@@ -602,6 +609,14 @@ def facts():
     # --- Luo's three registers
     f["l3_formula"] = num(L3J["formula_3reg"])
     f["l3_div_q"] = num(L3J["division"]["qubits"])
+    f["l3_div_t"] = num(L3J["division"]["toffoli"])
+    gc = L3J["gidney_cells"]
+    f["cq_add_pn"] = f"{gc['modular addition b += c a']['per_n']:.1f}"
+    f["cq_dbl_pn"] = f"{gc['modular doubling, dirty-assisted']['per_n']:.1f}"
+    gg = L3J["gidney"]
+    f["cqg_div_q"], f["cqg_div_t"] = num(gg["division"]["qubits"]), num(gg["division"]["toffoli"])
+    f["cqg_win_q"] = num(gg["signed windowed addition"]["qubits"])
+    f["cqg_win_t"] = num(gg["signed windowed addition"]["toffoli"])
     f["l3_win_q"], f["l3_win_t"] = num(L3J["signed windowed addition"]["qubits"]), \
         num(L3J["signed windowed addition"]["toffoli"])
     fl3 = L3J["full_algorithm"]
@@ -656,7 +671,7 @@ if __name__ == "__main__":
             "DEPTH256": rows_depth256(), "CAT_CLA": rows_cat_cla(), "CAT_PROJ": rows_cat_proj(),
             "CAT_ED": rows_cat_ed(), "CAT_BATCH": rows_cat_batch(),
             "CAT_CENSUS": rows_cat_census(), "CAT_LUO": rows_cat_luo(), "SSW": rows_ssw(),
-            "LUO3": rows_luo3()}
+            "LUO3": rows_luo3(), "CQCELLS": rows_cqcells()}
     for k, v in subs.items():
         tpl = tpl.replace(f"%%{k}%%", v)
     for k, v in facts().items():

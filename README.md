@@ -490,6 +490,7 @@ Part VII.
 | `ec_batch.py` | Montgomery's batch inversion: k inverses for 2 inversions + 5(k−1) multiplications, batched affine point additions | Litinski 2023 |
 | `ec_luo.py`, `ec_luo_classical.py` | Luo et al.'s register-shared EEA: inversion in exactly 2n + 6⌊log₂n⌋ + 19 qubits (579 at n = 256), reversible division in 4n + 6⌊log₂n⌋ + 19; `PointAddCfg(mul=Luo())` | Luo et al., ECDSA.Fail §5.3.5 |
 | `ec_luo3.py` | [Luo26] Sec 5: division and multiplication on three field registers by *venting* y (X-measured, then its phase cancelled by recomputing y around a Z^b), the controlled addition of a classical point (Fig. 14), and the windowed addition on it (`windowed_cfg`: one coordinate loaded at a time); `ec_mbu.vent` / `zfix` | [Luo26] Sec 5–6 |
+| `ec_cqadd.py` | Gidney's classical-quantum adder with constant workspace: the streaming adder that vents its carries, a carry-XOR into a dirty register (derived here), the phase fix, the 3n (n − 1 dirty, 2 clean) and 4n (3 clean) adders, free controls; `GidneyArith`, [Luo26] App. B's modular arithmetic on it for any odd p, its inverses built forwards | [Gid25b], [HRS17], [Luo26] App. B |
 | `ec_opt.census`, `strip_unfired` | ECDSA.Fail's fire census: drop the Toffolis a sample of inputs never fires; exact when the sample is every input, otherwise measured on fresh inputs | ECDSA.Fail §5.3.7 |
 | `hier.exact_depth` | the Toffoli depth of the flat circuit, scheduled while expanding the cached hierarchy (never built); equals `depth.toffoli_depth` | — |
 | `rns_classical.py`, `rns.py` | Gidney 2025's approximate residue-number exponentiation: residue system, dlog and transition tables, bit-exact model, [G25] Table 3–5 tallies; the six loops as a circuit, exact against the model at toy N | Gidney 2025 (arXiv:2505.15917) |
@@ -672,13 +673,26 @@ the second bank, y is a function of the other registers, so it is X-measured and
 clean, as the bank of the backward EEA; the phase (−1)^(b·y) is cancelled afterwards by recomputing
 y = xz around a Z^b (`ec_mbu.vent` / `zfix`; `run_live` performs both, and the tests check the phase
 cancels, and that without the Z^b it does not).  The multiplications take p as a classical constant:
-[Luo26] uses Gidney's constant-workspace adder for that, not built here; the exact generic cells
-serve at toy size (exact on every input, exactly 3n + 6⌊log₂n⌋ + 19 qubits) and the lean
-pseudo-Mersenne cells at n = 256, which fit in the qubits the EEA leaves idle.  At n = 256: the
+[Luo26] uses Gidney's constant-workspace adder for that, built in `ec_cqadd` (below): on it the
+three registers are exact for any odd p, at exactly 3n + 6⌊log₂n⌋ + 19 qubits; the lean
+pseudo-Mersenne cells serve too, a little cheaper, and fit in the qubits the EEA leaves idle.  At n = 256: the
 division on 835 qubits (the formula, exactly), the controlled addition of a classical point
 ([Luo26] Fig. 14) on 836, the signed windowed addition on **851** (the point loaded one
 coordinate at a time: [Luo26]'s five lookups), and the whole ECDLP-256 circuit:
 **2,385,774,798 Toffolis on 851 qubits** (Luo et al. report 2^30.88 ≈ 1.98e9).
+
+**Gidney's classical-quantum adder** (`ec_cqadd`, arXiv:2507.23079): x += d for a classical d on
+a constant number of clean qubits.  The carries of an addition are reproduced by adding d into the
+complement of the result (their eq. 8), so a streaming adder vents each carry by X-measurement once
+the bit is summed; the phase flips that leaves are done on a dirty register with
+Z^m · carry-XOR · Z^m · carry-XOR.  The carry-XOR (every carry of x + d into a dirty register, ~2n
+Toffolis, no ancilla, a control for free) is derived here rather than transcribed.  At n = 256:
+762 Toffolis (2.98n) with n − 1 dirty and 2 clean qubits, 1,015 (3.96n) with 3 clean;
+[Luo26] App. B's modular addition on it 2,813 (10.99n, theirs 11n) and doubling 1,535
+(6.00n, theirs 6n).  A vent cannot be run backwards, so the subtraction and halving are built
+forwards (and the package refuses to invert a vent).  The three-register circuits on it are exact
+for any odd p: the division on 835 qubits (44,200,815 Toffolis), the windowed addition on
+851 (90,935,988, against 85,204,396 on the pseudo-Mersenne cells).
 
 **Depth** (`bench/ec_depth_256.py`).  Every configuration above ripples, and the GCD rounds
 are sequential, so depth runs at 0.8–0.95 of the Toffoli count.  [106]'s depth-optimised
@@ -768,7 +782,7 @@ Tests: `test_sparse_sim`, `test_depth`, `test_eh`, `test_physical`, `test_api_su
 `test_ec_window_cfg`, `test_ec_signed`, `test_ec_gcd`, `test_ec_square`, `test_ec_windowed`,
 `test_ec_padd_mont`, `test_ec_opt`, `test_hier`, `test_ec_space`, `test_ec_cla`,
 `test_ec_edwards`, `test_ec_proj_q`, `test_ec_depth`, `test_ec_signedwin`, `test_ec_batch`,
-`test_ec_luo`, `test_ec_luo3` (ec tier).
+`test_ec_luo`, `test_ec_luo3`, `test_ec_cqadd` (ec tier).
 
 ## What is not implemented
 
@@ -778,10 +792,10 @@ Named rather than glossed:
   (probabilistic, failure rate measured); `ec_eea` itself remains exact.  The
   **5-Toffoli Fig. 1** packing is `ec_gcd.fig1_compress`; `ec_eea.compress_records`
   keeps its generic 57-Toffoli permutation and is still not wired into `ec_eea`.
-- **Gidney's constant-workspace classical–quantum adder** (arXiv:2507.23079), which [Luo26]
-  uses for its multipliers' modular reductions with any p.  `ec_luo3` builds [Luo26]'s
-  three-register division exactly for any p with the generic cells (more scratch), and at
-  n = 256 with the lean pseudo-Mersenne cells, which fit in the qubits the EEA leaves idle.
+- **Gidney's adder in the dialog's cells.**  `ec_cqadd` builds it, and the three-register
+  circuits use it; it would also take the 33 qubits that hold f out of the 1,246-qubit dialog,
+  but the dialog divides by running its multiplier backwards, and a vented adder cannot be run
+  backwards (the package refuses to), so those cells need forward-built inverses first.
 - **IonQ's Karatsuba square-subtract** (their Algs 7–11, fused slice additions and phase
   comparators).  The square-subtract here is the dedicated squarer and a fold (79,160);
   a Karatsuba over this package's general cells was measured and costs more.

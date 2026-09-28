@@ -458,6 +458,9 @@ DEFAULT_TARGETS = [
     ("ec_kaliski", ["kaliski_round"]),
     ("ec_depth", ["moddbl_cla", "modhalf_cla", "cla_csub", "cla_gt_ctrl", "sqr_int_cla",
                   "csub_square_cla", "fan_cswap", "fan_and"]),
+    ("ec_cqadd", ["carry_xor", "cq_add_dirty", "cq_add", ("GidneyArith", "_cadd"),
+                  ("GidneyArith", "_dbl")]),
+    ("ec_luo3", ["mul_acc", "mul_unacc"]),
     ("ec_gcd", [("Dialog", "_round"), ("CondInv", "_round"), ("CondInv", "_first"),
                 ("Jump2", "_walk_body"), ("Jump2Packed", "_step")]),
 ]

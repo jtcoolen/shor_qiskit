@@ -40,6 +40,52 @@
     "measure": 1792,
     "toffoli_depth": 65520277
   },
+  "gidney_cells": {
+    "classical-quantum adder, n - 1 dirty": {
+      "toffoli": 762,
+      "per_n": 2.977,
+      "clean": 2,
+      "measure": 255
+    },
+    "classical-quantum adder, 3 clean": {
+      "toffoli": 1015,
+      "per_n": 3.965,
+      "clean": 3,
+      "measure": 255
+    },
+    "modular addition b += c a": {
+      "toffoli": 2813,
+      "per_n": 10.988,
+      "clean": 5,
+      "measure": 511
+    },
+    "modular doubling, dirty-assisted": {
+      "toffoli": 1535,
+      "per_n": 5.996,
+      "clean": 4,
+      "measure": 513
+    }
+  },
+  "gidney": {
+    "division": {
+      "qubits": 835,
+      "toffoli": 44200815,
+      "measure": 785149,
+      "toffoli_depth": null
+    },
+    "controlled addition": {
+      "qubits": 836,
+      "toffoli": 90770886,
+      "measure": 2096626,
+      "toffoli_depth": null
+    },
+    "signed windowed addition": {
+      "qubits": 851,
+      "toffoli": 90935988,
+      "measure": 2097906,
+      "toffoli_depth": null
+    }
+  },
   "full_algorithm": {
     "toffoli": 2385774798,
     "expected": 2385774798,

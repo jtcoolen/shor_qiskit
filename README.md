@@ -242,9 +242,10 @@ different from the quantum×classical-constant multiplier used throughout here.
 * The coset representation is **approximate**: deviation ~2^-cpad per addition,
   subadditive over a sequence. Everything else here is exact and asserts exact
   equality; coset tests instead measure an error *rate* against the padding budget.
-  `coset.py` supplies the adder and multiplier; **the full coset order-finding
-  circuit is not built** — the multiply/swap/uncompute of Level 4 in coset form is
-  the remaining piece.
+  `coset.order_circuit_coset` is the full order-finding circuit in coset form
+  (encoding circuit, multiply/swap/uncompute with plain additions);
+  `tests/test_coset_order.py` checks its output distribution at N = 15 against the
+  exact one, within the bound and falling as the padding grows.
 
 ---
 

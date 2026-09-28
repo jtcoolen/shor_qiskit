@@ -41,7 +41,7 @@ from qiskit.circuit import ClassicalRegister, QuantumCircuit, QuantumRegister
 import ec_classical as C
 import ec_pointadd as PA
 from ec_sim import Machine, Reg
-from semiclassical import semiclassical_iqft
+from semiclassical import semiclassical_iqft, semiclassical_iqft_windowed
 from shor_essentials import qft
 
 
@@ -331,3 +331,215 @@ def solve(curve, P, Q, order, **kw):
         if C.verify_dlog(curve, P, Q, k):
             return k, counts, info
     return None, counts, info
+
+
+# =============================================================================
+# The windowed circuit ([1128] Sec 2, Litinski, Babbush et al., IonQ)
+# =============================================================================
+def window_tables(curve, base, nwin, w, masks=False, seed=0):
+    """Tables for nwin windows of w bits over `base`: entry i of window J is
+    [i 2^(J w)] base, plus a random per-table offset mu_J when `masks`
+    (IonQ Alg 4: no entry is O).  Returns (tables, sum of offsets)."""
+    import random
+    import ec_window as W
+    rng = random.Random(seed)
+    tables, total = [], C.O
+    for J in range(nwin):
+        B = curve.mul(1 << (J * w), base)
+        if masks:
+            T, mu = W.masked_window_points(curve, B, w, rng)
+            total = curve.add(total, mu)
+        else:
+            T = W.window_points(curve, B, w)
+        tables.append(T)
+    return tables, total
+
+
+def _table_window(qc, pack, addr, table, curve, n):
+    """Controlled "+table[addr]" as permutations, one per address value."""
+    for i, T in enumerate(table):
+        if T.inf:
+            continue
+        flips = [addr[b] for b in range(len(addr)) if not (i >> b) & 1]
+        for q in flips:
+            qc.x(q)
+        permutation(qc, pack, point_perm(curve, T, n), ctrls=list(addr))
+        for q in flips:
+            qc.x(q)
+
+
+def _windowed_layout(order, w, m_bits, drop):
+    mb = m_bits or max(1, math.ceil(math.log2(order)))
+    nwk = -(-mb // w)
+    nwl = nwk - drop
+    assert nwl >= 1, "cannot drop every window of the second register"
+    return mb, nwk, nwl, nwk * w, nwl * w
+
+
+def ecdlp_windowed(curve, P, Q, order, w, m_bits=None, offset=None, drop=0,
+                   masks=False, seed=0, oracle="table", one_control=False,
+                   cfg=None, first_lookup=False, signed=False):
+    """Shor's ECDLP with w-bit windows.  Returns (circuit or Machine, info).
+
+    oracle="table"   permutation oracle: simulable, for the distribution
+    oracle="arith"   `ec_window.windowed_point_add_cfg` per window (cfg), for
+                     costing and exhaustive basis-state checks
+    one_control      w recycled control qubits (`semiclassical_iqft_windowed`)
+    drop             trailing windows of the Q register left out; recovered by
+                     `ec_classical.ecdlp_postprocess_short`
+    masks            IonQ's per-table offsets (the accumulator ends at
+                     S + [u]P + [v]Q + sum(mu), a constant shift)
+    first_lookup     (arith) the first window is a lookup of S + T_0[i] into the
+                     empty accumulator instead of an addition (Babbush et al.)
+    signed           (arith) odd signed digits ([HJN+20] Sec 5.1, `ec_signedwin`):
+                     2^(w-1)-entry tables, never O, the sign a negation of y;
+                     the accumulator ends shifted by Delta_P + Delta_Q
+    """
+    p = curve.p
+    n = p.bit_length()
+    mb, nwk, nwl, bk, bl = _windowed_layout(order, w, m_bits, drop)
+    tP, muP = window_tables(curve, P, nwk, w, masks, seed)
+    tQ, muQ = window_tables(curve, Q, nwl, w, masks, seed + 1)
+    S = offset or _pick_offset(curve, P, Q, order, mb, strict=False)
+    shift = curve.add(muP, muQ)
+    info = {"n": n, "w": w, "bits_k": bk, "bits_l": bl, "offset": S,
+            "shift": shift, "order": order, "tables": (tP, tQ),
+            "windows": nwk + nwl, "oracle": oracle}
+
+    if oracle == "arith" and signed:
+        return _ecdlp_signed_arith(curve, P, Q, order, p, n, S, nwk, nwl, w, bk, bl, cfg,
+                                   first_lookup, info)
+    if oracle == "arith":
+        return _ecdlp_windowed_arith(curve, p, n, S, tP, tQ, w, bk, bl, cfg,
+                                     masks, first_lookup, info)
+    assert oracle == "table", oracle
+    px, py = QuantumRegister(n, "px"), QuantumRegister(n, "py")
+    ck, cl = ClassicalRegister(bk, "ok"), ClassicalRegister(bl, "ol")
+    pack = list(px) + list(py)
+
+    def win(table):
+        return lambda qc, addr: _table_window(qc, pack, addr, table, curve, n)
+
+    if one_control:
+        ctr = QuantumRegister(w, "ctr")
+        qc = QuantumCircuit(ctr, px, py, ck, cl)
+        _load_point(qc, px, py, S)
+        semiclassical_iqft_windowed(qc, list(ctr), ck, [win(T) for T in tP])
+        semiclassical_iqft_windowed(qc, list(ctr), cl, [win(T) for T in tQ])
+    else:
+        kr, lr = QuantumRegister(bk, "k"), QuantumRegister(bl, "l")
+        qc = QuantumCircuit(kr, lr, px, py, ck, cl)
+        _load_point(qc, px, py, S)
+        qc.h(kr)
+        qc.h(lr)
+        for J, T in enumerate(tP):
+            win(T)(qc, list(kr[J * w:(J + 1) * w]))
+        for J, T in enumerate(tQ):
+            win(T)(qc, list(lr[J * w:(J + 1) * w]))
+        qc.append(qft(bk).inverse(), list(kr))
+        qc.append(qft(bl).inverse(), list(lr))
+        qc.measure(kr, ck)
+        qc.measure(lr, cl)
+    info["qubits"] = qc.num_qubits
+    return qc, info
+
+
+def _load_point(qc, px, py, S):
+    for i in range(len(px)):
+        if (S.x >> i) & 1:
+            qc.x(px[i])
+        if (S.y >> i) & 1:
+            qc.x(py[i])
+
+
+def _ecdlp_windowed_arith(curve, p, n, S, tP, tQ, w, bk, bl, cfg, masks,
+                          first_lookup, info):
+    import ec_mbu as MB
+    import ec_window as W
+    cfg = cfg or (W.IONQ_LOOKUPS if masks else W.PointAddCfg())
+    assert cfg.offsets == masks, "masked tables go with cfg.offsets"
+    m = Machine("and", "ecdlp-windowed")
+    kr, lr = m.alloc(bk, "k"), m.alloc(bl, "l")
+    px, py = m.alloc(n, "px"), m.alloc(n, "py")
+    jobs = [(kr[J * w:(J + 1) * w], T) for J, T in enumerate(tP)] + \
+           [(lr[J * w:(J + 1) * w], T) for J, T in enumerate(tQ)]
+    if first_lookup:
+        addr, T0 = jobs.pop(0)
+        first = [curve.add(S, T) for T in T0]
+        assert not any(F.inf for F in first), "S + T_0[i] must avoid O"
+        MB.lookup(m, Reg(list(addr)), Reg(list(px) + list(py)),
+                  [F.x | (F.y << n) for F in first])
+    else:
+        for i in range(n):
+            if (S.x >> i) & 1:
+                m.ctx.x(px[i])
+            if (S.y >> i) & 1:
+                m.ctx.x(py[i])
+    for addr, T in jobs:
+        W.windowed_point_add_cfg(m, Reg(list(addr)), px, py, T, p, cfg)
+    info.update(regs=(kr, lr, px, py), qubits=m.qc.num_qubits,
+                additions=len(jobs), first_lookup=first_lookup, cfg=cfg)
+    return m, info
+
+
+def _ecdlp_signed_arith(curve, P, Q, order, p, n, S, nwk, nwl, w, bk, bl, cfg,
+                        first_lookup, info):
+    import ec_mbu as MB
+    import ec_signedwin as SW
+    cfg = cfg or SW.SIGNED_IONQ
+    tP, dP = SW.signed_window_tables(curve, P, w, nwk, order)
+    tQ, dQ = SW.signed_window_tables(curve, Q, w, nwl, order)
+    m = Machine("and", "ecdlp-signed")
+    kr, lr = m.alloc(bk, "k"), m.alloc(bl, "l")
+    px, py = m.alloc(n, "px"), m.alloc(n, "py")
+    addrs = [Reg(list(kr[J * w:(J + 1) * w])) for J in range(nwk)] + \
+            [Reg(list(lr[J * w:(J + 1) * w])) for J in range(nwl)]
+    tables = tP + tQ
+    if first_lookup:
+        # window 0 adds [i] P + delta_0: look up S + that into the empty accumulator
+        d0 = curve.mul(((1 - (1 << w)) * ((order + 1) // 2)) % order, P)
+        first = [curve.add(S, curve.add(curve.mul(i, P), d0)) for i in range(1 << w)]
+        assert not any(F.inf for F in first), "S + [i]P + delta_0 must avoid O"
+        MB.lookup(m, addrs[0], Reg(list(px) + list(py)), [F.x | (F.y << n) for F in first])
+        addrs, tables = addrs[1:], tables[1:]
+    else:
+        for i in range(n):
+            if (S.x >> i) & 1:
+                m.ctx.x(px[i])
+            if (S.y >> i) & 1:
+                m.ctx.x(py[i])
+    SW.signed_windows(m, addrs, px, py, tables, p, cfg)
+    info.update(regs=(kr, lr, px, py), qubits=m.qc.num_qubits, additions=len(addrs),
+                first_lookup=first_lookup, cfg=cfg, signed=True,
+                shift=curve.add(dP, dQ))
+    return m, info
+
+
+def ecdlp_multikey_1c(curve, P, Qs, order, w, m_bits=None, offset=None, seed=0):
+    """One P-half, then one Q-half per key, on the same accumulator.
+
+    [Litinski23] Sec 4: after the first phase estimation the accumulator has
+    collapsed to a Fourier state over <P>, which is an eigenstate of *every*
+    "+Q" with Q in <P>.  So the P-half need not be repeated: each further key
+    costs one Q-half.  Classical registers: ok (the shared j1), then ol0, ol1,
+    ... (one j2 per key)."""
+    p = curve.p
+    n = p.bit_length()
+    mb, nw, _, bk, _ = _windowed_layout(order, w, m_bits, 0)
+    tP, _ = window_tables(curve, P, nw, w)
+    S = offset or _pick_offset(curve, P, Qs[0], order, mb, strict=False)
+    ctr = QuantumRegister(w, "ctr")
+    px, py = QuantumRegister(n, "px"), QuantumRegister(n, "py")
+    ck = ClassicalRegister(bk, "ok")
+    cls = [ClassicalRegister(bk, f"ol{j}") for j in range(len(Qs))]
+    qc = QuantumCircuit(ctr, px, py, ck, *cls)
+    pack = list(px) + list(py)
+    _load_point(qc, px, py, S)
+
+    def win(table):
+        return lambda qc, addr: _table_window(qc, pack, addr, table, curve, n)
+    semiclassical_iqft_windowed(qc, list(ctr), ck, [win(T) for T in tP])
+    for j, Qj in enumerate(Qs):
+        tQ, _ = window_tables(curve, Qj, nw, w)
+        semiclassical_iqft_windowed(qc, list(ctr), cls[j], [win(T) for T in tQ])
+    return qc, {"bits": bk, "keys": len(Qs), "qubits": qc.num_qubits}

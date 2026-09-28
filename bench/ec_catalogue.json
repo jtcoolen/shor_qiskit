@@ -1,0 +1,296 @@
+{
+  "cla": [
+    {
+      "n": 8,
+      "cla": {
+        "toffoli": 27,
+        "qubits": 25,
+        "depth": 11
+      },
+      "gidney": {
+        "toffoli": 7,
+        "qubits": 23,
+        "depth": 7
+      }
+    },
+    {
+      "n": 32,
+      "cla": {
+        "toffoli": 179,
+        "qubits": 117,
+        "depth": 19
+      },
+      "gidney": {
+        "toffoli": 31,
+        "qubits": 95,
+        "depth": 31
+      }
+    },
+    {
+      "n": 64,
+      "cla": {
+        "toffoli": 395,
+        "qubits": 243,
+        "depth": 23
+      },
+      "gidney": {
+        "toffoli": 63,
+        "qubits": 191,
+        "depth": 63
+      }
+    },
+    {
+      "n": 128,
+      "cla": {
+        "toffoli": 835,
+        "qubits": 497,
+        "depth": 27
+      },
+      "gidney": {
+        "toffoli": 127,
+        "qubits": 383,
+        "depth": 127
+      }
+    },
+    {
+      "n": 256,
+      "cla": {
+        "toffoli": 1723,
+        "qubits": 1007,
+        "depth": 31
+      },
+      "gidney": {
+        "toffoli": 255,
+        "qubits": 767,
+        "depth": 255
+      }
+    }
+  ],
+  "edwards": [
+    {
+      "n": 32,
+      "edwards_const": {
+        "toffoli": 44438,
+        "qubits": 550
+      },
+      "jacobian_const": {
+        "toffoli": 143796,
+        "qubits": 742
+      }
+    },
+    {
+      "n": 64,
+      "edwards_const": {
+        "toffoli": 172090,
+        "qubits": 1094
+      },
+      "jacobian_const": {
+        "toffoli": 566132,
+        "qubits": 1478
+      }
+    }
+  ],
+  "projective": [
+    {
+      "label": "affine in place, ctrl (ec_pointadd)",
+      "n": 32,
+      "qubits": 540,
+      "toffoli": 262797
+    },
+    {
+      "label": "Jacobian + classical affine (ec_proj)",
+      "n": 32,
+      "qubits": 742,
+      "toffoli": 157680
+    },
+    {
+      "label": "Jacobian + quantum affine",
+      "n": 32,
+      "qubits": 806,
+      "toffoli": 174900
+    },
+    {
+      "label": "Jacobian + quantum affine, ctrl",
+      "n": 32,
+      "qubits": 903,
+      "toffoli": 175250
+    },
+    {
+      "label": "Jacobian + quantum Jacobian",
+      "n": 32,
+      "qubits": 998,
+      "toffoli": 257460
+    },
+    {
+      "label": "Jacobian + quantum Jacobian, ctrl",
+      "n": 32,
+      "qubits": 1095,
+      "toffoli": 257810
+    },
+    {
+      "label": "to_affine (once per run)",
+      "n": 32,
+      "qubits": 571,
+      "toffoli": 139066
+    }
+  ],
+  "census": {
+    "base": 1680,
+    "all_inputs": 991,
+    "samples": [
+      {
+        "k": 10,
+        "toffoli": 752,
+        "fresh_wrong": 0.98
+      },
+      {
+        "k": 30,
+        "toffoli": 891,
+        "fresh_wrong": 0.6525
+      },
+      {
+        "k": 100,
+        "toffoli": 957,
+        "fresh_wrong": 0.1025
+      },
+      {
+        "k": 300,
+        "toffoli": 984,
+        "fresh_wrong": 0.0275
+      }
+    ]
+  },
+  "batch": [
+    {
+      "n": 64,
+      "k": 2,
+      "kind": "inv",
+      "separate": {
+        "toffoli": 703732,
+        "qubits": 1054
+      },
+      "batched": {
+        "toffoli": 516346,
+        "qubits": 1118
+      }
+    },
+    {
+      "n": 64,
+      "k": 4,
+      "kind": "inv",
+      "separate": {
+        "toffoli": 1407464,
+        "qubits": 1310
+      },
+      "batched": {
+        "toffoli": 845306,
+        "qubits": 1502
+      }
+    },
+    {
+      "n": 64,
+      "k": 8,
+      "kind": "inv",
+      "separate": {
+        "toffoli": 2814928,
+        "qubits": 1822
+      },
+      "batched": {
+        "toffoli": 1503226,
+        "qubits": 2510
+      }
+    },
+    {
+      "n": 256,
+      "k": 4,
+      "kind": "inv",
+      "separate": {
+        "toffoli": 22169576,
+        "qubits": 5156
+      },
+      "batched": {
+        "toffoli": 13414394,
+        "qubits": 5924
+      }
+    },
+    {
+      "n": 256,
+      "k": 4,
+      "kind": "padd",
+      "separate": {
+        "toffoli": 65369012,
+        "qubits": 5672
+      },
+      "batched": {
+        "toffoli": 46815704,
+        "qubits": 7445
+      }
+    }
+  ],
+  "luo": [
+    {
+      "n": 32,
+      "formula": 113,
+      "inverse": {
+        "qubits": 113,
+        "toffoli": 374232
+      },
+      "division": {
+        "qubits": 177,
+        "toffoli": 779682
+      },
+      "dialog": {
+        "qubits": 284,
+        "toffoli": 32686
+      }
+    },
+    {
+      "n": 64,
+      "formula": 183,
+      "inverse": {
+        "qubits": 183,
+        "toffoli": 1383179
+      },
+      "division": {
+        "qubits": 311,
+        "toffoli": 2890248
+      },
+      "dialog": {
+        "qubits": 546,
+        "toffoli": 120780
+      }
+    },
+    {
+      "n": 128,
+      "formula": 317,
+      "inverse": {
+        "qubits": 317,
+        "toffoli": 5259375
+      },
+      "division": {
+        "qubits": 573,
+        "toffoli": 11012304
+      },
+      "dialog": {
+        "qubits": 1064,
+        "toffoli": 456874
+      }
+    },
+    {
+      "n": 256,
+      "formula": 579,
+      "inverse": {
+        "qubits": 579,
+        "toffoli": 20433078
+      },
+      "division": {
+        "qubits": 1091,
+        "toffoli": 42836318
+      },
+      "dialog": {
+        "qubits": 2088,
+        "toffoli": 1749162
+      }
+    }
+  ]
+}

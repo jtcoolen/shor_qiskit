@@ -52,7 +52,8 @@ from rc_adder import rc_add as _rc_add
 def cdkm_add(ctx, x, y, carry, ctrls=()):
     """|x>|y> -> |x>|(y+x) mod 2^n>.  One clean ancilla `carry`, returned clean.
 
-    2n Toffoli; with controls, 3n.  [CDKM04].
+    2n Toffoli.  With controls, 4n: each MAJ and UMA gets them.  The
+    textbook 3n (control on the UMA only) is `ec_space.cdkm_cadd`.  [CDKM04].
     """
     assert len(x) == len(y), "operands must be the same width"
     _rc_add(ctx, x, y, carry, ctrls)
@@ -243,3 +244,63 @@ def shift_up(reg, zero):
 def shift_down(reg):
     """reg // 2, as a register.  Returns (value register, freed LSB qubit)."""
     return Reg(list(reg[1:]), getattr(reg, "name", "") + ">>1"), reg[0]
+
+
+# --- signed and fused forms (IonQ Sec VI; used by the GCD variants) ----------
+def ci_add(ctx, e, x, y, anc):
+    """y <- y + (-1)^e x  mod 2^n: a *conditionally inverted* adder.
+
+    y - x = NOT(NOT(y) + x), so conditioning the two complements on e turns one
+    uncontrolled adder into an add-or-subtract.  n-1 ANDs (Gidney) against the
+    2n of a controlled add followed by a controlled subtract -- which is why
+    IonQ rewrites the binary GCD so that every step is "add or subtract",
+    never "maybe add".
+    """
+    for q in y:
+        ctx.cx(e, q)
+    add(ctx, x, y, anc)
+    for q in y:
+        ctx.cx(e, q)
+
+
+def cgt_fused(ctx, ctrl, x, y, out, anc):
+    """out ^= ctrl AND [x > y], in n + 1 Toffoli-equivalents.
+
+    `clt_uint` computes the comparison, ANDs it in and computes it again to
+    uncompute: 2n + 1.  The carry chain's own uncompute is already free, so
+    the AND can be taken from the top carry before unwinding: n + 1.
+    """
+    n = len(x)
+    assert len(y) == n and len(anc) >= n
+    a = anc[:n]
+    for q in y:
+        ctx.x(q)
+    for i in range(n):
+        if i:
+            ctx.cx(a[i - 1], x[i])
+            ctx.cx(a[i - 1], y[i])
+        ctx.and_(x[i], y[i], a[i])
+        if i:
+            ctx.cx(a[i - 1], a[i])
+    if ctrl is None:
+        ctx.cx(a[n - 1], out)
+    else:
+        ctx.ccx(ctrl, a[n - 1], out)
+    for i in range(n - 1, -1, -1):
+        if i:
+            ctx.cx(a[i - 1], a[i])
+        ctx.and_dg(x[i], y[i], a[i])
+        if i:
+            ctx.cx(a[i - 1], x[i])
+            ctx.cx(a[i - 1], y[i])
+    for q in y:
+        ctx.x(q)
+
+
+def gt_top(ctx, x, y, out, anc, k, ctrl=None):
+    """out ^= (ctrl AND) [x > y] decided on the top k bits only ([1128] Sec 4).
+
+    Wrong only when the top k bits tie, and then it answers "no".
+    """
+    k = min(k, len(x))
+    cgt_fused(ctx, ctrl, x[len(x) - k:], y[len(y) - k:], out, anc)

@@ -53,3 +53,42 @@ def semiclassical_iqft(qc, ctrl, out, rungs):
         qc.measure(ctrl, out[i])
         with qc.if_test((out[i], 1)):                # reset for the next rung
             qc.x(ctrl)
+
+
+def semiclassical_iqft_windowed(qc, ctrls, out, windows):
+    """The semiclassical inverse QFT on w recycled control qubits per step.
+
+    `windows[J](qc, addr)` appends window J's operation controlled by the
+    w-qubit address `addr` (little-endian: addr[r] drives rung J*w + r, of
+    weight 2^(J*w + r)); window 0 is the lightest.  `out[i]` receives bit i of
+    the measured integer, exactly as `semiclassical_iqft` would with one
+    qubit -- that routine is the w = 1 case.
+
+    Windowing the *oracle* (one lookup-addition per w rungs) is what makes the
+    2026 ECDLP circuits cheap, and it needs all w rungs of a window alive at
+    once.  So the Fourier transform is taken w steps at a time: heaviest window
+    first, its w qubits get the classical corrections from every bit measured
+    so far, the corrections *between* them are applied coherently (controlled
+    phases: the inverse QFT restricted to the window, the deferred-measurement
+    form of what the one-qubit version does classically), and then all w are
+    measured and reset.  Bit order is unchanged, so the post-processing is too.
+    """
+    w, nw = len(ctrls), len(windows)
+    assert len(out) >= w * nw
+    for Jr, J in enumerate(reversed(range(nw))):
+        base = Jr * w                                  # steps base .. base+w-1
+        for q in ctrls:
+            qc.h(q)
+        windows[J](qc, [ctrls[w - 1 - r] for r in range(w)])
+        for b in range(w):
+            i, q = base + b, ctrls[b]
+            for j in range(base):                      # measured: classical
+                with qc.if_test((out[j], 1)):
+                    qc.p(-math.pi / 2 ** (i - j), q)
+            for bp in range(b):                        # in this window: coherent
+                qc.cp(-math.pi / 2 ** (b - bp), ctrls[bp], q)
+            qc.h(q)
+        for b in range(w):
+            qc.measure(ctrls[b], out[base + b])
+            with qc.if_test((out[base + b], 1)):
+                qc.x(ctrls[b])

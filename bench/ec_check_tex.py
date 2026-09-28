@@ -1,10 +1,12 @@
-"""Confirm that Part VII of shor-complete.tex still says what the benchmark measured.
+"""Confirm that Parts VII and VIII of shor-complete.tex still say what the
+benchmarks measured.
 
 Rather than scraping numbers out of the .tex and hoping to recognise them, this
-regenerates the whole part from `part7_template.tex` + `ec_ablation.json` and
-diffs it against what is actually in the document.  If they agree, then every
-number in Part VII came from a benchmark run, by construction -- there is no
-way for a hand-edit to drift.
+regenerates each part from its template (`part7_template.tex`,
+`part8_template.tex`) and the benchmark JSON files and diffs it against what is
+actually in the document.  If they agree, then every number in those parts
+came from a benchmark run, by construction -- there is no way for a hand-edit
+to drift.
 
 Exit 0 on agreement, 1 otherwise, printing a unified diff.
 """
@@ -15,41 +17,50 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-START = "\\part*{Part VII"
+PARTS = [("\\part*{Part VII", "ec_make_part7.py"),
+         ("\\part*{Part VIII", "make_part8.py")]
 END = "\\begin{thebibliography}"
 
 
-def extract(doc):
+def extract(doc, k):
+    """Part k's text: from the \\clearpage that opens it to the one that opens
+    the next part (or the bibliography)."""
     s = doc.read_text()
-    i = s.index(START)
-    # back up to the \clearpage that opens the part
-    i = s.rindex("\\clearpage", 0, i)
-    j = s.index(END, i)
+    i = s.rindex("\\clearpage", 0, s.index(PARTS[k][0]))
+    if k + 1 < len(PARTS) and PARTS[k + 1][0] in s:
+        j = s.rindex("\\clearpage", 0, s.index(PARTS[k + 1][0]))
+    else:
+        j = s.index(END, i)
     return s[i:j].rstrip("\n") + "\n"
 
 
-def main():
-    gen = subprocess.run([sys.executable, str(ROOT / "bench" / "ec_make_part7.py")],
+def check(k):
+    start, script = PARTS[k]
+    name = start.split("{")[1]
+    gen = subprocess.run([sys.executable, str(ROOT / "bench" / script)],
                          capture_output=True, text=True)
     if gen.returncode != 0:
-        print("generator failed:\n" + gen.stderr)
+        print(f"{name}: generator failed:\n" + gen.stderr)
         return 1
     want = gen.stdout.strip("\n") + "\n"
-    have = extract(ROOT / "shor-complete.tex").strip("\n") + "\n"
-
+    have = extract(ROOT / "shor-complete.tex", k).strip("\n") + "\n"
     if want == have:
         nums = sum(c.isdigit() for c in have)
-        print(f"OK: Part VII matches the generated version exactly "
+        print(f"OK: {name} matches the generated version exactly "
               f"({len(have.splitlines())} lines, {nums} digits, all traceable to "
-              f"bench/ec_ablation.json)")
+              f"bench/*.json)")
         return 0
-
-    print("MISMATCH: Part VII has drifted from the benchmark output.\n")
+    print(f"MISMATCH: {name} has drifted from the benchmark output.\n")
     for line in difflib.unified_diff(want.splitlines(), have.splitlines(),
                                      "generated", "in shor-complete.tex",
                                      lineterm="", n=2):
         print(line)
     return 1
+
+
+def main():
+    text = (ROOT / "shor-complete.tex").read_text()
+    return sum(check(k) for k in range(len(PARTS)) if PARTS[k][0] in text)
 
 
 if __name__ == "__main__":

@@ -264,3 +264,16 @@ def cmodneg(m, ctrl, x, p):
 
 def modneg(m, x, p):
     cmodneg(m, None, x, p)
+
+
+# --- signed modular addition -------------------------------------------------
+def csignadd(m, e, x, y, p):
+    """y <- (y + (-1)^e x) mod p, exact for any odd p.
+
+    -( -y + x ) = y - x, so a conditional negation on each side of one modular
+    addition gives add-or-subtract.  Exact and generic; the cheap form is
+    `ec_approx.csignadd_pm`, which replaces the negations by bit complements.
+    """
+    cmodneg(m, e, y, p)
+    modadd(m, x, y, p)
+    cmodneg(m, e, y, p)

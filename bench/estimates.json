@@ -1,0 +1,360 @@
+{
+  "cold_record": [
+    {
+      "config": "IonQ's cells",
+      "logical": 2233,
+      "record": 802,
+      "physical_all_hot": 3189368.0,
+      "physical_record_cold": 2449924.0
+    },
+    {
+      "config": "fewest qubits",
+      "logical": 1246,
+      "record": 669,
+      "physical_all_hot": 1854944.0,
+      "physical_record_cold": 1238126.0
+    }
+  ],
+  "factories": [
+    {
+      "factories": 6,
+      "physical": 3189368.0,
+      "minutes": 16.675230833333334,
+      "limited_by": "CCZ-throughput"
+    },
+    {
+      "factories": 12,
+      "physical": 3302936.0,
+      "minutes": 8.337615416666667,
+      "limited_by": "CCZ-throughput"
+    },
+    {
+      "factories": 24,
+      "physical": 3530072.0,
+      "minutes": 4.915162,
+      "limited_by": "reaction"
+    },
+    {
+      "factories": 48,
+      "physical": 3984344.0,
+      "minutes": 4.915162,
+      "limited_by": "reaction"
+    }
+  ],
+  "select_swap": [
+    {
+      "w": 15,
+      "lambda": 1,
+      "toffoli_per_lookup": 32768,
+      "saved_per_addition": -6,
+      "extra_qubits": 0
+    },
+    {
+      "w": 15,
+      "lambda": 2,
+      "toffoli_per_lookup": 16896,
+      "saved_per_addition": 47610,
+      "extra_qubits": 512
+    },
+    {
+      "w": 15,
+      "lambda": 3,
+      "toffoli_per_lookup": 11947,
+      "saved_per_addition": 62457,
+      "extra_qubits": 1024
+    },
+    {
+      "w": 15,
+      "lambda": 4,
+      "toffoli_per_lookup": 9728,
+      "saved_per_addition": 69114,
+      "extra_qubits": 1536
+    },
+    {
+      "w": 15,
+      "lambda": 8,
+      "toffoli_per_lookup": 7680,
+      "saved_per_addition": 75258,
+      "extra_qubits": 3584
+    },
+    {
+      "w": 16,
+      "lambda": 1,
+      "toffoli_per_lookup": 65536,
+      "saved_per_addition": -6,
+      "extra_qubits": 0
+    },
+    {
+      "w": 16,
+      "lambda": 2,
+      "toffoli_per_lookup": 33280,
+      "saved_per_addition": 96762,
+      "extra_qubits": 512
+    },
+    {
+      "w": 16,
+      "lambda": 3,
+      "toffoli_per_lookup": 22870,
+      "saved_per_addition": 127992,
+      "extra_qubits": 1024
+    },
+    {
+      "w": 16,
+      "lambda": 4,
+      "toffoli_per_lookup": 17920,
+      "saved_per_addition": 142842,
+      "extra_qubits": 1536
+    },
+    {
+      "w": 16,
+      "lambda": 8,
+      "toffoli_per_lookup": 11776,
+      "saved_per_addition": 161274,
+      "extra_qubits": 3584
+    }
+  ],
+  "windows": [
+    {
+      "w": 12,
+      "signed": false,
+      "additions": 40,
+      "toffoli": 49709896
+    },
+    {
+      "w": 12,
+      "signed": true,
+      "additions": 40,
+      "toffoli": 49464136
+    },
+    {
+      "w": 13,
+      "signed": false,
+      "additions": 36,
+      "toffoli": 45185780
+    },
+    {
+      "w": 13,
+      "signed": true,
+      "additions": 36,
+      "toffoli": 44743412
+    },
+    {
+      "w": 14,
+      "signed": false,
+      "additions": 34,
+      "toffoli": 43519690
+    },
+    {
+      "w": 14,
+      "signed": true,
+      "additions": 34,
+      "toffoli": 42684106
+    },
+    {
+      "w": 15,
+      "signed": false,
+      "additions": 32,
+      "toffoli": 42549920
+    },
+    {
+      "w": 15,
+      "signed": true,
+      "additions": 32,
+      "toffoli": 40977056
+    },
+    {
+      "w": 16,
+      "signed": false,
+      "additions": 28,
+      "toffoli": 40020556
+    },
+    {
+      "w": 16,
+      "signed": true,
+      "additions": 28,
+      "toffoli": 37268044
+    },
+    {
+      "w": 17,
+      "signed": false,
+      "additions": 28,
+      "toffoli": 45591116
+    },
+    {
+      "w": 17,
+      "signed": true,
+      "additions": 28,
+      "toffoli": 40086092
+    },
+    {
+      "w": 18,
+      "signed": false,
+      "additions": 26,
+      "toffoli": 52698658
+    },
+    {
+      "w": 18,
+      "signed": true,
+      "additions": 26,
+      "toffoli": 42475042
+    },
+    {
+      "w": 19,
+      "signed": false,
+      "additions": 24,
+      "toffoli": 67801592
+    },
+    {
+      "w": 19,
+      "signed": true,
+      "additions": 24,
+      "toffoli": 48927224
+    },
+    {
+      "w": 20,
+      "signed": false,
+      "additions": 22,
+      "toffoli": 97322446
+    },
+    {
+      "w": 20,
+      "signed": true,
+      "additions": 22,
+      "toffoli": 62719438
+    }
+  ],
+  "qt": [
+    {
+      "config": "ECDSA.Fail best Q x T (published, classical addend)",
+      "qubits": 1151,
+      "toffoli": 1299453,
+      "qt": 1495670403
+    },
+    {
+      "config": "ECDSA.Fail windowed variant (published)",
+      "qubits": 1162,
+      "toffoli": 1684161,
+      "qt": 1956995082
+    },
+    {
+      "config": "IonQ (published)",
+      "qubits": 1462,
+      "toffoli": 1392608,
+      "qt": 2035992896
+    },
+    {
+      "config": "+ Fig. 1 packing, replay in x's qubits",
+      "qubits": 1845,
+      "toffoli": 1432285,
+      "qt": 2642565825
+    },
+    {
+      "config": "+ signed windows (2^15-entry tables), no Fig. 1",
+      "qubits": 2233,
+      "toffoli": 1328915,
+      "qt": 2967467195
+    },
+    {
+      "config": "+ the same adder in the point addition, approximate negation",
+      "qubits": 2233,
+      "toffoli": 1426965,
+      "qt": 3186412845
+    },
+    {
+      "config": "+ phase-approximate adder in the replay, 37 careful steps",
+      "qubits": 2233,
+      "toffoli": 1430352,
+      "qt": 3193976016
+    },
+    {
+      "config": "+ replay in x's qubits",
+      "qubits": 1863,
+      "toffoli": 1716514,
+      "qt": 3197865582
+    },
+    {
+      "config": "+ CDKM square-subtract and point-add adders",
+      "qubits": 1389,
+      "toffoli": 2335990,
+      "qt": 3244690110
+    },
+    {
+      "config": "+ CDKM dialog walk",
+      "qubits": 1309,
+      "toffoli": 2577278,
+      "qt": 3373656902
+    },
+    {
+      "config": "+ CDKM replay arithmetic (PMSpace)",
+      "qubits": 1713,
+      "toffoli": 2042914,
+      "qt": 3499511682
+    },
+    {
+      "config": "+ Gidney where there is headroom (walk 0.94n, squarer 0.78n)",
+      "qubits": 1246,
+      "toffoli": 2853603,
+      "qt": 3555589338
+    },
+    {
+      "config": "[1128] dialog + sharing + Fig. 1, PMSpace",
+      "qubits": 1557,
+      "toffoli": 2333400,
+      "qt": 3633103800
+    },
+    {
+      "config": "+ Fig. 1 record packing",
+      "qubits": 2119,
+      "toffoli": 1716514,
+      "qt": 3637293166
+    },
+    {
+      "config": "same, dialog replay instead of IonQ's",
+      "qubits": 1557,
+      "toffoli": 2338844,
+      "qt": 3641580108
+    },
+    {
+      "config": "+ CDKM squarer",
+      "qubits": 1246,
+      "toffoli": 2935857,
+      "qt": 3658077822
+    },
+    {
+      "config": "+ lean replay cells (CDKM compare, chunked all-ones, borrowed increment)",
+      "qubits": 1299,
+      "toffoli": 2868531,
+      "qt": 3726221769
+    },
+    {
+      "config": "IonQ-style, Alg 11 replay cells (before)",
+      "qubits": 2251,
+      "toffoli": 1711194,
+      "qt": 3851897694
+    },
+    {
+      "config": "IonQ-style (cond.-inverted, PM, IonQ replay)",
+      "qubits": 2251,
+      "toffoli": 1711194,
+      "qt": 3851897694
+    },
+    {
+      "config": "  (side: cond.-inverted walk, same cells -- its record is not shared)",
+      "qubits": 1468,
+      "toffoli": 2659019,
+      "qt": 3903439892
+    },
+    {
+      "config": "+ CDKM walk adder",
+      "qubits": 1713,
+      "toffoli": 2284770,
+      "qt": 3913811010
+    },
+    {
+      "config": "+ Luo's register-shared EEA instead of the dialog (ECDSA.Fail 5.3.5)",
+      "qubits": 1107,
+      "toffoli": 86033905,
+      "qt": 95239532835
+    }
+  ]
+}

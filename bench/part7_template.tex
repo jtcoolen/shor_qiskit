@@ -1222,6 +1222,45 @@ on $@@tg_full_q@@$ qubits. Most of it is row 4's: one addition is $@@tg_row3_d@@
 $@@tg_row4_d@@$ once the record is packed and the replay runs in $x$'s qubits, and $@@tg_one_d@@$ with
 everything above. Reusing a qubit orders the two steps that use it.
 
+\subsection{SELECT-SWAP lookups}\label{ec:sec:ssw}
+
+Each point addition loads three table words: $(x,y)$ twice, $2n$ bits each, and $3x$ once, $n$ bits.
+Each load is a unary iteration over the table's address, $2^{15}-2$ ANDs with signed windows, and
+each unload is free: measured, and repaired by the one merged phase lookup of the addition.
+SELECT-SWAP \cite{ec:lks18} trades a load's ANDs for qubits. A lookup over the high $w-k$ address
+bits writes $2^k$ consecutive words at once, and $k$ layers of Fredkin gates controlled by the low
+bits move the addressed word into place: $2^{w-k}-2$ ANDs plus $(2^k-1)b$ Fredkins for $b$-bit
+words, on $(2^k-1)b$ extra qubits.
+
+The other words need no uncomputation of their own. After the swaps each holds a word fixed by the
+whole address, so they are measured in the $X$ basis at once, and their phase kickback joins the
+merged repair of the addition's unloads, which costs the same with them as without. The extra
+qubits are live only during the load:
+%%LST ec_mbu.select_swap_lookup drop%%
+
+Whether that is free depends on what else is live then. At a load of $(x,y)$ the accumulator, the
+loaded pair, the window and the lookup's walk hold $@@ssw_live_pt@@$ qubits, so two words per load
+($k=1$) already needs $@@ssw_pt_k1@@$, above the $@@tg_one_q@@$ of \S\ref{ec:sec:onecircuit}. At the
+$3x$ load only $@@ssw_live_3x@@$ are live, and two words fit in $@@ssw_3x_k1@@$. The table builds the
+signed addition of \S\ref{ec:sec:onecircuit} with $k$ swap bits for the point loads and for the $3x$
+load; every setting was checked at toy size on every input, and with its measurements performed.
+
+\begin{center}\small
+\begin{tabular}{lrrrr}
+\toprule
+$k$ (point loads, $3x$ load) & qubits & Toffolis & executed & Toffoli depth\\
+\midrule
+%%SSW%%
+\bottomrule
+\end{tabular}
+\end{center}
+
+With only the $3x$ load on SELECT-SWAP the addition costs $@@ssw_free_exp@@$ executed Toffolis on
+$@@ssw_free_q@@$ qubits, $@@ssw_free_saved@@$ fewer than without it and $@@ssw_free_gap@@\%$ below IonQ's
+figure at the same width. Built end to end, the whole algorithm is $@@ssw_full@@$ Toffolis
+($@@ssw_full_exp@@$ executed) on $@@ssw_full_q@@$ qubits, $@@ssw_full_d@@$ deep. Beyond that each
+step buys less: $@@ssw12_exp@@$ on $@@ssw12_q@@$ qubits, then $@@ssw22_exp@@$ on $@@ssw22_q@@$.
+
 \subsection{Fewer qubits}\label{ec:sec:fewq}
 
 \cite{ec:schrott26} makes the qubit count a statement about one moment. The peak of a point

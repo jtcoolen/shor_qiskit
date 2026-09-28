@@ -4643,6 +4643,7 @@ cond.\ inverted walk and replay, Algorithm~11 cells (as above) & $1\,711\,194$ &
 \quad row 3 + signed windows ($2^{15}$-entry tables) & $1\,340\,563$ & $1\,328\,915$ & $2\,233$\\
 \quad row 4 + lean careful cell, CNOT ends, shared walk, phase fold & $1\,436\,519$ & $1\,424\,871$ & $1\,457$\\
 \quad the same with signed windows (\S\ref{ec:sec:onecircuit}) & $1\,338\,469$ & $1\,326\,821$ & $1\,457$\\
+\quad + SELECT-SWAP on the $3x$ lookup (\S\ref{ec:sec:ssw}) & $1\,322\,341$ & $1\,310\,693$ & $1\,457$\\
 \midrule
 published \cite{ec:ionq26} & --- & $1\,392\,608$ & $1\,457$\\
 \bottomrule
@@ -4716,6 +4717,77 @@ on $2\,233$ qubits. Most of it is row 4's: one addition is $1\,114\,102$ deep in
 $1\,255\,253$ once the record is packed and the replay runs in $x$'s qubits, and $1\,296\,204$ with
 everything above. Reusing a qubit orders the two steps that use it.
 
+\subsection{SELECT-SWAP lookups}\label{ec:sec:ssw}
+
+Each point addition loads three table words: $(x,y)$ twice, $2n$ bits each, and $3x$ once, $n$ bits.
+Each load is a unary iteration over the table's address, $2^{15}-2$ ANDs with signed windows, and
+each unload is free: measured, and repaired by the one merged phase lookup of the addition.
+SELECT-SWAP \cite{ec:lks18} trades a load's ANDs for qubits. A lookup over the high $w-k$ address
+bits writes $2^k$ consecutive words at once, and $k$ layers of Fredkin gates controlled by the low
+bits move the addressed word into place: $2^{w-k}-2$ ANDs plus $(2^k-1)b$ Fredkins for $b$-bit
+words, on $(2^k-1)b$ extra qubits.
+
+The other words need no uncomputation of their own. After the swaps each holds a word fixed by the
+whole address, so they are measured in the $X$ basis at once, and their phase kickback joins the
+merged repair of the addition's unloads, which costs the same with them as without. The extra
+qubits are live only during the load:
+\begin{lstlisting}
+def select_swap_lookup(m, addr, out, table, k, group=None):
+    w, b = len(addr), len(out)
+    k = min(k, w)
+    if k == 0:
+        lookup(m, addr, out, table)
+        return
+    lam = 1 << k
+    lo, hi = list(addr[:k]), list(addr[k:])
+
+    def word(v):
+        return table[v] if v < len(table) else 0
+    junk = m.anc((lam - 1) * b, "ssw")
+    blocks = [list(out)] + [list(junk[j * b:(j + 1) * b]) for j in range(lam - 1)]
+    wide = [sum(word((v << k) | j) << (j * b) for j in range(lam)) for v in range(1 << (w - k))]
+    lookup(m, hi, [q for blk in blocks for q in blk], wide)
+    for i in reversed(range(k)):                  # block 0 <- word a_lo
+        s = 1 << i
+        for j in range(s):
+            for qa, qb in zip(blocks[j], blocks[j + s]):
+                m.ctx.cswap(lo[i], qa, qb)
+    G = []                                        # the junk, as a function of addr
+    for a in range(1 << w):
+        idx, base = swap_network_order(k, a & (lam - 1)), (a >> k) << k
+        G.append(sum(word(base | idx[j]) << ((j - 1) * b) for j in range(1, lam)))
+    unlookup(m, addr, junk, G, group=group)
+    m.free(junk)
+\end{lstlisting}
+
+Whether that is free depends on what else is live then. At a load of $(x,y)$ the accumulator, the
+loaded pair, the window and the lookup's walk hold $1\,054$ qubits, so two words per load
+($k=1$) already needs $1\,565$, above the $1\,457$ of \S\ref{ec:sec:onecircuit}. At the
+$3x$ load only $798$ are live, and two words fit in $1\,053$. The table builds the
+signed addition of \S\ref{ec:sec:onecircuit} with $k$ swap bits for the point loads and for the $3x$
+load; every setting was checked at toy size on every input, and with its measurements performed.
+
+\begin{center}\small
+\begin{tabular}{lrrrr}
+\toprule
+$k$ (point loads, $3x$ load) & qubits & Toffolis & executed & Toffoli depth\\
+\midrule
+$(0, 0)$ & $1\,457$ & $1\,338\,469$ & $1\,326\,821$ & $1\,198\,152$\\
+$(0, 1)$ & $1\,457$ & $1\,322\,341$ & $1\,310\,693$ & $1\,182\,024$\\
+$(1, 1)$ & $1\,565$ & $1\,290\,597$ & $1\,278\,949$ & $1\,150\,276$\\
+$(1, 2)$ & $1\,565$ & $1\,282\,917$ & $1\,271\,269$ & $1\,142\,347$\\
+$(2, 2)$ & $2\,588$ & $1\,268\,581$ & $1\,256\,933$ & $1\,126\,989$\\
+$(3, 3)$ & $4\,635$ & $1\,261\,413$ & $1\,249\,765$ & $1\,117\,009$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+With only the $3x$ load on SELECT-SWAP the addition costs $1\,310\,693$ executed Toffolis on
+$1\,457$ qubits, $16\,128$ fewer than without it and $5.9\%$ below IonQ's
+figure at the same width. Built end to end, the whole algorithm is $37\,084\,197$ Toffolis
+($36\,758\,053$ executed) on $1\,457$ qubits, $33\,155\,321$ deep. Beyond that each
+step buys less: $1\,271\,269$ on $1\,565$ qubits, then $1\,256\,933$ on $2\,588$.
+
 \subsection{Fewer qubits}\label{ec:sec:fewq}
 
 \cite{ec:schrott26} makes the qubit count a statement about one moment. The peak of a point
@@ -4780,6 +4852,7 @@ dialog, register sharing, Fig.~1, CDKM replay cells & $1\,557$ & $2\,333\,400$\\
 \quad + lean replay cells & $1\,299$ & $2\,868\,531$\\
 \quad + CDKM squarer & $1\,246$ & $2\,935\,857$\\
 \quad + Gidney adders where there is headroom & $1\,246$ & $2\,853\,603$\\
+\quad + SELECT-SWAP on the $3x$ lookup (\S\ref{ec:sec:ssw}) & $1\,246$ & $2\,821\,091$\\
 \quad + Luo's register-shared EEA instead of the dialog \cite{ec:ecdsafail26} & $1\,107$ & $86\,033\,905$\\
 (cond.\ inverted walk, same cells: its record is not shared) & $1\,468$ & $2\,659\,019$\\
 \bottomrule
@@ -4789,7 +4862,7 @@ dialog, register sharing, Fig.~1, CDKM replay cells & $1\,557$ & $2\,333\,400$\\
 The best row is $1\,246$ qubits, $4.87n$: the record's $669$ ($x$'s own $256$
 among them), $512$ for the multiplicand and the accumulator, $16$ for the window, and a few dozen of
 scratch, most of it the register that holds $f$. \cite{ec:schrott26} reports $4.355n+O(\sqrt n)$,
-or $1\,192$ qubits plus the window. The price is Toffolis: $2\,853\,603$ here, against
+or $1\,192$ qubits plus the window. The price is Toffolis: $2\,821\,091$ here, against
 $1\,711\,194$ at the $2\,251$ qubits where the table starts, and against
 \cite{ec:schrott26}'s $2.39\times10^6$ for its space-optimised circuit. IonQ reports its Toffoli
 count at $1\,457$ qubits; on IonQ's cells, \S\ref{ec:sec:onecircuit} reaches both.
@@ -5268,8 +5341,8 @@ headline, $897\,864$ physical qubits and $4.96$ days.
 \toprule
 whole algorithm & logical qubits & Toffolis & physical qubits & days\\
 \midrule
-ECDLP-256, IonQ's cells, signed windows & $1\,457$ & $3.72\times10^{7}$ & $2\,140\,216$ & $0.01$\\
-ECDLP-256, fewest qubits & $1\,246$ & $8.00\times10^{7}$ & $1\,854\,944$ & $0.02$\\
+ECDLP-256, IonQ's cells, signed windows & $1\,457$ & $3.68\times10^{7}$ & $2\,140\,216$ & $0.01$\\
+ECDLP-256, fewest qubits & $1\,246$ & $7.91\times10^{7}$ & $1\,854\,944$ & $0.02$\\
 RSA-1024, Gidney 2025 residue arithmetic & $800$ & $1.18\times10^{9}$ & $661\,872$ & $0.34$\\
 RSA-2048, Gidney 2025 residue arithmetic & $1\,467$ & $6.95\times10^{9}$ & $973\,576$ & $2.07$\\
 RSA-3072, Gidney 2025 residue arithmetic & $2\,115$ & $1.97\times10^{10}$ & $1\,259\,592$ & $6.44$\\
@@ -5288,12 +5361,12 @@ that throughput and the exact Toffoli depth times the reaction time; here the th
 binds. RSA's exponent register, idle except for its control windows, sits in cold yoked storage at
 a third of the hot cost. The elliptic-curve circuits recycle their control qubits and keep
 everything else busy. That is why RSA-2048 needs fewer \emph{physical} qubits than secp256k1 at a
-comparable logical count, while taking $192$ times as long.
+comparable logical count, while taking $195$ times as long.
 
 The logical qubit counts are close: $1\,457$ for secp256k1 on IonQ's cells with signed windows
-(Part~VII, \S\ref{ec:sec:onecircuit}), $1\,246$ on
-the fewest-qubit cells, against $1\,467$ for RSA-2048. The Toffoli counts are not: $3.72\times10^{7}$
-against $6.95\times10^{9}$, a factor of $187$. Four things explain that factor.
+(Part~VII, \S\S\ref{ec:sec:onecircuit}--\ref{ec:sec:ssw}), $1\,246$ on
+the fewest-qubit cells, against $1\,467$ for RSA-2048. The Toffoli counts are not: $3.68\times10^{7}$
+against $6.95\times10^{9}$, a factor of $189$. Four things explain that factor.
 
 \begin{enumerate}\setlength\itemsep{2pt}
 \item \textbf{The numbers are eight times shorter.} Both algorithms spend their time on modular
@@ -5312,7 +5385,7 @@ loop1 reads all $W_1=214$ exponent windows, and there are $|P|\approx n W_1/\ell
 primes, so a shot costs $\Theta(n\,m^2/(\ell\,w_1^2))$ lookups and additions of $\approx\ell$ bits.
 \item \textbf{At equal classical security the gap widens.} RSA-2048 gives 112-bit security.
 RSA-3072, the RSA size matched to secp256k1's 128 bits, costs $1.97\times10^{10}$ Toffolis here,
-$530\times$ the elliptic-curve count.
+$537\times$ the elliptic-curve count.
 \end{enumerate}
 
 \begin{center}
@@ -5320,9 +5393,9 @@ $530\times$ the elliptic-curve count.
 \end{center}
 
 \begin{keybox}[title={The gap, in one line}]
-At comparable qubit counts, breaking secp256k1 costs about $187$ times fewer Toffolis than
-factoring RSA-2048, and $530$ times fewer than RSA-3072 at equal classical security. In
-the same surface-code model that is $16$ minutes against $2.1$ days. Elliptic-curve keys
+At comparable qubit counts, breaking secp256k1 costs about $189$ times fewer Toffolis than
+factoring RSA-2048, and $537$ times fewer than RSA-3072 at equal classical security. In
+the same surface-code model that is $15$ minutes against $2.1$ days. Elliptic-curve keys
 of today's sizes fall before RSA keys of today's sizes.
 \end{keybox}
 
@@ -5538,6 +5611,11 @@ arXiv:2505.15917, 2025.
 D.~Litinski,
 \emph{How to compute a 256-bit elliptic curve private key with only 50 million Toffoli gates},
 arXiv:2306.08585, 2023.
+
+\bibitem{ec:lks18}
+G.~H. Low, V.~Kliuchnikov, and L.~Schaeffer,
+\emph{Trading T-gates for dirty qubits in state preparation and unitary synthesis}, 2018.
+arXiv:1812.00954.
 
 \bibitem{ec:gidney15}
 C.~Gidney,

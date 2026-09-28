@@ -408,6 +408,64 @@ def unlookup(m, addr, out, table, ctrl=None, group=None, l=None, repair="onehot"
         _groups(m).setdefault(group, []).append((tuple(addr), ctrl))
 
 
+def swap_network_order(k, a_lo):
+    """Which of the 2^k loaded words each block holds after `select_swap_lookup`'s
+    swap network on low address bits a_lo: block 0 holds word a_lo."""
+    idx = list(range(1 << k))
+    for i in reversed(range(k)):
+        if (a_lo >> i) & 1:
+            s = 1 << i
+            for j in range(s):
+                idx[j], idx[j + s] = idx[j + s], idx[j]
+    return idx
+
+
+def select_swap_ands(w, k, b):
+    """Toffolis of a SELECT-SWAP load of b-bit words, uncontrolled: the lookup
+    over w - k high bits plus (2^k - 1) b Fredkins.  The junk is cleared by
+    measurement."""
+    return walk_ands(w - k, False) + ((1 << k) - 1) * b
+
+
+def select_swap_lookup(m, addr, out, table, k, group=None):
+    """out ^= table[addr], uncontrolled, by SELECT-SWAP (Low, Kliuchnikov and
+    Schaeffer 2018).
+
+    A lookup over the high w - k address bits loads lam = 2^k consecutive words
+    at once -- `out` and lam - 1 junk blocks -- and k layers of swaps controlled
+    by the low bits move word a_lo into `out`: 2^(w-k) - 2 ANDs and (lam - 1) b
+    Fredkins instead of 2^w - 2 ANDs.  After the swaps every junk block holds a
+    word that is a known function of the whole address, so the junk is cleared
+    at once by X-measurement and its phase kickback joins `group`'s merged
+    repair (or is repaired here without one): the (lam - 1) b extra qubits are
+    live only during the load, and the unload of `out` is unchanged."""
+    w, b = len(addr), len(out)
+    k = min(k, w)
+    if k == 0:
+        lookup(m, addr, out, table)
+        return
+    lam = 1 << k
+    lo, hi = list(addr[:k]), list(addr[k:])
+
+    def word(v):
+        return table[v] if v < len(table) else 0
+    junk = m.anc((lam - 1) * b, "ssw")
+    blocks = [list(out)] + [list(junk[j * b:(j + 1) * b]) for j in range(lam - 1)]
+    wide = [sum(word((v << k) | j) << (j * b) for j in range(lam)) for v in range(1 << (w - k))]
+    lookup(m, hi, [q for blk in blocks for q in blk], wide)
+    for i in reversed(range(k)):                  # block 0 <- word a_lo
+        s = 1 << i
+        for j in range(s):
+            for qa, qb in zip(blocks[j], blocks[j + s]):
+                m.ctx.cswap(lo[i], qa, qb)
+    G = []                                        # the junk, as a function of addr
+    for a in range(1 << w):
+        idx, base = swap_network_order(k, a & (lam - 1)), (a >> k) << k
+        G.append(sum(word(base | idx[j]) << ((j - 1) * b) for j in range(1, lam)))
+    unlookup(m, addr, junk, G, group=group)
+    m.free(junk)
+
+
 def _groups(m):
     if not hasattr(m, "_mbu_groups"):
         m._mbu_groups = {}

@@ -176,6 +176,12 @@ class PointAddCfg:
     neg         "exact": ec_modarith.cmodneg.  Or a callable neg(m, ctrl, x, p).
     add         None: exact modadd/modsub.  Or an object with
                 .add(m, x, y, p) and .sub(m, x, y, p)  (y <- y +- x).
+    select_swap SELECT-SWAP loads (`ec_mbu.select_swap_lookup`, lookup="mbu"
+                only): k low address bits go to a swap network, 2^k words
+                per load.  An int applies to every load; a pair (k_point,
+                k_3x) sets the point loads and step 7's 3x load apart, since
+                their junk (2^k - 1 words of 2n and n bits) fits under
+                different peaks.
     """
     lookup: str = "recompute"
     merge_xy: bool = False
@@ -187,6 +193,7 @@ class PointAddCfg:
     neg: object = "exact"
     add: object = None
     iters: object = None
+    select_swap: object = 0
 
 
 IONQ_LOOKUPS = PointAddCfg(lookup="mbu", merge_xy=True, offsets=True, free_xy1=True)
@@ -235,8 +242,13 @@ def windowed_point_add_cfg(m, addr, x2, y2, points, p, cfg=PointAddCfg()):
         one = m.anc(1, "one")
         ctx.x(one[0])
 
-    def load(reg, table):
-        if mbu:
+    ssw = cfg.select_swap if isinstance(cfg.select_swap, tuple) else (cfg.select_swap,) * 2
+    assert mbu or not any(ssw), "SELECT-SWAP clears its junk by measurement: lookup='mbu'"
+
+    def load(reg, table, k=ssw[0]):
+        if mbu and k:
+            MB.select_swap_lookup(m, addr, reg, table, k, group=grp)
+        elif mbu:
             MB.lookup(m, addr, reg, table)
         else:
             _lookup(m, one[0], addr, reg, table)
@@ -280,7 +292,7 @@ def windowed_point_add_cfg(m, addr, x2, y2, points, p, cfg=PointAddCfg()):
     div()                                              # 6  y2 <- y2 / x2
 
     xx = m.anc(n, "3x")
-    load(xx, x3s)                                      # 7
+    load(xx, x3s, ssw[1])                              # 7
     add(xx, x2)                                        # 8
     unload(xx, x3s)                                    # 9
     m.free(xx)

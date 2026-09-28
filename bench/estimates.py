@@ -8,13 +8,8 @@ stated next to its result.  These are estimates, not builds:
                   compare_ecc_rsa.py
   factories       more CCZ factories: runtime against physical qubits, down to
                   the reaction-limited floor (depth x 10 us)
-  select_swap     SELECT-SWAP lookups (Low-Kliuchnikov-Schaeffer): 2^w / lam +
-                  lam * b Toffolis for lam * b extra qubits, for the three
-                  lookups of each addition; and whether those qubits fit under the
-                  one-circuit peak (live at a lookup: x, y, the loaded pair, the
-                  window and its unary iteration, 4n + 2w - 1)
   windows         the window size w: additions against lookup cost, unsigned
-                  and signed
+                  and signed, with the 3x load on SELECT-SWAP (2 words) as built
   qt              qubits x Toffolis (ECDSA.Fail's score) of the built points
 
     ./venv/bin/python bench/estimates.py      # writes bench/estimates.json
@@ -39,7 +34,7 @@ def cold_record():
     rec_ci = G.record_qubits(G.CondInv(c_pad=2.3, compress="fig1"), N)   # packed, both
     rec_fig1 = sp["_record_qubits"]
     rows = []
-    full = tg["full_algorithm_one_circuit"]
+    full = tg["full_algorithm_select_swap"]
     few = {r["label"]: r for r in J("compare_ecc_rsa.json")["rows"]}["ECDLP-256, fewest qubits"]
     for label, q, t, depth, rec in (
             ("IonQ's cells, signed windows", full["qubits_semiclassical"], full["expected"],
@@ -56,7 +51,7 @@ def cold_record():
 
 
 def factories():
-    full = J("ec_toffoli_256.json")["full_algorithm_one_circuit"]
+    full = J("ec_toffoli_256.json")["full_algorithm_select_swap"]
     out = []
     for k in (6, 12, 24, 48):
         code = PH.SurfaceCode(factories=k, compute_patches=(7, 18 + 4 * (k - 6) // 6 * 3))
@@ -68,22 +63,6 @@ def factories():
     return out
 
 
-def select_swap():
-    b = 2 * N                                                       # (x, y) loaded together
-    peak = J("ec_toffoli_256.json")["full_algorithm_one_circuit"]["qubits_semiclassical"]
-    out = []
-    for w in (15, 16):                                              # signed / unsigned
-        base = (1 << w) - 2
-        for lam in (1, 2, 3, 4, 8):
-            t = math.ceil((1 << w) / lam) + (lam - 1) * b
-            live = 4 * N + 2 * W - 1 + (lam - 1) * b                # at a lookup
-            out.append({"w": w, "lambda": lam, "toffoli_per_lookup": t,
-                        "saved_per_addition": 3 * (base - t), "extra_qubits": (lam - 1) * b,
-                        "live_at_lookup": live, "one_circuit_peak": peak,
-                        "raises_peak_by": max(0, live - peak)})
-    return out
-
-
 def windows():
     tg = J("ec_toffoli_256.json")["rows"]
     one = "+ Fig. 1, x's qubits, lean careful cell, CNOT ends, shared walk, phase fold"
@@ -92,8 +71,9 @@ def windows():
     for w in range(12, 21):
         adds = 2 * math.ceil(N / w) - 1 - 3                          # first lookup, 3 dropped
         for signed in (False, True):
-            L = (1 << (w - 1 if signed else w)) - 2
-            total = adds * (arith + 3 * L) + (1 << w)
+            a = w - 1 if signed else w
+            lookups = 2 * ((1 << a) - 2) + ((1 << (a - 1)) - 2 + N)   # 3x load: SELECT-SWAP
+            total = adds * (arith + lookups) + (1 << w)
             out.append({"w": w, "signed": signed, "additions": adds, "toffoli": total})
     return out
 
@@ -118,7 +98,7 @@ def qt():
 
 def main():
     out = {"cold_record": cold_record(), "factories": factories(),
-           "select_swap": select_swap(), "windows": windows(), "qt": qt()}
+           "windows": windows(), "qt": qt()}
     (ROOT / "bench" / "estimates.json").write_text(json.dumps(out, indent=2))
     for k, v in out.items():
         print(f"== {k}")

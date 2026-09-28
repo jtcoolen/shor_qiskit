@@ -306,7 +306,17 @@ TOFF_LABELS = {
         "\\quad row 4 + lean careful cell, CNOT ends, shared walk, phase fold",
     "  the same with signed windows: IonQ's count and qubits in one circuit":
         "\\quad the same with signed windows (\\S\\ref{ec:sec:onecircuit})",
+    "  + SELECT-SWAP on the 3x lookup (2 words per load): no extra qubits":
+        "\\quad + SELECT-SWAP on the $3x$ lookup (\\S\\ref{ec:sec:ssw})",
 }
+
+
+def rows_ssw():
+    out = []
+    for r in TG["select_swap"]:
+        out.append(f"$({r['k_point']}, {r['k_3x']})$ & ${num(r['qubits'])}$ & ${num(r['toffoli'])}$ & "
+                   f"${num(r['expected'])}$ & ${num(r['toffoli_depth'])}$\\\\")
+    return "\n".join(out)
 
 
 def rows_toff():
@@ -355,6 +365,8 @@ SPACE_LABELS = {
     "+ CDKM squarer": "\\quad + CDKM squarer",
     "+ Gidney where there is headroom (walk 0.94n, squarer 0.78n)":
         "\\quad + Gidney adders where there is headroom",
+    "+ SELECT-SWAP on the 3x lookup (2 words; its junk fits under the peak)":
+        "\\quad + SELECT-SWAP on the $3x$ lookup (\\S\\ref{ec:sec:ssw})",
     "+ Luo's register-shared EEA instead of the dialog (ECDSA.Fail 5.3.5)":
         "\\quad + Luo's register-shared EEA instead of the dialog \\cite{ec:ecdsafail26}",
     "  (side: cond.-inverted walk, same cells -- its record is not shared)":
@@ -569,10 +581,26 @@ def facts():
     f["tg_onefull_q"] = num(f1["qubits_semiclassical"])
     f["tg_onefull_d"] = num(f1["toffoli_depth"])
     f["tg_full_d"], f["tg_full_q"] = num(fl["toffoli_depth"]), num(fl["qubits_semiclassical"])
+    # --- SELECT-SWAP
+    n, a = 256, 15                               # signed windows: 15 table-address bits
+    live = lambda b, k: 16 + 2 * n + (1 << k) * b + max(0, a - k - 1)   # window, x, y, words, walk
+    f["ssw_live_pt"], f["ssw_pt_k1"] = num(live(2 * n, 0)), num(live(2 * n, 1))
+    f["ssw_live_3x"], f["ssw_3x_k1"] = num(live(n, 0)), num(live(n, 1))
+    sw = {(r["k_point"], r["k_3x"]): r for r in TG["select_swap"]}
+    assert sw[(1, 1)]["qubits"] == live(2 * n, 1) and sw[(0, 1)]["qubits"] == ones["qubits"]
+    free = TG["rows"]["  + SELECT-SWAP on the 3x lookup (2 words per load): no extra qubits"]
+    f["ssw_free_exp"], f["ssw_free_q"] = num(free["expected"]), num(free["qubits"])
+    f["ssw_free_saved"] = num(ones["expected"] - free["expected"])
+    f["ssw_free_gap"] = f"{100 * (1 - free['expected'] / pub['toffoli']):.1f}"
+    f["ssw12_q"], f["ssw12_exp"] = num(sw[(1, 2)]["qubits"]), num(sw[(1, 2)]["expected"])
+    f["ssw22_q"], f["ssw22_exp"] = num(sw[(2, 2)]["qubits"]), num(sw[(2, 2)]["expected"])
+    fs = TG["full_algorithm_select_swap"]
+    f["ssw_full"], f["ssw_full_exp"] = num(fs["toffoli"]), num(fs["expected"])
+    f["ssw_full_q"], f["ssw_full_d"] = num(fs["qubits_semiclassical"]), num(fs["toffoli_depth"])
     # --- the qubit frontier
     sp = {k: v for k, v in SPC.items() if not k.startswith("_")}
     first, best = sp["IonQ-style (cond.-inverted, PM, IonQ replay)"], \
-        sp["+ Gidney where there is headroom (walk 0.94n, squarer 0.78n)"]
+        sp["+ SELECT-SWAP on the 3x lookup (2 words; its junk fits under the peak)"]
     f["sp_start_q"], f["sp_start_t"] = num(first["qubits"]), num(first["toffoli"])
     f["sp_best_q"], f["sp_best_t"] = num(best["qubits"]), num(best["toffoli"])
     f["sp_best_n"] = f"{best['qubits'] / 256:.2f}"
@@ -600,7 +628,7 @@ if __name__ == "__main__":
             "TOFF_PARTS": rows_toff_parts(), "SPACE256": rows_space256(),
             "DEPTH256": rows_depth256(), "CAT_CLA": rows_cat_cla(), "CAT_PROJ": rows_cat_proj(),
             "CAT_ED": rows_cat_ed(), "CAT_BATCH": rows_cat_batch(),
-            "CAT_CENSUS": rows_cat_census(), "CAT_LUO": rows_cat_luo()}
+            "CAT_CENSUS": rows_cat_census(), "CAT_LUO": rows_cat_luo(), "SSW": rows_ssw()}
     for k, v in subs.items():
         tpl = tpl.replace(f"%%{k}%%", v)
     for k, v in facts().items():

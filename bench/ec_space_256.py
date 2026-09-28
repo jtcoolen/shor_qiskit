@@ -64,6 +64,8 @@ def rows():
         "+ CDKM squarer": W.PointAddCfg(**squarer(True), mul=dialog(pml, walk_space=True)),
         "+ Gidney where there is headroom (walk 0.94n, squarer 0.78n)": W.PointAddCfg(
             **squarer(200), mul=dialog(pml, walk_space=240)),
+        "+ SELECT-SWAP on the 3x lookup (2 words; its junk fits under the peak)": W.PointAddCfg(
+            **squarer(200), mul=dialog(pml, walk_space=240), select_swap=(0, 1)),
         "+ Luo's register-shared EEA instead of the dialog (ECDSA.Fail 5.3.5)":
             W.PointAddCfg(**squarer(True), mul=__import__("ec_luo").Luo()),
         "  (side: cond.-inverted walk, same cells -- its record is not shared)":

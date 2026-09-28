@@ -642,7 +642,8 @@ constant adder, then the squarer):
 | + CDKM dialog walk (`Dialog(walk_space=True)`) | 1,309 | 2,577,278 | 2,159,123 |
 | + lean replay cells (`PMSpace(lean=True)`) | 1,299 | 2,868,531 | 2,387,717 |
 | + CDKM squarer | **1,246** | 2,935,857 | 2,455,813 |
-| + Gidney adders where there is headroom (walk ≤ 0.94n, squarer ≤ 0.78n ancillas) | **1,246** | **2,853,603** | 2,372,502 |
+| + Gidney adders where there is headroom (walk ≤ 0.94n, squarer ≤ 0.78n ancillas) | **1,246** | 2,853,603 | 2,372,502 |
+| + SELECT-SWAP on the 3x lookup (`select_swap=(0, 1)`: its junk fits under the peak) | **1,246** | **2,821,091** | 2,339,990 |
 | + Luo's register-shared EEA instead of the dialog (`PointAddCfg(mul=Luo())`) | 1,107 | 86,033,905 | 66,428,000 |
 | published: [1128] space-optimised, secp256k1 (+16 window qubits) | 1,208 | 2,390,000 | |
 | published: IonQ | 1,457 | 1,392,608 | |
@@ -703,7 +704,7 @@ p = 1e-3, 1 µs cycles, 10 µs reaction, six CCZ factories; plots in `doc/figure
 | whole algorithm | logical qubits | Toffolis | physical qubits | runtime |
 |---|---:|---:|---:|---:|
 | ECDLP-256, IonQ's cells, signed windows (built) | 1,457 | 3.68e7 | 2,140,216 | 15 min |
-| ECDLP-256, fewest qubits (built) | 1,246 | 8.00e7 | 1,854,944 | 33 min |
+| ECDLP-256, fewest qubits (built) | 1,246 | 7.91e7 | 1,854,944 | 33 min |
 | RSA-2048, Gidney 2025 (built) | 1,467 | 6.95e9 | 973,576 | 2.1 days |
 | RSA-3072, Gidney 2025 (built) | 2,115 | 1.97e10 | 1,259,592 | 6.4 days |
 | RSA-2048, Gidney 2025 (published) | 1,399 | 6.5e9 | 881,640 | 1.9 days |

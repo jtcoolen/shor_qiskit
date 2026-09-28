@@ -41,7 +41,7 @@ def space_full():
         square=lambda m, c, s, a, p: SP.csub_square_pm_space(m, c, s, a, p, msbs=MSBS,
                                                              sqr_space=200, lean=True),
         mul=G.Dialog(arith=pml, fused_cmp=True, cmp_msbs=CMP, c_pad=2.3, share=True,
-                     compress="fig1", walk_space=240))
+                     compress="fig1", walk_space=240), select_swap=(0, 1))
     rng = random.Random(3)
     Q = CURVE.mul(rng.randrange(1, ORDER), GEN)
     S0 = CURVE.mul(rng.randrange(1, ORDER), GEN)

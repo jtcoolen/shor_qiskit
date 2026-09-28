@@ -365,6 +365,8 @@ SPACE_LABELS = {
     "+ CDKM squarer": "\\quad + CDKM squarer",
     "+ Gidney where there is headroom (walk 0.94n, squarer 0.78n)":
         "\\quad + Gidney adders where there is headroom",
+    "+ SELECT-SWAP on the 3x lookup (2 words; its junk fits under the peak)":
+        "\\quad + SELECT-SWAP on the $3x$ lookup (\\S\\ref{ec:sec:ssw})",
     "+ Luo's register-shared EEA instead of the dialog (ECDSA.Fail 5.3.5)":
         "\\quad + Luo's register-shared EEA instead of the dialog \\cite{ec:ecdsafail26}",
     "  (side: cond.-inverted walk, same cells -- its record is not shared)":
@@ -598,7 +600,7 @@ def facts():
     # --- the qubit frontier
     sp = {k: v for k, v in SPC.items() if not k.startswith("_")}
     first, best = sp["IonQ-style (cond.-inverted, PM, IonQ replay)"], \
-        sp["+ Gidney where there is headroom (walk 0.94n, squarer 0.78n)"]
+        sp["+ SELECT-SWAP on the 3x lookup (2 words; its junk fits under the peak)"]
     f["sp_start_q"], f["sp_start_t"] = num(first["qubits"]), num(first["toffoli"])
     f["sp_best_q"], f["sp_best_t"] = num(best["qubits"]), num(best["toffoli"])
     f["sp_best_n"] = f"{best['qubits'] / 256:.2f}"

@@ -59,6 +59,11 @@
     "qubits": 1246,
     "toffoli_depth": 2372502
   },
+  "+ SELECT-SWAP on the 3x lookup (2 words; its junk fits under the peak)": {
+    "toffoli": 2821091,
+    "qubits": 1246,
+    "toffoli_depth": 2339990
+  },
   "+ Luo's register-shared EEA instead of the dialog (ECDSA.Fail 5.3.5)": {
     "toffoli": 86033905,
     "qubits": 1107,

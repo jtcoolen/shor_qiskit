@@ -4852,6 +4852,7 @@ dialog, register sharing, Fig.~1, CDKM replay cells & $1\,557$ & $2\,333\,400$\\
 \quad + lean replay cells & $1\,299$ & $2\,868\,531$\\
 \quad + CDKM squarer & $1\,246$ & $2\,935\,857$\\
 \quad + Gidney adders where there is headroom & $1\,246$ & $2\,853\,603$\\
+\quad + SELECT-SWAP on the $3x$ lookup (\S\ref{ec:sec:ssw}) & $1\,246$ & $2\,821\,091$\\
 \quad + Luo's register-shared EEA instead of the dialog \cite{ec:ecdsafail26} & $1\,107$ & $86\,033\,905$\\
 (cond.\ inverted walk, same cells: its record is not shared) & $1\,468$ & $2\,659\,019$\\
 \bottomrule
@@ -4861,7 +4862,7 @@ dialog, register sharing, Fig.~1, CDKM replay cells & $1\,557$ & $2\,333\,400$\\
 The best row is $1\,246$ qubits, $4.87n$: the record's $669$ ($x$'s own $256$
 among them), $512$ for the multiplicand and the accumulator, $16$ for the window, and a few dozen of
 scratch, most of it the register that holds $f$. \cite{ec:schrott26} reports $4.355n+O(\sqrt n)$,
-or $1\,192$ qubits plus the window. The price is Toffolis: $2\,853\,603$ here, against
+or $1\,192$ qubits plus the window. The price is Toffolis: $2\,821\,091$ here, against
 $1\,711\,194$ at the $2\,251$ qubits where the table starts, and against
 \cite{ec:schrott26}'s $2.39\times10^6$ for its space-optimised circuit. IonQ reports its Toffoli
 count at $1\,457$ qubits; on IonQ's cells, \S\ref{ec:sec:onecircuit} reaches both.
@@ -5341,7 +5342,7 @@ headline, $897\,864$ physical qubits and $4.96$ days.
 whole algorithm & logical qubits & Toffolis & physical qubits & days\\
 \midrule
 ECDLP-256, IonQ's cells, signed windows & $1\,457$ & $3.68\times10^{7}$ & $2\,140\,216$ & $0.01$\\
-ECDLP-256, fewest qubits & $1\,246$ & $8.00\times10^{7}$ & $1\,854\,944$ & $0.02$\\
+ECDLP-256, fewest qubits & $1\,246$ & $7.91\times10^{7}$ & $1\,854\,944$ & $0.02$\\
 RSA-1024, Gidney 2025 residue arithmetic & $800$ & $1.18\times10^{9}$ & $661\,872$ & $0.34$\\
 RSA-2048, Gidney 2025 residue arithmetic & $1\,467$ & $6.95\times10^{9}$ & $973\,576$ & $2.07$\\
 RSA-3072, Gidney 2025 residue arithmetic & $2\,115$ & $1.97\times10^{10}$ & $1\,259\,592$ & $6.44$\\

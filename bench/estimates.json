@@ -237,6 +237,12 @@
       "qt": 3499511682
     },
     {
+      "config": "+ SELECT-SWAP on the 3x lookup (2 words; its junk fits under the peak)",
+      "qubits": 1246,
+      "toffoli": 2821091,
+      "qt": 3515079386
+    },
+    {
       "config": "+ Gidney where there is headroom (walk 0.94n, squarer 0.78n)",
       "qubits": 1246,
       "toffoli": 2853603,

@@ -71,7 +71,7 @@ def main():
                      "hours_per_shot": est["hours_per_shot"],
                      "runtime_model": est["runtime_model"], "source": source})
 
-    f = tg["full_algorithm_one_circuit"]              # IonQ's count and qubits, one circuit
+    f = tg["full_algorithm_select_swap"]              # one circuit, SELECT-SWAP on the 3x load
     add("ECDLP-256, IonQ's cells, signed windows", "built", "ECC", f["qubits_semiclassical"], f["expected"],
         f.get("toffoli_depth"))
     sp = space_full()

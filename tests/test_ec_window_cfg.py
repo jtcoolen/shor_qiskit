@@ -5,8 +5,11 @@
     a p = 61 curve, exceptional pairs excluded and counted;
   * lookups cost what IonQ/1128 say: three loads, one repair;
   * the measurement-based configurations are phase-correct when their
-    measurements are actually performed (ec_mbu.run_live).
+    measurements are actually performed (ec_mbu.run_live);
+  * SELECT-SWAP loads cost 2^(w-k) - 2 + (2^k - 1) b and clear their junk by
+    measurement into the same merged repair.
 """
+import dataclasses
 import itertools
 import random
 
@@ -61,6 +64,9 @@ CONFIGS = {
     "mbu+serial": W.PointAddCfg(lookup="mbu", serial_load=True),
     "recompute+free": W.PointAddCfg(free_xy1=True),
     "IonQ (mbu+merge+free+offsets)": W.IONQ_LOOKUPS,
+    "IonQ + SELECT-SWAP k = 1": dataclasses.replace(W.IONQ_LOOKUPS, select_swap=1),
+    "IonQ + SELECT-SWAP on 3x, k = 2": dataclasses.replace(W.IONQ_LOOKUPS, select_swap=(0, 2)),
+    "mbu+serial + SELECT-SWAP k = 1": W.PointAddCfg(lookup="mbu", serial_load=True, select_swap=1),
 }
 
 
@@ -120,11 +126,28 @@ def main():
     assert base["qubits"] - ionq["qubits"] >= 2 * n
     ok("measured lookup cost matches 3 (L-2) + one sqrt(L) repair exactly")
 
+    section("SELECT-SWAP: 2^(w-k) - 2 ANDs + (2^k - 1) b Fredkins per load, junk measured")
+    for kp, k3 in ((1, 0), (0, 1), (2, 3), (4, 4)):
+        c = CO.count(build(curve, masked, p, dataclasses.replace(W.IONQ_LOOKUPS,
+                                                                 select_swap=(kp, k3)))[0])
+        want = ionq["toffoli_paper"]
+        for k, b, times in ((kp, 2 * n, 2), (k3, n, 1)):
+            if k:
+                want -= times * (MB.walk_ands(w, False) - MB.select_swap_ands(w, k, b))
+        print(f"      w={w} k=({kp}, {k3}): {c['toffoli_paper']} Toffoli-eq, {c['qubits']} qubits, "
+              f"{c['measure'] - ionq['measure']} more measurements")
+        assert c["toffoli_paper"] == want, (kp, k3, c["toffoli_paper"], want)
+        assert c["measure"] - ionq["measure"] == (
+            2 * ((1 << kp) - 1) * 2 * n + ((1 << k3) - 1) * n)
+    ok("the measured cost is the formula exactly; each junk word costs one "
+       "X-measurement per qubit and no repair of its own")
+
     section("measurement-based configurations are phase-correct, run literally")
     cu13 = C.Curve(13, 1, 6, "p13")
     pts13 = [P for P in cu13.points() if not P.inf]
     G13 = max(pts13, key=cu13.point_order)
-    for label in ("mbu+merge+free", "IonQ (mbu+merge+free+offsets)"):
+    for label in ("mbu+merge+free", "IonQ (mbu+merge+free+offsets)", "IonQ + SELECT-SWAP k = 1",
+                  "IonQ + SELECT-SWAP on 3x, k = 2"):
         cfg = CONFIGS[label]
         tab = (W.masked_window_points(cu13, G13, 2, random.Random(1))[0]
                if cfg.offsets else W.window_points(cu13, G13, 2))

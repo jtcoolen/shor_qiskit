@@ -480,6 +480,7 @@ Part VII.
 | `ec_square.py` | dedicated squarer (n(n+3)/2 ANDs) and a pseudo-Mersenne fold for step 10 | IonQ §VII.A, ECDSA.Fail §5.3.4 |
 | `ec_approx.modadd_pm_phase`, `ec_gcd.PMPhase`, `CondInv(zero_steps=...)` | IonQ's phase-approximate modular adder (carry-out flag, δ-bit phase repair), careful cells only where the replay's structural zero falls, multiplication replayed forwards | IonQ Alg 2, Table X |
 | `PMPhase(lean=True)`, `CondInv(share=True, cnot_ends=True)`, `csub_square_pm(arith=...)` | IonQ's cells on 1,457 qubits: the careful cell's scratch freed after its adder, the replay's opening copy and closing clear as CNOTs, register sharing in the conditionally inverted walk (u's high qubits, never x's), the square-subtract's fold on the phase adder | IonQ §VI, [1128] §3.1 |
+| `ec_mbu.select_swap_lookup`, `PointAddCfg(select_swap=...)` | SELECT-SWAP loads: a lookup over the high w − k address bits writes 2^k words, k layers of Fredkins move the addressed one into place; the other words are cleared by X-measurement into the addition's merged repair, so the extra qubits live only during the load | Low–Kliuchnikov–Schaeffer 2018 |
 | `ec_space.py` | the qubit-lean cells: controlled CDKM at 3n, CDKM comparator (1 ancilla), chunked all-ones test (~2√k ancillas), constant adder whose high part is an increment on *borrowed* qubits; the same answers as `ec_approx`'s cells input for input | [1128] §3.2 / §4, [CDKM04], Gidney 2015 |
 | `ec_depth.py` | depth-optimised cells on the carry-lookahead adder: exact modular doubling/halving/controlled addition (`CLAArith`), the dialog walk (`Dialog(walk_cla=True)`), the squarer; shared controls fanned out with CNOTs so n controlled gates take one layer | [106] §3.1, [DKRS04] |
 | `ec_cla.py` | Draper–Kutin–Rains–Svore log-depth adder from temporary ANDs, free-uncompute comparator tree, log-depth exact modular add | [106] §3.1, [DKRS04] |
@@ -565,7 +566,8 @@ the inverse of "measure, sometimes repair" is a recomputation that always runs. 
 | + Fig. 1 packing, replay in x's qubits | 1,443,933 | 1,432,285 | 1,255,253 | 1,845 |
 | row 3 + signed windows (2^15-entry tables) | 1,340,563 | 1,328,915 | 1,048,565 | 2,233 |
 | row 4 + lean careful cell, CNOT ends, shared walk, phase fold | 1,436,519 | 1,424,871 | 1,296,204 | **1,457** |
-| the same with signed windows: **one circuit** | **1,338,469** | **1,326,821** | 1,198,152 | **1,457** |
+| the same with signed windows: **one circuit** | 1,338,469 | 1,326,821 | 1,198,152 | **1,457** |
+| + SELECT-SWAP on the 3x lookup | **1,322,341** | **1,310,693** | 1,182,024 | **1,457** |
 | published: IonQ | | 1,392,608 | | 1,457 |
 
 On IonQ's cells the whole ECDLP-256 circuit builds to 40,346,698 Toffolis (40,020,554 executed,
@@ -597,6 +599,30 @@ on 1,457.  The price is depth, 33,606,905 against 29,490,972, most of it from ro
 and reuse of x's qubits.  `tests/test_ec_gcd.py`, `test_ec_square.py` and `test_ec_space.py`
 check that the lean cell, the CNOT ends and the shared walk change no output on any input tried,
 and that the fold adds only the ~f/q inputs a pseudo-Mersenne subtraction gets wrong.
+
+**SELECT-SWAP lookups** (`ec_mbu.select_swap_lookup`, `PointAddCfg(select_swap=(k_point, k_3x))`,
+Low–Kliuchnikov–Schaeffer).  A lookup over the high w − k address bits writes 2^k words and k
+layers of Fredkins move the addressed one into place: 2^(w−k) − 2 ANDs + (2^k − 1)·b Fredkins.
+The other words hold a known function of the address, so they are X-measured at once and join
+the addition's merged repair: no extra repair, and the extra qubits live only during the load.
+At an (x, y) load 1,054 qubits are live, so even k = 1 there costs qubits (1,565); at the 3x
+load only 798 are, and k = 1 fits under the 1,457-qubit peak for free.  The signed one-circuit
+addition, k swap bits for (point loads, 3x load):
+
+| k | qubits | Toffolis | executed | depth |
+|---|---:|---:|---:|---:|
+| (0, 0) | 1,457 | 1,338,469 | 1,326,821 | 1,198,152 |
+| (0, 1) | 1,457 | 1,322,341 | 1,310,693 | 1,182,024 |
+| (1, 1) | 1,565 | 1,290,597 | 1,278,949 | 1,150,276 |
+| (1, 2) | 1,565 | 1,282,917 | 1,271,269 | 1,142,347 |
+| (2, 2) | 2,588 | 1,268,581 | 1,256,933 | 1,126,989 |
+| (3, 3) | 4,635 | 1,261,413 | 1,249,765 | 1,117,009 |
+
+The whole ECDLP-256 circuit with the free setting, (0, 1): **37,084,197 Toffolis
+(36,758,053 executed) on 1,457 qubits**, depth 33,155,321;
+5.9% below IonQ per addition at the same width.  `tests/test_ec_window_cfg.py` checks
+every setting on every input at toy size, the cost against the formula exactly, and the
+measurements performed literally.
 
 **Fewer qubits** (`bench/ec_space_256.py`, same builders at n = 256, w = 16; every row adds
 one option to the row above it).  The peak of a point addition is the Bézout replay:
@@ -676,15 +702,15 @@ p = 1e-3, 1 µs cycles, 10 µs reaction, six CCZ factories; plots in `doc/figure
 
 | whole algorithm | logical qubits | Toffolis | physical qubits | runtime |
 |---|---:|---:|---:|---:|
-| ECDLP-256, IonQ's cells, signed windows (built) | 1,457 | 3.72e7 | 2,140,216 | 16 min |
+| ECDLP-256, IonQ's cells, signed windows (built) | 1,457 | 3.68e7 | 2,140,216 | 15 min |
 | ECDLP-256, fewest qubits (built) | 1,246 | 8.00e7 | 1,854,944 | 33 min |
 | RSA-2048, Gidney 2025 (built) | 1,467 | 6.95e9 | 973,576 | 2.1 days |
 | RSA-3072, Gidney 2025 (built) | 2,115 | 1.97e10 | 1,259,592 | 6.4 days |
 | RSA-2048, Gidney 2025 (published) | 1,399 | 6.5e9 | 881,640 | 1.9 days |
 | ECDLP-256, IonQ (published) | 1,457 | 3.9e7 | 2,140,216 | 16 min |
 
-At comparable logical qubit counts secp256k1 costs ~187× fewer Toffolis than RSA-2048 and
-~530× fewer than RSA-3072, its classical-security equal.  The numbers are eight times shorter
+At comparable logical qubit counts secp256k1 costs ~189× fewer Toffolis than RSA-2048 and
+~537× fewer than RSA-3072, its classical-security equal.  The numbers are eight times shorter
 (arithmetic costs ≥ n² per group operation); ECDLP needs one shot where Ekerå–Håstad with s = 8
 needs 9.2; and Gidney's residue arithmetic buys RSA its low qubit count (0.7n, the exponent in
 cold storage) with Toffolis.  Part VIII of `shor-complete.tex` sets this out.

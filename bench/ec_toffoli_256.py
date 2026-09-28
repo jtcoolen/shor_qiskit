@@ -7,6 +7,8 @@ through `hier.tracing()`.  Three things are measured:
   rows        one windowed point addition per configuration: worst-case
               Toffolis, expected-executed Toffolis (a measurement-based repair
               counted with the probability it fires -- IonQ's convention), qubits
+  select_swap the signed one-circuit addition with SELECT-SWAP loads, k swap bits
+              for the point loads and the 3x load: qubits against Toffolis
   components  the same additions split by component (walk, replay, lookups...)
   full        the whole 28-addition ECDLP-256 circuit on IonQ's cells, and on the
               one circuit that reaches IonQ's Toffolis and qubits together
@@ -14,6 +16,7 @@ through `hier.tracing()`.  Three things are measured:
     ./venv/bin/python bench/ec_toffoli_256.py          # writes bench/ec_toffoli_256.json
 """
 import collections
+import dataclasses
 import functools
 import json
 import pathlib
@@ -43,6 +46,9 @@ ZERO_STEPS = 37                      # IonQ Table X: "rounds with x + y = p"
 # with the record, the square-subtract's fold on the phase adder
 ONE = "+ Fig. 1, x's qubits, lean careful cell, CNOT ends, shared walk, phase fold"
 ONE_SIGNED = "  the same with signed windows: IonQ's count and qubits in one circuit"
+# SELECT-SWAP (ec_mbu.select_swap_lookup): (k for the two point loads, k for the 3x load)
+SSW_FREE = "  + SELECT-SWAP on the 3x lookup (2 words per load): no extra qubits"
+SSW_SWEEP = [(0, 0), (0, 1), (1, 1), (1, 2), (2, 2), (3, 3)]
 
 
 def cells():
@@ -117,6 +123,8 @@ def rows():
         ONE: W.PointAddCfg(**{**base, "square": sqp}, add=ph, neg=neg, mul=one),
         ONE_SIGNED: ("signed", W.PointAddCfg(**{**base, "square": sqp}, add=ph, neg=neg,
                                              mul=one)),
+        SSW_FREE: ("signed", W.PointAddCfg(**{**base, "square": sqp}, add=ph, neg=neg,
+                                           mul=one, select_swap=(0, 1))),
     }
 
 
@@ -232,6 +240,24 @@ def main():
         print(f"  {name:<62} {c['toffoli_paper']:>10,} worst {c['toffoli_expected']:>12,.0f} "
               f"expected {c['qubits']:>5} qubits ({time.time() - t:.0f} s)", flush=True)
 
+    out["select_swap"] = []
+    one = rows()[ONE_SIGNED][1]
+    for kp, k3 in SSW_SWEEP:
+        t = time.time()
+        with H.tracing():
+            m = H.HierMachine("and", "padd256")
+            a, x, y = m.alloc(WBITS, "a"), m.alloc(N, "x"), m.alloc(N, "y")
+            SW.windowed_point_add_signed(m, a, x, y, stab, P,
+                                         dataclasses.replace(one, select_swap=(kp, k3)))
+            c = H.count(m)
+            c["toffoli_depth"] = H.exact_depth(m)
+        out["select_swap"].append({"k_point": kp, "k_3x": k3, "toffoli": c["toffoli_paper"],
+                                   "expected": round(c["toffoli_expected"]),
+                                   "qubits": c["qubits"], "toffoli_depth": c["toffoli_depth"]})
+        print(f"  SELECT-SWAP k = ({kp}, {k3}): {c['toffoli_paper']:,} worst "
+              f"{c['toffoli_expected']:,.0f} expected {c['qubits']} qubits ({time.time() - t:.0f} s)",
+              flush=True)
+
     names = list(rows())
     out["components"] = {}
     for name in (names[0], names[2]):
@@ -241,7 +267,8 @@ def main():
             print(f"      {k:<34} {v:>10,}")
 
     for key, name, signed in (("full_algorithm", names[2], False),
-                              ("full_algorithm_one_circuit", ONE_SIGNED, True)):
+                              ("full_algorithm_one_circuit", ONE_SIGNED, True),
+                              ("full_algorithm_select_swap", SSW_FREE, True)):
         cfg = rows()[name]
         cfg = cfg[1] if isinstance(cfg, tuple) else cfg
         rng = random.Random(3)

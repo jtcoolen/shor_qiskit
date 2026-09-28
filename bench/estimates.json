@@ -19,128 +19,26 @@
     {
       "factories": 6,
       "physical": 2140216.0,
-      "minutes": 15.504015416666665,
+      "minutes": 15.315855416666666,
       "limited_by": "CCZ-throughput"
     },
     {
       "factories": 12,
       "physical": 2253784.0,
-      "minutes": 7.752007708333332,
+      "minutes": 7.657927708333333,
       "limited_by": "CCZ-throughput"
     },
     {
       "factories": 24,
       "physical": 2480920.0,
-      "minutes": 5.6011508333333335,
+      "minutes": 5.525886833333333,
       "limited_by": "reaction"
     },
     {
       "factories": 48,
       "physical": 2935192.0,
-      "minutes": 5.6011508333333335,
+      "minutes": 5.525886833333333,
       "limited_by": "reaction"
-    }
-  ],
-  "select_swap": [
-    {
-      "w": 15,
-      "lambda": 1,
-      "toffoli_per_lookup": 32768,
-      "saved_per_addition": -6,
-      "extra_qubits": 0,
-      "live_at_lookup": 1055,
-      "one_circuit_peak": 1457,
-      "raises_peak_by": 0
-    },
-    {
-      "w": 15,
-      "lambda": 2,
-      "toffoli_per_lookup": 16896,
-      "saved_per_addition": 47610,
-      "extra_qubits": 512,
-      "live_at_lookup": 1567,
-      "one_circuit_peak": 1457,
-      "raises_peak_by": 110
-    },
-    {
-      "w": 15,
-      "lambda": 3,
-      "toffoli_per_lookup": 11947,
-      "saved_per_addition": 62457,
-      "extra_qubits": 1024,
-      "live_at_lookup": 2079,
-      "one_circuit_peak": 1457,
-      "raises_peak_by": 622
-    },
-    {
-      "w": 15,
-      "lambda": 4,
-      "toffoli_per_lookup": 9728,
-      "saved_per_addition": 69114,
-      "extra_qubits": 1536,
-      "live_at_lookup": 2591,
-      "one_circuit_peak": 1457,
-      "raises_peak_by": 1134
-    },
-    {
-      "w": 15,
-      "lambda": 8,
-      "toffoli_per_lookup": 7680,
-      "saved_per_addition": 75258,
-      "extra_qubits": 3584,
-      "live_at_lookup": 4639,
-      "one_circuit_peak": 1457,
-      "raises_peak_by": 3182
-    },
-    {
-      "w": 16,
-      "lambda": 1,
-      "toffoli_per_lookup": 65536,
-      "saved_per_addition": -6,
-      "extra_qubits": 0,
-      "live_at_lookup": 1055,
-      "one_circuit_peak": 1457,
-      "raises_peak_by": 0
-    },
-    {
-      "w": 16,
-      "lambda": 2,
-      "toffoli_per_lookup": 33280,
-      "saved_per_addition": 96762,
-      "extra_qubits": 512,
-      "live_at_lookup": 1567,
-      "one_circuit_peak": 1457,
-      "raises_peak_by": 110
-    },
-    {
-      "w": 16,
-      "lambda": 3,
-      "toffoli_per_lookup": 22870,
-      "saved_per_addition": 127992,
-      "extra_qubits": 1024,
-      "live_at_lookup": 2079,
-      "one_circuit_peak": 1457,
-      "raises_peak_by": 622
-    },
-    {
-      "w": 16,
-      "lambda": 4,
-      "toffoli_per_lookup": 17920,
-      "saved_per_addition": 142842,
-      "extra_qubits": 1536,
-      "live_at_lookup": 2591,
-      "one_circuit_peak": 1457,
-      "raises_peak_by": 1134
-    },
-    {
-      "w": 16,
-      "lambda": 8,
-      "toffoli_per_lookup": 11776,
-      "saved_per_addition": 161274,
-      "extra_qubits": 3584,
-      "live_at_lookup": 4639,
-      "one_circuit_peak": 1457,
-      "raises_peak_by": 3182
     }
   ],
   "windows": [
@@ -148,109 +46,109 @@
       "w": 12,
       "signed": false,
       "additions": 40,
-      "toffoli": 49626136
+      "toffoli": 49554456
     },
     {
       "w": 12,
       "signed": true,
       "additions": 40,
-      "toffoli": 49380376
+      "toffoli": 49349656
     },
     {
       "w": 13,
       "signed": false,
       "additions": 36,
-      "toffoli": 45110396
+      "toffoli": 44972156
     },
     {
       "w": 13,
       "signed": true,
       "additions": 36,
-      "toffoli": 44668028
+      "toffoli": 44603516
     },
     {
       "w": 14,
       "signed": false,
       "additions": 34,
-      "toffoli": 43448494
+      "toffoli": 43178670
     },
     {
       "w": 14,
       "signed": true,
       "additions": 34,
-      "toffoli": 42612910
+      "toffoli": 42482350
     },
     {
       "w": 15,
       "signed": false,
       "additions": 32,
-      "toffoli": 42482912
+      "toffoli": 41966816
     },
     {
       "w": 15,
       "signed": true,
       "additions": 32,
-      "toffoli": 40910048
+      "toffoli": 40656096
     },
     {
       "w": 16,
       "signed": false,
       "additions": 28,
-      "toffoli": 39961924
+      "toffoli": 39051588
     },
     {
       "w": 16,
       "signed": true,
       "additions": 28,
-      "toffoli": 37209412
+      "toffoli": 36757828
     },
     {
       "w": 17,
       "signed": false,
       "additions": 28,
-      "toffoli": 45532484
+      "toffoli": 43704644
     },
     {
       "w": 17,
       "signed": true,
       "additions": 28,
-      "toffoli": 40027460
+      "toffoli": 39117124
     },
     {
       "w": 18,
       "signed": false,
       "additions": 26,
-      "toffoli": 52644214
+      "toffoli": 49242998
     },
     {
       "w": 18,
       "signed": true,
       "additions": 26,
-      "toffoli": 42420598
+      "toffoli": 40723318
     },
     {
       "w": 19,
       "signed": false,
       "additions": 24,
-      "toffoli": 67751336
+      "toffoli": 61466024
     },
     {
       "w": 19,
       "signed": true,
       "additions": 24,
-      "toffoli": 48876968
+      "toffoli": 45737384
     },
     {
       "w": 20,
       "signed": false,
       "additions": 22,
-      "toffoli": 97276378
+      "toffoli": 85747674
     },
     {
       "w": 20,
       "signed": true,
       "additions": 22,
-      "toffoli": 62673370
+      "toffoli": 56911834
     }
   ],
   "qt": [
@@ -259,6 +157,12 @@
       "qubits": 1151,
       "toffoli": 1299453,
       "qt": 1495670403
+    },
+    {
+      "config": "  + SELECT-SWAP on the 3x lookup (2 words per load): no extra qubits",
+      "qubits": 1457,
+      "toffoli": 1310693,
+      "qt": 1909679701
     },
     {
       "config": "  the same with signed windows: IonQ's count and qubits in one circuit",

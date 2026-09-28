@@ -38,6 +38,8 @@ def main(out):
     signed = trow["+ signed windows (2^15-entry tables), no Fig. 1"]
     packed = trow["+ Fig. 1 packing, replay in x's qubits"]
     one = trow["  the same with signed windows: IonQ's count and qubits in one circuit"]
+    ssw = trow["  + SELECT-SWAP on the 3x lookup (2 words per load): no extra qubits"]
+    sweep = {(r["k_point"], r["k_3x"]): r for r in tg["select_swap"]}
     base = trow["IonQ-style, Alg 11 replay cells (before)"]
     sprows = {k: v for k, v in sp.items() if not k.startswith("_")}
     luo = sprows.get("+ Luo's register-shared EEA instead of the dialog (ECDSA.Fail 5.3.5)")
@@ -57,7 +59,11 @@ def main(out):
     for k, c in trow.items():
         padd.append({"q": c["qubits"], "t": c["expected"], "d": c["toffoli_depth"],
                      "s": "IonQ's cells", "l": k.strip(),
-                     **({"tag": "one circuit", "at": [0, 16, "middle"]} if c is one else {})})
+                     **({"tag": "one circuit", "at": [0, 16, "middle"]} if c is ssw else {})})
+    for r in tg["select_swap"]:
+        if (r["k_point"], r["k_3x"]) != (0, 0):
+            padd.append({"q": r["qubits"], "t": r["expected"], "d": r["toffoli_depth"],
+                         "s": "SELECT-SWAP", "l": f"one circuit + SELECT-SWAP, k = ({r['k_point']}, {r['k_3x']})"})
     for k, c in dp.items():
         if isinstance(c, dict):
             padd.append({"q": c["qubits"], "t": c["expected"], "d": c["toffoli_depth"],
@@ -99,6 +105,10 @@ def main(out):
          "IonQ &sect;VI, [1128] &sect;3.1",
          f"{f(packed['qubits'])} &rarr; {f(one['qubits'])} qubits at {f(one['expected'])} executed: "
          f"IonQ's count and qubits in one circuit"),
+        ("SELECT-SWAP loads, junk cleared by measurement into the merged repair",
+         "Low&ndash;Kliuchnikov&ndash;Schaeffer 2018",
+         f"&rarr; {f(ssw['expected'])} executed at {f(ssw['qubits'])} qubits; "
+         f"{f(sweep[(1, 2)]['expected'])} at {f(sweep[(1, 2)]['qubits'])}"),
         ("CDKM cells, lean comparator / all-ones / constant adder, headroom budgets",
          "[1128] &sect;3.2", f"2,251 &rarr; {f(best_space['qubits'])} qubits"),
         ("Luo's register-shared EEA", "ECDSA.Fail &sect;5.3.5",
@@ -123,10 +133,9 @@ def main(out):
     e = est
     cold = e["cold_record"]
     fac = e["factories"]
-    ss = [r for r in e["select_swap"] if r["w"] == 15 and r["lambda"] in (2, 3, 4)]
     win = {(r["w"], r["signed"]): r for r in e["windows"]}
     qtd = {r["config"]: r["qt"] for r in e["qt"]}
-    qtn = {"one": one["qubits"] * one["expected"],
+    qtn = {"one": ssw["qubits"] * ssw["expected"],
            "fail": qtd["ECDSA.Fail best Q x T (published, classical addend)"],
            "failw": qtd["ECDSA.Fail windowed variant (published)"],
            "ionq": qtd["IonQ (published)"]}
@@ -144,21 +153,21 @@ def main(out):
 :root {{
   --ink: #1b2230; --paper: #f5f7f9; --panel: #ffffff; --muted: #5d6778; --rule: #d7dce3;
   --ecc: #17738f; --rsa: #b0621b; --good: #2f7d4f; --warn: #a2551b; --grid: #e6e9ee;
-  --s1: #3c6fb6; --s2: #2f8f5b; --s3: #c0392b; --s4: #7b4bb3;
+  --s1: #3c6fb6; --s2: #2f8f5b; --s3: #c0392b; --s4: #7b4bb3; --s5: #9a7400;
 }}
 @media (prefers-color-scheme: dark) {{
   :root:not([data-theme="light"]) {{
     color-scheme: dark;
     --ink: #e5e9ef; --paper: #11151b; --panel: #171c24; --muted: #9aa4b4; --rule: #2a313c;
     --ecc: #5fb8d3; --rsa: #e3a061; --good: #6cc28f; --warn: #e3a061; --grid: #222833;
-    --s1: #7aa7ea; --s2: #6cc28f; --s3: #ef7b6c; --s4: #b592e6;
+    --s1: #7aa7ea; --s2: #6cc28f; --s3: #ef7b6c; --s4: #b592e6; --s5: #e2bd4f;
   }}
 }}
 :root[data-theme="dark"] {{
   color-scheme: dark;
   --ink: #e5e9ef; --paper: #11151b; --panel: #171c24; --muted: #9aa4b4; --rule: #2a313c;
   --ecc: #5fb8d3; --rsa: #e3a061; --good: #6cc28f; --warn: #e3a061; --grid: #222833;
-  --s1: #7aa7ea; --s2: #6cc28f; --s3: #ef7b6c; --s4: #b592e6;
+  --s1: #7aa7ea; --s2: #6cc28f; --s3: #ef7b6c; --s4: #b592e6; --s5: #e2bd4f;
 }}
 body {{ background: var(--paper); color: var(--ink); font: 15px/1.6 "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   padding-inline: 16px; padding-block: 32px 64px; }}
@@ -214,7 +223,7 @@ code {{ font: 13px "IBM Plex Mono", ui-monospace, monospace; }}
   <div class="tile ecc"><span>ECDLP-256, whole algorithm (IonQ's cells, signed windows)</span><b>{sci(ecc['toffoli'])}</b><span>Toffolis on {f(ecc['logical_qubits'])} qubits &middot; {ecc['days'] * 1440:.0f} min in the surface-code model</span></div>
   <div class="tile rsa"><span>RSA-2048, Gidney 2025 residue arithmetic</span><b>{sci(r2048['toffoli'])}</b><span>Toffolis per factoring on {f(r2048['logical_qubits'])} qubits &middot; {r2048['days']:.1f} days</span></div>
   <div class="tile ecc"><span>fewest qubits, one point addition</span><b>{f(luo['qubits'] if luo else best_space['qubits'])}</b><span>Luo's EEA; {f(best_space['qubits'])} with the dialog at {sci(best_space['toffoli'], 1)} Toffolis</span></div>
-  <div class="tile ecc"><span>one point addition, one circuit</span><b>{f(one['expected'])}</b><span>executed Toffolis on {f(one['qubits'])} qubits; IonQ publishes 1,392,608 on 1,457</span></div>
+  <div class="tile ecc"><span>one point addition, one circuit</span><b>{f(ssw['expected'])}</b><span>executed Toffolis on {f(ssw['qubits'])} qubits; IonQ publishes 1,392,608 on 1,457</span></div>
 </section>
 
 <section>
@@ -313,14 +322,6 @@ code {{ font: 13px "IBM Plex Mono", ui-monospace, monospace; }}
     {f(fac[0]['physical'])}. The carry-lookahead configuration lowers that floor about fourfold.</p>
   </article>
   <article>
-    <h3>SELECT-SWAP lookups<span>&minus;{f(ss[0]['saved_per_addition'])} Toffolis per addition</span></h3>
-    <p>A lookup of 2<sup>w</sup> entries costs 2<sup>w</sup>/&lambda; + &lambda;b Toffolis for (&lambda;&minus;1)b extra qubits (b&nbsp;=&nbsp;512). With signed windows
-    (2<sup>15</sup> entries): &lambda;&nbsp;=&nbsp;2 saves {f(ss[0]['saved_per_addition'])} per addition for {ss[0]['extra_qubits']} qubits, &lambda;&nbsp;=&nbsp;3 saves
-    {f(ss[1]['saved_per_addition'])} for {ss[1]['extra_qubits']}. The lookups run between the two GCDs, when the record is not live: 4n&nbsp;+&nbsp;2w&nbsp;&minus;&nbsp;1&nbsp;=&nbsp;{f(ss[0]['live_at_lookup'] - ss[0]['extra_qubits'])}
-    qubits are live there, so &lambda;&nbsp;=&nbsp;2 raises the one circuit's {f(ss[0]['one_circuit_peak'])}-qubit peak by {ss[0]['raises_peak_by']}.
-    Estimated one addition: {f(one['expected'] - ss[0]['saved_per_addition'])} Toffolis on {f(ss[0]['one_circuit_peak'] + ss[0]['raises_peak_by'])} qubits.</p>
-  </article>
-  <article>
     <h3>Window size<span>w&nbsp;=&nbsp;16 stays optimal</span></h3>
     <p>Whole algorithm on IonQ's cells, additions against lookup cost: w&nbsp;=&nbsp;15: {sci(win[(15, False)]['toffoli'])}, w&nbsp;=&nbsp;16:
     {sci(win[(16, False)]['toffoli'])}, w&nbsp;=&nbsp;17: {sci(win[(17, False)]['toffoli'])}. With signed windows, w&nbsp;=&nbsp;16:
@@ -328,7 +329,7 @@ code {{ font: 13px "IBM Plex Mono", ui-monospace, monospace; }}
   </article>
   <article>
     <h3>Qubits &times; Toffolis<span>ECDSA.Fail's score</span></h3>
-    <p>Best built: the one circuit, {f(one['qubits'])} &times; {f(one['expected'])} = {qtn['one'] / 1e9:.2f}&times;10<sup>9</sup>.
+    <p>Best built: the one circuit with SELECT-SWAP on the 3x load, {f(ssw['qubits'])} &times; {f(ssw['expected'])} = {qtn['one'] / 1e9:.2f}&times;10<sup>9</sup>.
     Published: ECDSA.Fail's best classical-addend circuit {qtn['fail'] / 1e9:.2f}&times;10<sup>9</sup> (a classical addend, not windowed Shor),
     its windowed variant {qtn['failw'] / 1e9:.2f}&times;10<sup>9</sup>, IonQ {qtn['ionq'] / 1e9:.2f}&times;10<sup>9</sup>.</p>
   </article>
@@ -344,7 +345,7 @@ code {{ font: 13px "IBM Plex Mono", ui-monospace, monospace; }}
 <script>
 const D = {data};
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const SER = {{"configurations": "--s1", "fewer qubits": "--s2", "IonQ's cells": "--s3", "carry-lookahead": "--s4"}};
+const SER = {{"configurations": "--s1", "fewer qubits": "--s2", "IonQ's cells": "--s3", "carry-lookahead": "--s4", "SELECT-SWAP": "--s5"}};
 function scatter(svg, pts, opt) {{
   const W = opt.w || 460, H = 320, L = 58, R = 12, T = 12, B = 40;
   const xs = pts.map(p => p.x).concat(opt.extraX || []), ys = pts.map(p => p.y).concat(opt.extraY || []);
@@ -378,7 +379,7 @@ function scatter(svg, pts, opt) {{
 function draw() {{
   const pa = D.padd.map(p => ({{x: p.q, y: p.t, c: SER[p.s], l: p.l, tag: p.tag, at: p.at}}));
   const pubs = D.pub.map(p => ({{x: p.q, y: p.t, c: "--ink", cross: true, l: p.l, tag: p.tag || p.l, at: p.at}}));
-  const xo = {{xticks: [1200, 1600, 2000, 2400], extraX: [850]}};     // room left of the crosses for their names
+  const xo = {{xticks: [1200, 2000, 3000, 4000], extraX: [850]}};     // room left of the crosses for their names
   document.getElementById("c1").innerHTML = scatter(null, pa.concat(pubs), {{...xo, ox: 0, xl: "logical qubits", yl: "Toffolis"}});
   const pd = D.padd.filter(p => p.d).map(p => ({{x: p.q, y: p.d, c: SER[p.s], l: p.l, tag: p.tag, at: p.at}}));
   document.getElementById("c2").innerHTML = scatter(null, pd, {{...xo, ox: 0, xl: "logical qubits", yl: "Toffoli depth", floor: D.floor, extraY: [D.floor]}});

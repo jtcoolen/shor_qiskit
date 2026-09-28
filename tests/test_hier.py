@@ -67,6 +67,8 @@ def main():
             mul=G.CondInv(arith=G.PMPhase(q, msbs=6, lean=True), cmp_msbs=6, c_pad=2.3,
                           replay="ci", zero_steps=3, compress="fig1", reuse_x=True,
                           cnot_ends=True, share=True)), tab_m),
+        "IonQ lookups + SELECT-SWAP": (W.PointAddCfg(
+            lookup="mbu", merge_xy=True, offsets=True, free_xy1=True, select_swap=(1, 2)), tab_m),
         "PingPong": (W.PointAddCfg(lookup="mbu", offsets=True, mul=G.PingPong(rounds=17)), tab_m),
         "Jump2": (W.PointAddCfg(lookup="mbu", offsets=True, mul=G.Jump2(steps=9)), tab_m),
     }

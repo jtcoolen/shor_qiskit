@@ -103,8 +103,64 @@
       "expected": 1326821,
       "qubits": 1457,
       "toffoli_depth": 1198152
+    },
+    "  + SELECT-SWAP on the 3x lookup (2 words per load): no extra qubits": {
+      "toffoli": 1322341,
+      "expected": 1310693,
+      "qubits": 1457,
+      "toffoli_depth": 1182024
     }
   },
+  "select_swap": [
+    {
+      "k_point": 0,
+      "k_3x": 0,
+      "toffoli": 1338469,
+      "expected": 1326821,
+      "qubits": 1457,
+      "toffoli_depth": 1198152
+    },
+    {
+      "k_point": 0,
+      "k_3x": 1,
+      "toffoli": 1322341,
+      "expected": 1310693,
+      "qubits": 1457,
+      "toffoli_depth": 1182024
+    },
+    {
+      "k_point": 1,
+      "k_3x": 1,
+      "toffoli": 1290597,
+      "expected": 1278949,
+      "qubits": 1565,
+      "toffoli_depth": 1150276
+    },
+    {
+      "k_point": 1,
+      "k_3x": 2,
+      "toffoli": 1282917,
+      "expected": 1271269,
+      "qubits": 1565,
+      "toffoli_depth": 1142347
+    },
+    {
+      "k_point": 2,
+      "k_3x": 2,
+      "toffoli": 1268581,
+      "expected": 1256933,
+      "qubits": 2588,
+      "toffoli_depth": 1126989
+    },
+    {
+      "k_point": 3,
+      "k_3x": 3,
+      "toffoli": 1261413,
+      "expected": 1249765,
+      "qubits": 4635,
+      "toffoli_depth": 1117009
+    }
+  ],
   "components": {
     "IonQ-style, Alg 11 replay cells (before)": {
       "table lookups and repair": 197364,
@@ -138,6 +194,14 @@
     "toffoli": 37535781,
     "expected": 37209637,
     "toffoli_depth": 33606905,
+    "additions": 28,
+    "qubits_semiclassical": 1457
+  },
+  "full_algorithm_select_swap": {
+    "config": "+ SELECT-SWAP on the 3x lookup (2 words per load): no extra qubits",
+    "toffoli": 37084197,
+    "expected": 36758053,
+    "toffoli_depth": 33155321,
     "additions": 28,
     "qubits_semiclassical": 1457
   }

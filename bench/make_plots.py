@@ -54,6 +54,10 @@ def built_padd():
     for k, c in J("ec_depth_256.json").items():
         if isinstance(c, dict):
             out.append((c["qubits"], c["expected"], c["toffoli_depth"], k, "carry-lookahead"))
+    for r in J("ec_toffoli_256.json").get("select_swap", []):
+        if (r["k_point"], r["k_3x"]) != (0, 0):
+            out.append((r["qubits"], r["expected"], r["toffoli_depth"],
+                        f"SELECT-SWAP k = ({r['k_point']}, {r['k_3x']})", "SELECT-SWAP"))
     return out
 
 
@@ -73,13 +77,15 @@ def save(fig, name):
 
 
 COLORS = {"configurations": "tab:blue", "qubit frontier": "tab:green",
-          "IonQ's cells": "tab:red", "carry-lookahead": "tab:purple", "published": "black"}
+          "IonQ's cells": "tab:red", "carry-lookahead": "tab:purple", "SELECT-SWAP": "tab:olive",
+          "published": "black"}
 
 
 def fig_padd_toffoli():
     pts = built_padd()
     fig, ax = plt.subplots(figsize=(6.4, 4.4))
-    for series in ("configurations", "qubit frontier", "IonQ's cells", "carry-lookahead"):
+    for series in ("configurations", "qubit frontier", "IonQ's cells", "carry-lookahead",
+                   "SELECT-SWAP"):
         xs = [p[0] for p in pts if p[4] == series]
         ys = [p[1] for p in pts if p[4] == series]
         ax.scatter(xs, ys, s=18, color=COLORS[series], label=f"built: {series}", zorder=3)
@@ -104,7 +110,8 @@ def fig_padd_toffoli():
 def fig_padd_depth():
     pts = [p for p in built_padd() if p[2]]
     fig, ax = plt.subplots(figsize=(6.4, 4.4))
-    for series in ("configurations", "qubit frontier", "IonQ's cells", "carry-lookahead"):
+    for series in ("configurations", "qubit frontier", "IonQ's cells", "carry-lookahead",
+                   "SELECT-SWAP"):
         xs = [p[0] for p in pts if p[4] == series]
         ys = [p[2] for p in pts if p[4] == series]
         ax.scatter(xs, ys, s=18, color=COLORS[series], label=f"built: {series}", zorder=3)
@@ -164,7 +171,7 @@ def fig_ecc_rsa():
 
 def fig_security():
     rsa = J("rsa_g25.json")
-    tg = J("ec_toffoli_256.json")["full_algorithm_one_circuit"]
+    tg = J("ec_toffoli_256.json")["full_algorithm_select_swap"]
     sec = {1024: 80, 2048: 112, 3072: 128}              # NIST SP 800-57 Part 1, Table 2
     fig, axs = plt.subplots(1, 2, figsize=(10, 4.0))
     ax = axs[0]

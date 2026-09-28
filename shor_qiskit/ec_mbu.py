@@ -357,6 +357,70 @@ class MbuFlagGate(Gate):
         return g
 
 
+class VentGate(Gate):
+    """reg ^= f(data) where reg holds f(data): cleared by X-measurement, and
+    the phase (-1)^(b . f) of the outcome b is left for a later `ZFixGate`
+    with the same key -- [Luo26] Sec 5's recycling of a register whose value
+    can be recomputed later from the others, but not cheaply now.
+
+    Qubits: the data registers (sizes `groups`), then reg.  `f(*values)` is a
+    classical function of the data values; `ec_sim` applies it directly
+    (`ec_basis`), and `run_live` performs the measurement.  No Toffolis: the
+    cost is the recomputation the caller builds around the ZFixGate."""
+
+    def __init__(self, groups, nreg, f, key, label="ec_vent"):
+        self.groups, self.nreg, self.f, self.key = list(groups), nreg, f, key
+        super().__init__("ec_vent", sum(groups) + nreg, [], label=label)
+        self.ec_cost = {"toffoli": 0, "measure": nreg}
+
+    def _split(self, qs):
+        vals, i = [], 0
+        for g in self.groups:
+            vals.append(qs[i:i + g])
+            i += g
+        return vals, qs[i:]
+
+    def ec_basis(self, bits, w):
+        """The unitary this gate stands for: reg ^= f(data)."""
+        data, reg = self._split(w)
+        vals = [sum(bits[q] << i for i, q in enumerate(g)) for g in data]
+        v = self.f(*vals)
+        for i, q in enumerate(reg):
+            bits[q] ^= (v >> i) & 1
+
+    def inverse(self, annotated=False):
+        return self                                  # XOR by the same function
+
+
+class ZFixGate(Gate):
+    """Z on the qubits of reg where the outcome of `VentGate(key)` has a 1.
+    Placed where reg again holds the vented value, it cancels the vent's
+    phase.  Diagonal: the identity on basis states."""
+
+    def __init__(self, nreg, key):
+        self.nreg, self.key = nreg, key
+        super().__init__("ec_zfix", nreg, [])
+        self.ec_cost = {"toffoli": 0, "measure": 0}
+
+    def ec_basis(self, bits, w):
+        return
+
+    def inverse(self, annotated=False):
+        return self
+
+
+def vent(m, data, reg, f, key):
+    """Clear `reg`, which holds f(*data values), by X-measurement ([Luo26]
+    Sec 5).  Its phase must be cancelled by `zfix(m, reg, key)` at a point
+    where reg holds the same value again."""
+    g = VentGate([len(d) for d in data], len(reg), f, key)
+    m.qc.append(g, [q for d in data for q in d] + list(reg))
+
+
+def zfix(m, reg, key):
+    m.qc.append(ZFixGate(len(reg), key), list(reg))
+
+
 class _RecomputeFlagGate(Gate):
     def __init__(self, fwd):
         self.fwd = fwd
@@ -515,13 +579,15 @@ def run_live(qc, init=None, state=None, outcomes=None, seed=0, checks=(),
                  accumulate into its group)
     ec_phasefix  apply the group's accumulated F with the split its ancillas allow
     ec_mbuflag   X-measure the flag; on 1, apply the phase oracle
+    ec_vent      X-measure the register; keep the outcome for its ec_zfix
+    ec_zfix      Z on the register's qubits where that outcome has a 1
     ecand_dg     (and_literal) X-measure the target; on 1, CZ(a, b)
     anything else runs as a unitary.  Returns the Session.
     """
     from sparse_sim import Session
     S = Session(qc, init=init, state=state, seed=seed, outcomes=outcomes)
     regs = list(qc.qregs)
-    pending, seg, seg_start = {}, [], 0
+    pending, vented, seg, seg_start = {}, {}, [], 0
     by_pos = {}
     for pos, qs, val in checks:
         by_pos.setdefault(pos, []).append((qs, val))
@@ -551,7 +617,8 @@ def run_live(qc, init=None, state=None, outcomes=None, seed=0, checks=(),
 
     for pos, ci in enumerate(qc.data):
         op, name = ci.operation, ci.operation.name
-        if name not in ("ec_unlookup", "ec_phasefix", "ec_mbuflag") and not (
+        if name not in ("ec_unlookup", "ec_phasefix", "ec_mbuflag", "ec_vent",
+                        "ec_zfix") and not (
                 and_literal and name == "ecand_dg"):
             if not seg:
                 seg_start = pos
@@ -588,6 +655,12 @@ def run_live(qc, init=None, state=None, outcomes=None, seed=0, checks=(),
             mm = S.mx([flag])
             if mm:
                 run_ops(lambda c, q: op.phase(c, qs), [])
+        elif name == "ec_vent":
+            vented[op.key] = S.mx(op._split(qs)[1])
+        elif name == "ec_zfix":
+            b = vented.pop(op.key)
+            if b:
+                run_ops(lambda c, q: [c.z(qs[i]) for i in range(op.nreg) if (b >> i) & 1], [])
         seg_start = pos + 1
     flush(len(qc.data))
     return S

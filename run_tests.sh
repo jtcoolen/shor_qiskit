@@ -30,7 +30,7 @@ EC="test_ec_classical test_ec_quantum test_ec_arith test_ec_kaliski
     test_ec_signed test_ec_gcd test_ec_square
     test_ec_windowed test_ec_padd_mont test_ec_opt
     test_hier test_ec_space test_ec_cla test_ec_edwards test_ec_proj_q
-    test_ec_depth test_ec_signedwin test_ec_batch test_ec_luo"
+    test_ec_depth test_ec_signedwin test_ec_batch test_ec_luo test_ec_luo3"
 
 # Parts VII and VIII of shor-complete.tex are generated from bench/*.json; this
 # asserts the document still matches what the benchmarks measured.

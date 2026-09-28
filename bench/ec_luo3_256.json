@@ -1,0 +1,50 @@
+{
+  "n": 256,
+  "w": 16,
+  "formula_3reg": 835,
+  "published": {
+    "Luo26": {
+      "qubits_formula": 835,
+      "inversion_toffoli": 15350000.0,
+      "point_addition_toffoli": 70290000.0,
+      "ecdlp_toffoli_log2": 30.88
+    },
+    "ECDSA.Fail": {
+      "qubits": [
+        825,
+        851
+      ]
+    }
+  },
+  "division": {
+    "qubits": 835,
+    "toffoli": 42103470,
+    "measure": 256,
+    "toffoli_depth": null
+  },
+  "multiplication": {
+    "qubits": 835,
+    "toffoli": 42103470,
+    "measure": 256,
+    "toffoli_depth": null
+  },
+  "controlled addition": {
+    "qubits": 836,
+    "toffoli": 85039296,
+    "measure": 512,
+    "toffoli_depth": null
+  },
+  "signed windowed addition": {
+    "qubits": 851,
+    "toffoli": 85204396,
+    "measure": 1792,
+    "toffoli_depth": 65520277
+  },
+  "full_algorithm": {
+    "toffoli": 2385774798,
+    "expected": 2385774798,
+    "additions": 28,
+    "qubits_semiclassical": 851,
+    "toffoli_depth_bound": 1834567756
+  }
+}

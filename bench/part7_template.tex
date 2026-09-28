@@ -1446,11 +1446,51 @@ $n$ & $2n+6\lfloor\log_2n\rfloor+19$ & qubits & Toffolis & qubits & Toffolis & q
 \end{center}
 
 \noindent The inversion lands on Luo's formula exactly. The division needs about half the dialog's
-qubits for about twenty times its Toffolis. Plugged into the point addition with the lean cells, it
-gives the narrowest configuration built here, in the last rows of the table in \S\ref{ec:sec:fewq}.
-Luo's $3n$ point addition would also reuse $y$'s register after an $X$-measurement and use a
-constant-workspace constant adder. Both are measurement-based pieces this package's basis-state
-checks cannot verify, so they are not built.
+qubits for about twenty times its Toffolis. Plugged into the windowed point addition with the lean
+cells it gives $@@l3_dialog_q@@$ qubits, a row of the table in \S\ref{ec:sec:fewq}. That division
+still holds four field registers at its peak; the next subsection takes it to three.
+
+\subsection{Luo's point addition on three field registers}\label{ec:sec:luo3}
+
+The division above peaks at four field registers: $x$ inside the bank $W_2$, $y$, the second bank
+$W_1$, and the quotient. \cite{ec:luo26} gets to three by \emph{venting} $y$. Once $z=y/x$ sits in
+$W_1$'s lanes, $y$ is a function of the other registers, so it is measured in the $X$ basis and
+its register is reused, clean, as the bank of the backward EEA. The measurement leaves a phase
+$(-1)^{b\cdot y}$ for outcome $b$. After the backward EEA it is cancelled by recomputing $y=xz$
+into the same register, applying $Z^b$, and uncomputing:
+%%LST ec_luo3.div3 drop%%
+Multiplication is the mirror image, and each costs two EEAs and three multiplications. Here the
+vent is a logical gate. The basis-state simulator runs it as the XOR it stands for, and
+\texttt{run\_live} performs the measurement and applies $Z^b$ from the actual outcome; every input
+then ends with the same phase. Built without the $Z^b$, the same circuit fails that check, so the
+check can see what the vent does.
+
+The multiplications now take $p$ as a classical constant, because the bank that held it holds $z$.
+\cite{ec:luo26} does its modular reductions with Gidney's constant-workspace classical--quantum
+adder \cite{ec:gidney25}, for any $p$; that adder is not built here. At toy size the generic exact
+cells serve, and the division and multiplication are exact on every input, at exactly
+$3n+6\lfloor\log_2n\rfloor+19$ qubits. For secp256k1 the lean pseudo-Mersenne cells of
+\S\ref{ec:sec:fewq} serve: they need about $38$ clean qubits, fewer than the EEA leaves idle while
+the multiplications run, so the width stays the EEA's. Luo et al.'s point addition (their Fig.~14)
+adds a classical point under a control. Their Shor circuit uses signed windows instead, with the
+looked-up point loaded one coordinate at a time into the one free register --- their five lookups,
+this package's \texttt{serial\_load}:
+
+\begin{center}\small
+\begin{tabular}{lrrr}
+\toprule
+three field registers, secp256k1 & qubits & Toffolis & $X$-measurements\\
+\midrule
+%%LUO3%%
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The division lands on \cite{ec:luo26}'s $3n+6\lfloor\log_2n\rfloor+19=@@l3_formula@@$
+exactly, and the windowed addition adds the $16$ window qubits: $@@l3_win_q@@$, the top of
+ECDSA.Fail's published range. The price is Toffolis: $@@l3_win_t@@$ per addition, and $@@l3_full_t@@$
+for the whole algorithm on $@@l3_full_q@@$ qubits, $@@l3_ratio@@$ times the circuit of
+\S\ref{ec:sec:ssw}.
 
 \subsection{ECDSA.Fail's fire census}
 

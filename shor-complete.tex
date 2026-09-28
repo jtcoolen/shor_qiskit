@@ -5027,11 +5027,78 @@ $256$ & $579$ & $579$ & $20\,433\,078$ & $1\,091$ & $42\,836\,318$ & $2\,088$ & 
 \end{center}
 
 \noindent The inversion lands on Luo's formula exactly. The division needs about half the dialog's
-qubits for about twenty times its Toffolis. Plugged into the point addition with the lean cells, it
-gives the narrowest configuration built here, in the last rows of the table in \S\ref{ec:sec:fewq}.
-Luo's $3n$ point addition would also reuse $y$'s register after an $X$-measurement and use a
-constant-workspace constant adder. Both are measurement-based pieces this package's basis-state
-checks cannot verify, so they are not built.
+qubits for about twenty times its Toffolis. Plugged into the windowed point addition with the lean
+cells it gives $1\,107$ qubits, a row of the table in \S\ref{ec:sec:fewq}. That division
+still holds four field registers at its peak; the next subsection takes it to three.
+
+\subsection{Luo's point addition on three field registers}\label{ec:sec:luo3}
+
+The division above peaks at four field registers: $x$ inside the bank $W_2$, $y$, the second bank
+$W_1$, and the quotient. \cite{ec:luo26} gets to three by \emph{venting} $y$. Once $z=y/x$ sits in
+$W_1$'s lanes, $y$ is a function of the other registers, so it is measured in the $X$ basis and
+its register is reused, clean, as the bank of the backward EEA. The measurement leaves a phase
+$(-1)^{b\cdot y}$ for outcome $b$. After the backward EEA it is cancelled by recomputing $y=xz$
+into the same register, applying $Z^b$, and uncomputing:
+\begin{lstlisting}
+def div3(m, x, y, p, arith, steps=None, lean=True):
+    ctx, n = m.ctx, len(x)
+    bk = L.Banks(m, n, x=x, lean=lean)
+    L.eea_forward(m, bk, p, steps=steps)                     # W1 = 0, W2 = x^-1
+    xinv, a = L._le(bk, bk.W2, 1, n), L._le(bk, bk.W1, 1, n)
+    idle = bk.lt + bk.lq + bk.lr + [bk.P1, bk.P2, bk.Sign] + bk.W2[n:] + bk.W1[n:]
+    with L._lent(m, idle):
+        mul_acc(m, arith, xinv, y, a)                        # A = y / x
+    key = ("luo3", next(_keys))
+    MB.vent(m, [xinv, a], y, _quotient(p), key)              # y = A / x^-1
+    bk2 = L.Banks([list(y) + bk.W1[n:]] + list(bk[1:]))       # Y is the bank now
+    m.emit_inverse(L.eea_forward, m, bk2, p, None, steps, True, True)
+    with L._lent(m, bk.meta() + bk.consumed + bk.W1[n:]):
+        mul_acc(m, arith, x, a, y)                           # y again ...
+        MB.zfix(m, y, key)                                   # ... cancels the phase
+        m.emit_inverse(mul_acc, m, arith, x, a, y)
+    for q1, q2 in zip(y, a):
+        ctx.swap(q1, q2)
+    bk.free(m)
+\end{lstlisting}
+Multiplication is the mirror image, and each costs two EEAs and three multiplications. Here the
+vent is a logical gate. The basis-state simulator runs it as the XOR it stands for, and
+\texttt{run\_live} performs the measurement and applies $Z^b$ from the actual outcome; every input
+then ends with the same phase. Built without the $Z^b$, the same circuit fails that check, so the
+check can see what the vent does.
+
+The multiplications now take $p$ as a classical constant, because the bank that held it holds $z$.
+\cite{ec:luo26} does its modular reductions with Gidney's constant-workspace classical--quantum
+adder \cite{ec:gidney25}, for any $p$; that adder is not built here. At toy size the generic exact
+cells serve, and the division and multiplication are exact on every input, at exactly
+$3n+6\lfloor\log_2n\rfloor+19$ qubits. For secp256k1 the lean pseudo-Mersenne cells of
+\S\ref{ec:sec:fewq} serve: they need about $38$ clean qubits, fewer than the EEA leaves idle while
+the multiplications run, so the width stays the EEA's. Luo et al.'s point addition (their Fig.~14)
+adds a classical point under a control. Their Shor circuit uses signed windows instead, with the
+looked-up point loaded one coordinate at a time into the one free register --- their five lookups,
+this package's \texttt{serial\_load}:
+
+\begin{center}\small
+\begin{tabular}{lrrr}
+\toprule
+three field registers, secp256k1 & qubits & Toffolis & $X$-measurements\\
+\midrule
+in-place division & $835$ & $42\,103\,470$ & $256$\\
+in-place multiplication & $835$ & $42\,103\,470$ & $256$\\
+controlled addition of a classical point (Fig.~14) & $836$ & $85\,039\,296$ & $512$\\
+signed windowed addition, $w=16$ & $851$ & $85\,204\,396$ & $1\,792$\\
+whole ECDLP-256, 28 additions & $851$ & $2\,385\,774\,798$ & \\
+\midrule
+published \cite{ec:luo26}: point addition & $835$ & $70.29\times10^6$ & \\
+published \cite{ec:ecdsafail26}: narrowest point additions & $825$--$851$ & & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The division lands on \cite{ec:luo26}'s $3n+6\lfloor\log_2n\rfloor+19=835$
+exactly, and the windowed addition adds the $16$ window qubits: $851$, the top of
+ECDSA.Fail's published range. The price is Toffolis: $85\,204\,396$ per addition, and $2\,385\,774\,798$
+for the whole algorithm on $851$ qubits, $64$ times the circuit of
+\S\ref{ec:sec:ssw}.
 
 \subsection{ECDSA.Fail's fire census}
 
@@ -5342,7 +5409,8 @@ headline, $897\,864$ physical qubits and $4.96$ days.
 whole algorithm & logical qubits & Toffolis & physical qubits & days\\
 \midrule
 ECDLP-256, IonQ's cells, signed windows & $1\,457$ & $3.68\times10^{7}$ & $2\,140\,216$ & $0.01$\\
-ECDLP-256, fewest qubits & $1\,246$ & $7.91\times10^{7}$ & $1\,854\,944$ & $0.02$\\
+ECDLP-256, dialog on the space cells & $1\,246$ & $7.91\times10^{7}$ & $1\,854\,944$ & $0.02$\\
+ECDLP-256, fewest qubits & $851$ & $2.39\times10^{9}$ & $1\,320\,904$ & $0.73$\\
 RSA-1024, Gidney 2025 residue arithmetic & $800$ & $1.18\times10^{9}$ & $661\,872$ & $0.34$\\
 RSA-2048, Gidney 2025 residue arithmetic & $1\,467$ & $6.95\times10^{9}$ & $973\,576$ & $2.07$\\
 RSA-3072, Gidney 2025 residue arithmetic & $2\,115$ & $1.97\times10^{10}$ & $1\,259\,592$ & $6.44$\\
@@ -5364,8 +5432,8 @@ everything else busy. That is why RSA-2048 needs fewer \emph{physical} qubits th
 comparable logical count, while taking $195$ times as long.
 
 The logical qubit counts are close: $1\,457$ for secp256k1 on IonQ's cells with signed windows
-(Part~VII, \S\S\ref{ec:sec:onecircuit}--\ref{ec:sec:ssw}), $1\,246$ on
-the fewest-qubit cells, against $1\,467$ for RSA-2048. The Toffoli counts are not: $3.68\times10^{7}$
+(Part~VII, \S\S\ref{ec:sec:onecircuit}--\ref{ec:sec:ssw}), $851$ on
+three field registers (\S\ref{ec:sec:luo3}), against $1\,467$ for RSA-2048. The Toffoli counts are not: $3.68\times10^{7}$
 against $6.95\times10^{9}$, a factor of $189$. Four things explain that factor.
 
 \begin{enumerate}\setlength\itemsep{2pt}
@@ -5380,7 +5448,7 @@ probability. Eker\aa{}--H\aa{}stad with $s=8$ needs $s+1$ good shots, and maskin
 about $1\%$ more: $9.2$ expected shots, each a full exponentiation.
 \item \textbf{Approximation buys qubits, not Toffolis.} The residue arithmetic never holds an
 $n$-bit number in superposition except the output's top $f$ bits. That is how RSA-2048 fits in
-$1\,467$ qubits, $0.7n$, while secp256k1 needs $4.9$--$5.7n$. The price is Toffolis: per prime,
+$1\,467$ qubits, $0.7n$, while secp256k1 needs $3.3$--$5.7n$. The price is Toffolis: per prime,
 loop1 reads all $W_1=214$ exponent windows, and there are $|P|\approx n W_1/\ell\approx21\,000$
 primes, so a shot costs $\Theta(n\,m^2/(\ell\,w_1^2))$ lookups and additions of $\approx\ell$ bits.
 \item \textbf{At equal classical security the gap widens.} RSA-2048 gives 112-bit security.
@@ -5584,6 +5652,11 @@ arXiv:1905.09084, 2019.
 C.~Gidney,
 \emph{A classical-quantum adder with constant workspace and linear gates},
 arXiv:2507.23079, 2025.
+
+\bibitem{ec:luo26}
+H.~Luo, Z.~Yang, J.~Luo, Z.~Wang, Y.~Su, X.~Sun, L.~Li, and T.~Li,
+\emph{Quantum algorithm for elliptic curve discrete logarithms with space-efficient point
+addition}, arXiv:2607.13816, 2026.
 
 \bibitem{ec:ionq26}
 T.~H\"aner, F.~Tripier, J.~Young, M.~Naehrig, et al.\ (IonQ),

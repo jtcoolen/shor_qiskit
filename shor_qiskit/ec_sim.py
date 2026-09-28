@@ -250,6 +250,10 @@ def simulate(qc, init=None, checks=(), strict=True):
                 raise SimError("AND-dagger target did not hold a AND b")
             bits[w[2]] = 0
             return
+        hook = getattr(op, "ec_basis", None)
+        if hook is not None:        # a logical gate that states its basis-state action
+            hook(bits, w)
+            return
 
         # any controlled-X / controlled-SWAP, whatever its arity or ctrl_state
         base, nctrl, cstate = None, 0, None

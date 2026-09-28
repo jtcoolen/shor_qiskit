@@ -15,7 +15,7 @@
       "source": "built here"
     },
     {
-      "label": "ECDLP-256, fewest qubits",
+      "label": "ECDLP-256, dialog on the space cells",
       "kind": "built",
       "family": "ECC",
       "logical_qubits": 1246,
@@ -25,6 +25,20 @@
       "physical_qubits": 1854944.0,
       "days": 0.022937086643771393,
       "hours_per_shot": 0.5490005694444444,
+      "runtime_model": "CCZ-throughput",
+      "source": "built here"
+    },
+    {
+      "label": "ECDLP-256, fewest qubits",
+      "kind": "built",
+      "family": "ECC",
+      "logical_qubits": 851,
+      "toffoli": 2385774798,
+      "toffoli_depth": 1834567756,
+      "shots": 1.0,
+      "physical_qubits": 1320904.0,
+      "days": 0.7317166405918838,
+      "hours_per_shot": 16.567880541666668,
       "runtime_model": "CCZ-throughput",
       "source": "built here"
     },

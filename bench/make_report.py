@@ -29,6 +29,7 @@ def main(out):
     rsa, cmp_, toy, est = J("rsa_g25.json"), J("compare_ecc_rsa.json"), \
         J("toy_distributions.json"), J("estimates.json")
     cat = J("ec_catalogue.json")
+    l3 = J("ec_luo3_256.json")
     rows = {r["label"]: r for r in cmp_["rows"]}
     ecc, ecc_min = rows["ECDLP-256, IonQ's cells, signed windows"], rows["ECDLP-256, fewest qubits"]
     r2048 = rows["RSA-2048, Gidney 2025 residue arithmetic"]
@@ -55,7 +56,11 @@ def main(out):
     for k, c in sprows.items():
         padd.append({"q": c["qubits"], "t": c["toffoli"], "d": c.get("toffoli_depth"),
                      "s": "fewer qubits", "l": k.strip(),
-                     **({"tag": "Luo EEA", "at": [7, 4, "start"]} if "Luo" in k else {})})
+                     **({"tag": "Luo EEA", "at": [7, -6, "start"]} if "Luo" in k else {})})
+    w3 = l3["signed windowed addition"]
+    padd.append({"q": w3["qubits"], "t": w3["toffoli"], "d": w3["toffoli_depth"], "s": "fewer qubits",
+                 "l": "three field registers (Luo), signed windows", "tag": "3 registers",
+                 "at": [0, 16, "middle"]})
     for k, c in trow.items():
         padd.append({"q": c["qubits"], "t": c["expected"], "d": c["toffoli_depth"],
                      "s": "IonQ's cells", "l": k.strip(),
@@ -74,7 +79,8 @@ def main(out):
            {"q": 1457, "t": ionq_pub, "l": "IonQ", "at": [7, 4, "start"]},
            {"q": 1162, "t": 1684161, "l": "ECDSA.Fail (windowed)", "tag": "ECDSA.Fail",
             "at": [-7, 4, "end"]}]
-    wtag = {"ECDLP-256, fewest qubits": ("ECDLP-256", [0, -9, "middle"]),
+    wtag = {"ECDLP-256, dialog on the space cells": ("ECDLP-256", [0, -9, "middle"]),
+            "ECDLP-256, fewest qubits": ("3 registers", [7, 4, "start"]),
             "RSA-1024, Gidney 2025 residue arithmetic": ("RSA-1024", [7, 4, "start"]),
             "RSA-2048, Gidney 2025 residue arithmetic": ("RSA-2048", [7, 4, "start"]),
             "RSA-3072, Gidney 2025 residue arithmetic": ("RSA-3072", [7, 4, "start"]),
@@ -113,6 +119,10 @@ def main(out):
          "[1128] &sect;3.2", f"2,251 &rarr; {f(best_space['qubits'])} qubits"),
         ("Luo's register-shared EEA", "ECDSA.Fail &sect;5.3.5",
          f"&rarr; {f(luo['qubits'])} qubits at {sci(luo['toffoli'], 1)} Toffolis" if luo else "built"),
+        ("Luo's division on three field registers: y vented, its phase cancelled around a Z<sup>b</sup>",
+         "[Luo26] &sect;5",
+         f"&rarr; {f(w3['qubits'])} qubits (windowed), {f(l3['controlled addition']['qubits'])} "
+         f"for a classical point"),
         ("Carry-lookahead adders with fanned-out controls", "[106] &sect;3.1, [DKRS04]",
          f"depth 1,503,533 &rarr; {f(cla['toffoli_depth'])}"),
         ("Gidney 2025 residue arithmetic, built at size", "arXiv:2505.15917",
@@ -222,7 +232,7 @@ code {{ font: 13px "IBM Plex Mono", ui-monospace, monospace; }}
 <section aria-label="Headline figures" class="tiles">
   <div class="tile ecc"><span>ECDLP-256, whole algorithm (IonQ's cells, signed windows)</span><b>{sci(ecc['toffoli'])}</b><span>Toffolis on {f(ecc['logical_qubits'])} qubits &middot; {ecc['days'] * 1440:.0f} min in the surface-code model</span></div>
   <div class="tile rsa"><span>RSA-2048, Gidney 2025 residue arithmetic</span><b>{sci(r2048['toffoli'])}</b><span>Toffolis per factoring on {f(r2048['logical_qubits'])} qubits &middot; {r2048['days']:.1f} days</span></div>
-  <div class="tile ecc"><span>fewest qubits, one point addition</span><b>{f(luo['qubits'] if luo else best_space['qubits'])}</b><span>Luo's EEA; {f(best_space['qubits'])} with the dialog at {sci(best_space['toffoli'], 1)} Toffolis</span></div>
+  <div class="tile ecc"><span>fewest qubits, one point addition</span><b>{f(w3['qubits'])}</b><span>three field registers, signed windows, {sci(w3['toffoli'], 1)} Toffolis; {f(best_space['qubits'])} with the dialog at {sci(best_space['toffoli'], 1)}</span></div>
   <div class="tile ecc"><span>one point addition, one circuit</span><b>{f(ssw['expected'])}</b><span>executed Toffolis on {f(ssw['qubits'])} qubits; IonQ publishes 1,392,608 on 1,457</span></div>
 </section>
 
@@ -311,7 +321,7 @@ code {{ font: 13px "IBM Plex Mono", ui-monospace, monospace; }}
   <article>
     <h3>Cold storage for the GCD record<span>&minus;{100 * (1 - cold[1]['physical_record_cold'] / cold[1]['physical_all_hot']):.0f}% physical qubits</span></h3>
     <p>The packed record is read two bits per round, so it can live in yoked storage like RSA's exponent.
-    Fewest-qubit configuration: {f(cold[1]['physical_all_hot'])} &rarr; {f(cold[1]['physical_record_cold'])} physical qubits;
+    Dialog on the space cells: {f(cold[1]['physical_all_hot'])} &rarr; {f(cold[1]['physical_record_cold'])} physical qubits;
     IonQ's cells with signed windows: {f(cold[0]['physical_all_hot'])} &rarr; {f(cold[0]['physical_record_cold'])}. The cost is the latency of fetching a
     record bit, which the walk can prefetch one round ahead.</p>
   </article>

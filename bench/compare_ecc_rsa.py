@@ -75,8 +75,11 @@ def main():
     add("ECDLP-256, IonQ's cells, signed windows", "built", "ECC", f["qubits_semiclassical"], f["expected"],
         f.get("toffoli_depth"))
     sp = space_full()
-    add("ECDLP-256, fewest qubits", "built", "ECC", sp["qubits"], sp["expected"],
+    add("ECDLP-256, dialog on the space cells", "built", "ECC", sp["qubits"], sp["expected"],
         sp["toffoli_depth"])
+    l3 = J("ec_luo3_256.json")["full_algorithm"]      # [Luo26]'s three field registers
+    add("ECDLP-256, fewest qubits", "built", "ECC", l3["qubits_semiclassical"], l3["toffoli"],
+        l3["toffoli_depth_bound"])
     for n in ("1024", "2048", "3072"):
         if n not in rsa:
             continue

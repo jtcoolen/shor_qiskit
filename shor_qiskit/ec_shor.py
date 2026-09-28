@@ -378,7 +378,7 @@ def _windowed_layout(order, w, m_bits, drop):
 
 def ecdlp_windowed(curve, P, Q, order, w, m_bits=None, offset=None, drop=0,
                    masks=False, seed=0, oracle="table", one_control=False,
-                   cfg=None, first_lookup=False, signed=False):
+                   cfg=None, first_lookup=False, signed=False, sign_neg=None):
     """Shor's ECDLP with w-bit windows.  Returns (circuit or Machine, info).
 
     oracle="table"   permutation oracle: simulable, for the distribution
@@ -394,6 +394,8 @@ def ecdlp_windowed(curve, P, Q, order, w, m_bits=None, offset=None, drop=0,
     signed           (arith) odd signed digits ([HJN+20] Sec 5.1, `ec_signedwin`):
                      2^(w-1)-entry tables, never O, the sign a negation of y;
                      the accumulator ends shifted by Delta_P + Delta_Q
+    sign_neg         (signed) the sign negation, `ec_signedwin.signed_windows`'s
+                     `neg` (default `cneg_y`)
     """
     p = curve.p
     n = p.bit_length()
@@ -408,7 +410,7 @@ def ecdlp_windowed(curve, P, Q, order, w, m_bits=None, offset=None, drop=0,
 
     if oracle == "arith" and signed:
         return _ecdlp_signed_arith(curve, P, Q, order, p, n, S, nwk, nwl, w, bk, bl, cfg,
-                                   first_lookup, info)
+                                   first_lookup, info, sign_neg)
     if oracle == "arith":
         return _ecdlp_windowed_arith(curve, p, n, S, tP, tQ, w, bk, bl, cfg,
                                      masks, first_lookup, info)
@@ -483,7 +485,7 @@ def _ecdlp_windowed_arith(curve, p, n, S, tP, tQ, w, bk, bl, cfg, masks,
 
 
 def _ecdlp_signed_arith(curve, P, Q, order, p, n, S, nwk, nwl, w, bk, bl, cfg,
-                        first_lookup, info):
+                        first_lookup, info, sign_neg=None):
     import ec_mbu as MB
     import ec_signedwin as SW
     cfg = cfg or SW.SIGNED_IONQ
@@ -508,7 +510,7 @@ def _ecdlp_signed_arith(curve, P, Q, order, p, n, S, nwk, nwl, w, bk, bl, cfg,
                 m.ctx.x(px[i])
             if (S.y >> i) & 1:
                 m.ctx.x(py[i])
-    SW.signed_windows(m, addrs, px, py, tables, p, cfg)
+    SW.signed_windows(m, addrs, px, py, tables, p, cfg, neg=sign_neg)
     info.update(regs=(kr, lr, px, py), qubits=m.qc.num_qubits, additions=len(addrs),
                 first_lookup=first_lookup, cfg=cfg, signed=True,
                 shift=curve.add(dP, dQ))

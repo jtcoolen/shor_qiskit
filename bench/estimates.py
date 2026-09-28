@@ -35,12 +35,13 @@ def cold_record():
     rec_fig1 = sp["_record_qubits"]
     rows = []
     full = tg["full_algorithm_select_swap"]
-    few = {r["label"]: r for r in J("compare_ecc_rsa.json")["rows"]}["ECDLP-256, fewest qubits"]
+    few = {r["label"]: r for r in J("compare_ecc_rsa.json")["rows"]}[
+        "ECDLP-256, dialog on the space cells"]
     for label, q, t, depth, rec in (
             ("IonQ's cells, signed windows", full["qubits_semiclassical"], full["expected"],
              full["toffoli_depth"], rec_ci),
-            ("fewest qubits", few["logical_qubits"], few["toffoli"], few["toffoli_depth"],
-             rec_fig1)):
+            ("dialog on the space cells", few["logical_qubits"], few["toffoli"],
+             few["toffoli_depth"], rec_fig1)):
         base = PH.estimate(PH.LogicalProfile(label, cold=0, hot=q, toffoli=t, reaction_depth=depth))
         cold = PH.estimate(PH.LogicalProfile(label, cold=rec, hot=q - rec, toffoli=t,
                                              reaction_depth=depth))

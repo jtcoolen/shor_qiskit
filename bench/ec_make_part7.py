@@ -21,6 +21,7 @@ PJ = json.loads((ROOT / "bench" / "ec_project_256.json").read_text())
 HB = json.loads((ROOT / "bench" / "ec_hier_256.json").read_text())
 QC = json.loads((ROOT / "bench" / "qualtran_compare.json").read_text())
 TG = json.loads((ROOT / "bench" / "ec_toffoli_256.json").read_text())
+L3J = json.loads((ROOT / "bench" / "ec_luo3_256.json").read_text())
 SPC = json.loads((ROOT / "bench" / "ec_space_256.json").read_text())
 DPT = json.loads((ROOT / "bench" / "ec_depth_256.json").read_text())
 CAT = json.loads((ROOT / "bench" / "ec_catalogue.json").read_text())
@@ -444,6 +445,23 @@ def rows_cat_luo():
     return "\n".join(out)
 
 
+def rows_luo3():
+    out = []
+    for key, lab in (("division", "in-place division"), ("multiplication", "in-place multiplication"),
+                     ("controlled addition", "controlled addition of a classical point (Fig.~14)"),
+                     ("signed windowed addition", "signed windowed addition, $w=16$")):
+        r = L3J[key]
+        out.append(f"{lab} & ${num(r['qubits'])}$ & ${num(r['toffoli'])}$ & ${num(r['measure'])}$\\\\")
+    f = L3J["full_algorithm"]
+    out.append(f"whole ECDLP-256, {f['additions']} additions & ${num(f['qubits_semiclassical'])}$ & "
+               f"${num(f['toffoli'])}$ & \\\\")
+    out.append("\\midrule")
+    out.append(f"published \\cite{{ec:luo26}}: point addition & ${num(L3J['formula_3reg'])}$ & "
+               f"$70.29\\times10^6$ & \\\\")
+    out.append("published \\cite{ec:ecdsafail26}: narrowest point additions & $825$--$851$ & & \\\\")
+    return "\n".join(out)
+
+
 def rows_cat_census():
     return "\n".join(f"${r['k']}$ & ${num(r['toffoli'])}$ & ${100 * r['fresh_wrong']:.1f}\\%$\\\\"
                       for r in CAT["census"]["samples"])
@@ -581,6 +599,15 @@ def facts():
     f["tg_onefull_q"] = num(f1["qubits_semiclassical"])
     f["tg_onefull_d"] = num(f1["toffoli_depth"])
     f["tg_full_d"], f["tg_full_q"] = num(fl["toffoli_depth"]), num(fl["qubits_semiclassical"])
+    # --- Luo's three registers
+    f["l3_formula"] = num(L3J["formula_3reg"])
+    f["l3_div_q"] = num(L3J["division"]["qubits"])
+    f["l3_win_q"], f["l3_win_t"] = num(L3J["signed windowed addition"]["qubits"]), \
+        num(L3J["signed windowed addition"]["toffoli"])
+    fl3 = L3J["full_algorithm"]
+    f["l3_full_t"], f["l3_full_q"] = num(fl3["toffoli"]), num(fl3["qubits_semiclassical"])
+    f["l3_ratio"] = f"{fl3['toffoli'] / TG['full_algorithm_select_swap']['toffoli']:.0f}"
+    f["l3_dialog_q"] = num(SPC["+ Luo's register-shared EEA instead of the dialog (ECDSA.Fail 5.3.5)"]["qubits"])
     # --- SELECT-SWAP
     n, a = 256, 15                               # signed windows: 15 table-address bits
     live = lambda b, k: 16 + 2 * n + (1 << k) * b + max(0, a - k - 1)   # window, x, y, words, walk
@@ -628,7 +655,8 @@ if __name__ == "__main__":
             "TOFF_PARTS": rows_toff_parts(), "SPACE256": rows_space256(),
             "DEPTH256": rows_depth256(), "CAT_CLA": rows_cat_cla(), "CAT_PROJ": rows_cat_proj(),
             "CAT_ED": rows_cat_ed(), "CAT_BATCH": rows_cat_batch(),
-            "CAT_CENSUS": rows_cat_census(), "CAT_LUO": rows_cat_luo(), "SSW": rows_ssw()}
+            "CAT_CENSUS": rows_cat_census(), "CAT_LUO": rows_cat_luo(), "SSW": rows_ssw(),
+            "LUO3": rows_luo3()}
     for k, v in subs.items():
         tpl = tpl.replace(f"%%{k}%%", v)
     for k, v in facts().items():

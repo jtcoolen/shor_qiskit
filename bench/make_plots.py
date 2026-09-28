@@ -54,6 +54,9 @@ def built_padd():
     for k, c in J("ec_depth_256.json").items():
         if isinstance(c, dict):
             out.append((c["qubits"], c["expected"], c["toffoli_depth"], k, "carry-lookahead"))
+    w3 = J("ec_luo3_256.json")["signed windowed addition"]
+    out.append((w3["qubits"], w3["toffoli"], w3["toffoli_depth"], "three field registers",
+                "qubit frontier"))
     for r in J("ec_toffoli_256.json").get("select_swap", []):
         if (r["k_point"], r["k_3x"]) != (0, 0):
             out.append((r["qubits"], r["expected"], r["toffoli_depth"],
@@ -130,7 +133,8 @@ def fig_padd_depth():
 
 SHORT = {
     "ECDLP-256, IonQ's cells, signed windows": "ours, IonQ's cells, signed",
-    "ECDLP-256, fewest qubits": "ours, fewest qubits",
+    "ECDLP-256, dialog on the space cells": "ours, dialog, space cells",
+    "ECDLP-256, fewest qubits": "ours, 3 registers",
     "RSA-1024, Gidney 2025 residue arithmetic": "RSA-1024",
     "RSA-2048, Gidney 2025 residue arithmetic": "RSA-2048",
     "RSA-3072, Gidney 2025 residue arithmetic": "RSA-3072",

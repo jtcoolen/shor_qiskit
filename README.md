@@ -489,6 +489,7 @@ Part VII.
 | `ec_signedwin.py` | odd signed windows: 2^(w−1)-entry tables that never contain O, the sign two merged negations of y; `ec_shor.ecdlp_windowed(signed=True)` | [HJN+20] §5.1, [106] §6.1 |
 | `ec_batch.py` | Montgomery's batch inversion: k inverses for 2 inversions + 5(k−1) multiplications, batched affine point additions | Litinski 2023 |
 | `ec_luo.py`, `ec_luo_classical.py` | Luo et al.'s register-shared EEA: inversion in exactly 2n + 6⌊log₂n⌋ + 19 qubits (579 at n = 256), reversible division in 4n + 6⌊log₂n⌋ + 19; `PointAddCfg(mul=Luo())` | Luo et al., ECDSA.Fail §5.3.5 |
+| `ec_luo3.py` | [Luo26] Sec 5: division and multiplication on three field registers by *venting* y (X-measured, then its phase cancelled by recomputing y around a Z^b), the controlled addition of a classical point (Fig. 14), and the windowed addition on it (`windowed_cfg`: one coordinate loaded at a time); `ec_mbu.vent` / `zfix` | [Luo26] Sec 5–6 |
 | `ec_opt.census`, `strip_unfired` | ECDSA.Fail's fire census: drop the Toffolis a sample of inputs never fires; exact when the sample is every input, otherwise measured on fresh inputs | ECDSA.Fail §5.3.7 |
 | `hier.exact_depth` | the Toffoli depth of the flat circuit, scheduled while expanding the cached hierarchy (never built); equals `depth.toffoli_depth` | — |
 | `rns_classical.py`, `rns.py` | Gidney 2025's approximate residue-number exponentiation: residue system, dlog and transition tables, bit-exact model, [G25] Table 3–5 tallies; the six loops as a circuit, exact against the model at toy N | Gidney 2025 (arXiv:2505.15917) |
@@ -645,6 +646,7 @@ constant adder, then the squarer):
 | + Gidney adders where there is headroom (walk ≤ 0.94n, squarer ≤ 0.78n ancillas) | **1,246** | 2,853,603 | 2,372,502 |
 | + SELECT-SWAP on the 3x lookup (`select_swap=(0, 1)`: its junk fits under the peak) | **1,246** | **2,821,091** | 2,339,990 |
 | + Luo's register-shared EEA instead of the dialog (`PointAddCfg(mul=Luo())`) | 1,107 | 86,033,905 | 66,428,000 |
+| three field registers ([Luo26] Sec 5, `ec_luo3.windowed_cfg`, signed windows) | **851** | 85,204,396 | 65,520,277 |
 | published: [1128] space-optimised, secp256k1 (+16 window qubits) | 1,208 | 2,390,000 | |
 | published: IonQ | 1,457 | 1,392,608 | |
 
@@ -663,6 +665,20 @@ backwards fail when the accumulator is below f on entry: probability ~f/q, ~2^�
 
 The Luo row trades 30× the Toffolis for 139 qubits: its division shares the two remainders' and the
 cofactors' lanes, so the record disappears, but every quotient bit costs a shifted comparison.
+
+**Three field registers** (`ec_luo3`, [Luo26] Sec 5).  `Luo.div` still holds four field registers at
+its peak (x in the bank, y, the second bank, the quotient).  Luo et al. *vent* y: once z = y/x is in
+the second bank, y is a function of the other registers, so it is X-measured and its register serves,
+clean, as the bank of the backward EEA; the phase (−1)^(b·y) is cancelled afterwards by recomputing
+y = xz around a Z^b (`ec_mbu.vent` / `zfix`; `run_live` performs both, and the tests check the phase
+cancels, and that without the Z^b it does not).  The multiplications take p as a classical constant:
+[Luo26] uses Gidney's constant-workspace adder for that, not built here; the exact generic cells
+serve at toy size (exact on every input, exactly 3n + 6⌊log₂n⌋ + 19 qubits) and the lean
+pseudo-Mersenne cells at n = 256, which fit in the qubits the EEA leaves idle.  At n = 256: the
+division on 835 qubits (the formula, exactly), the controlled addition of a classical point
+([Luo26] Fig. 14) on 836, the signed windowed addition on **851** (the point loaded one
+coordinate at a time: [Luo26]'s five lookups), and the whole ECDLP-256 circuit:
+**2,385,774,798 Toffolis on 851 qubits** (Luo et al. report 2^30.88 ≈ 1.98e9).
 
 **Depth** (`bench/ec_depth_256.py`).  Every configuration above ripples, and the GCD rounds
 are sequential, so depth runs at 0.8–0.95 of the Toffoli count.  [106]'s depth-optimised
@@ -704,7 +720,8 @@ p = 1e-3, 1 µs cycles, 10 µs reaction, six CCZ factories; plots in `doc/figure
 | whole algorithm | logical qubits | Toffolis | physical qubits | runtime |
 |---|---:|---:|---:|---:|
 | ECDLP-256, IonQ's cells, signed windows (built) | 1,457 | 3.68e7 | 2,140,216 | 15 min |
-| ECDLP-256, fewest qubits (built) | 1,246 | 7.91e7 | 1,854,944 | 33 min |
+| ECDLP-256, dialog on the space cells (built) | 1,246 | 7.91e7 | 1,854,944 | 33 min |
+| ECDLP-256, three field registers (built) | 851 | 2.39e9 | 1,320,904 | 0.73 days |
 | RSA-2048, Gidney 2025 (built) | 1,467 | 6.95e9 | 973,576 | 2.1 days |
 | RSA-3072, Gidney 2025 (built) | 2,115 | 1.97e10 | 1,259,592 | 6.4 days |
 | RSA-2048, Gidney 2025 (published) | 1,399 | 6.5e9 | 881,640 | 1.9 days |
@@ -751,7 +768,7 @@ Tests: `test_sparse_sim`, `test_depth`, `test_eh`, `test_physical`, `test_api_su
 `test_ec_window_cfg`, `test_ec_signed`, `test_ec_gcd`, `test_ec_square`, `test_ec_windowed`,
 `test_ec_padd_mont`, `test_ec_opt`, `test_hier`, `test_ec_space`, `test_ec_cla`,
 `test_ec_edwards`, `test_ec_proj_q`, `test_ec_depth`, `test_ec_signedwin`, `test_ec_batch`,
-`test_ec_luo` (ec tier).
+`test_ec_luo`, `test_ec_luo3` (ec tier).
 
 ## What is not implemented
 
@@ -761,11 +778,10 @@ Named rather than glossed:
   (probabilistic, failure rate measured); `ec_eea` itself remains exact.  The
   **5-Toffoli Fig. 1** packing is `ec_gcd.fig1_compress`; `ec_eea.compress_records`
   keeps its generic 57-Toffoli permutation and is still not wired into `ec_eea`.
-- **Luo et al.'s 3n point addition.** `ec_luo` builds their register-shared inversion at
-  exactly their qubit count and a reversible 4n division; the 3n point addition needs two
-  measurement-based pieces (reusing y's register after an X-measurement, and an O(1)-workspace
-  constant adder) that this package's basis-state checks cannot verify.  ECDSA.Fail's 825–851
-  qubits also rely on corpus-validated widths, excluded here.
+- **Gidney's constant-workspace classical–quantum adder** (arXiv:2507.23079), which [Luo26]
+  uses for its multipliers' modular reductions with any p.  `ec_luo3` builds [Luo26]'s
+  three-register division exactly for any p with the generic cells (more scratch), and at
+  n = 256 with the lean pseudo-Mersenne cells, which fit in the qubits the EEA leaves idle.
 - **IonQ's Karatsuba square-subtract** (their Algs 7–11, fused slice additions and phase
   comparators).  The square-subtract here is the dedicated squarer and a fold (79,160);
   a Karatsuba over this package's general cells was measured and costs more.

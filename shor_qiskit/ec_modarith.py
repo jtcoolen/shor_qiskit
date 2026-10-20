@@ -180,8 +180,9 @@ def moddbl_rotate(m, x, p):
     """`moddbl` without the SWAPs: returns the register the answer moved to.
 
     Zero gates for the shift, but the caller must adopt the returned handle.
-    Used by the Bezout replay of [1128] Alg. 3, which doubles once per iteration
-    on a register it owns outright, so the rotation costs nothing and is safe.
+    `ec_eea.bezout_replay` uses it for its default doubling: the replay doubles
+    once per iteration on a scratch register it owns outright and returns the
+    final handle, so the n SWAPs per round that `moddbl` spends are saved.
     """
     n = len(x)
     z = m.anc(1, "z")

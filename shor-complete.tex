@@ -3475,7 +3475,8 @@ records, counter, $u$, $v$ and $s$ all return to $\ket0$, which the simulator ch
 instruction each is freed.
 
 \begin{lstlisting}
-def mod_div(m, ctrl, x, y, out, p):
+def mod_div(m, ctrl, x, y, out, p, inverse_builder=None,
+            multiply_builder=None):
     """out ^= ctrl * (y / x mod p).  [106] Fig. 7, the modular division.
     ..."""
     n = len(x)
@@ -3483,14 +3484,23 @@ def mod_div(m, ctrl, x, y, out, p):
 
     def build():
         inv = m.anc(n, "inv")
-        recs, cnt = mod_inv(m, x, inv, p, ctrl=ctrl)
-        import ec_mult as MU
-        MU.modmul(m, y, inv, lam, p)
-        return inv, recs, cnt
+        if inverse_builder is None:
+            recs, cnt = mod_inv(m, x, inv, p, ctrl=ctrl)
+            garbage = [bit for record in recs for bit in record]
+            if cnt is not None:
+                garbage.append(cnt)
+        else:
+            garbage = inverse_builder(m, x, inv, p, ctrl)
+        if multiply_builder is None:
+            import ec_mult as MU
+            MU.modmul(m, y, inv, lam, p)
+        else:
+            multiply_builder(m, y, inv, lam, p)
+        return inv, garbage
 
     # forward: lam = ctrl * y * x^{-1}
     start = len(m.qc.data)
-    inv, recs, cnt = build()
+    inv, garbage = build()
     body = list(m.qc.data[start:])
 
     # lam is already 0 on the ctrl = 0 branch, so the copy needs no control
@@ -3499,11 +3509,7 @@ def mod_div(m, ctrl, x, y, out, p):
 
     for ci in reversed(body):                         # undo everything else
         m.qc.append(ci.operation.inverse(), ci.qubits, ci.clbits)
-    m.free(lam, inv)
-    for rec in recs:
-        m.free(*rec)
-    if cnt is not None:
-        m.free(cnt)
+    m.free(lam, inv, *garbage)
 \end{lstlisting}
 
 \begin{warnbox}[title={A control that has to reach all the way down --- here, though not everywhere}]
@@ -3558,7 +3564,8 @@ whether to add at all. In place, no garbage:
 The circuit is the table, line for line:
 
 \begin{lstlisting}
-def point_add_ctrl(m, q, x1, y1, x2, y2, p):
+def point_add_ctrl(m, q, x1, y1, x2, y2, p, multiplier="reference",
+                   inversion="kaliski", word_size=None):
     """(x1, y1) <- (x1, y1) + (x2, y2) when q; unchanged when q = 0.
     ..."""
     n = len(x1)
@@ -3566,12 +3573,12 @@ def point_add_ctrl(m, q, x1, y1, x2, y2, p):
 
     MA.modsub_const(m, x1, x2, p)                 # 1  x <- x1 - x2
     MA.cmodsub_const(m, q, y1, y2, p)             # 2  y <- y1 - q y2
-    K.mod_div(m, q, x1, y1, lam, p)               # 3  lambda <- q y/x
-    MU.modmul_xor(m, x1, lam, y1, p)              # 4  y <- y XOR x lambda  (= 0)
+    _moddiv(m, q, x1, y1, lam, p, multiplier, word_size, inversion)  # 3
+    _modmul_xor(m, x1, lam, y1, p, multiplier, word_size)             # 4
     MA.modadd_const(m, x1, 3 * x2 % p, p)         # 5  x <- x + 3 x2
-    MU.modsqr_sub(m, lam, x1, p)                  # 6  x <- x - lambda^2
-    MU.modmul_add(m, x1, lam, y1, p)              # 7  y <- y + x lambda
-    K.mod_div(m, q, x1, y1, lam, p)               # 8  lambda <- 0
+    _modsqr_sub(m, lam, x1, p, multiplier, word_size)                  # 6
+    _modmul_add(m, x1, lam, y1, p, multiplier, word_size)              # 7
+    _moddiv(m, q, x1, y1, lam, p, multiplier, word_size, inversion)   # 8
     _csub_2x2_or_x2(m, q, x1, x2, p)              # 9  x <- -x3
     MA.cmodsub_const(m, q, y1, y2, p)             # 10 y <- y3
     MA.cmodneg(m, q, x1, p)                       # 11 x <- x3
@@ -3883,7 +3890,8 @@ on this; the tests measure the width rather than trusting it.
 
 \subsection{Level 3: dropping the counter and postponing the reduction}\label{ec:sec:kalopt}
 
-Two changes to \S\ref{ec:sec:kaliski}, both from \cite{ec:kim26}, and they compound.
+Three changes to \S\ref{ec:sec:kaliski}, all from \cite{ec:kim26} Sec~3.3. The first two compound
+and carry the saving; the third is a scheduling change that buys depth with qubits.
 
 \emph{Run every round unconditionally.} Drop the ``is $v$ still nonzero?'' test. An inert round does
 nothing except double $r$, so instead of stopping at $-x^{-1}2^{k}$ the register runs on to
@@ -3924,6 +3932,22 @@ the \emph{product} of qubit count and $T$-depth, which is the trade-off measure 
 throughout. The columns above are plain counts, which is why they are not directly comparable ---
 a construction that spends qubits to buy depth looks better under a product metric than under
 either factor alone. The direction agrees; the magnitudes should not be read against each other.
+
+\emph{Fan the swap control out.} Each round swaps $(u,v)$ and $(r,s)$ under the decision bit $a$,
+twice --- $6n$ controlled swaps hanging off a single qubit, which must therefore run one after
+another. \code{kaliski\_round\_opt} copies $a$ into $k$ clean ancillas (\code{fanout}, default
+$k=4$) and controls swap $i$ on copy $i \bmod k$, so $k$ swaps can run in the same layer; the copies
+are cleared with the same CNOTs at the end of the round. The Toffoli count does not move, since
+$2k$ CNOTs are free in this accounting, and the width grows by $k-1$ --- the $84$ qubits in the
+$n=5$ row below would be $81$ at $k=1$. What the
+fan-out does \emph{not} reliably buy at these sizes is depth. Within one round it helps ($281$
+against $288$ layers at $n=7$, $k=4$ against $k=1$). Across the whole inversion, though, the $k$ ancillas are freed
+last and recycled as the next round's comparator scratch, so the next round queues behind the
+un-fan-out and the total grows: $5\,342$ layers at $k=4$ against $4\,793$ at $k=1$ and $4\,708$ at
+$k=2$, for $n=7$. A doubling-tree fan-out (depth $\lceil\log_2(k+1)\rceil$) changes this by under
+$1\%$, so the cost is the allocation order rather than the copying. The table keeps $k=4$ to stay
+comparable with \cite{ec:kim26}, whose fan-out draws on the following multiplier's idle scratch
+rather than fresh qubits.
 
 The $2n$-bit budget is not a comfortable margin, it is the exact requirement --- $r$ reaches $6$
 bits for $p=7$ and $32$ bits for $p=65521$, both exactly $2n$. The test measures it rather than
@@ -4009,16 +4033,43 @@ point addition's multiplicative steps.
 The replay is seven lines, and the whole saving is that none of them looks at $x$:
 
 \begin{lstlisting}
-def bezout_replay(m, r, s, recs, q, dbl=None, cadd=None):
+def bezout_replay(m, r, s, recs, q, dbl=None, cadd=None, compressed=False):
     """(r, s) updated by [1128] Algorithm 3, reading the record in reverse.
     ..."""
-    dbl = dbl or (lambda mm, reg: MA.moddbl(mm, reg, q))
+    if dbl is None:
+        state = {"s": s}
+
+        def do_dbl():
+            state["s"] = MA.moddbl_rotate(m, state["s"], q)
+    else:
+        state = {"s": s}
+
+        def do_dbl():
+            dbl(m, state["s"])
     cadd = cadd or (lambda mm, c, a, b: MA.cmodadd(mm, c, a, b, q))
-    for b0, b0b1 in reversed(recs):
-        dbl(m, s)                                        # s <- 2s mod q
+
+    def replay_round(b0, b0b1):
+        do_dbl()                                         # s <- 2s mod q
+        s = state["s"]
         cadd(m, b0[0], r, s)                             # if b0: s += r mod q
         for i in range(len(r)):
             m.ctx.cswap(b0b1[0], r[i], s[i])             # if b0b1: swap r, s
+
+    if compressed:
+        full = len(recs) - len(recs) % 3
+        for i in reversed(range(full, len(recs))):
+            replay_round(*recs[i])
+        for start in reversed(range(0, full, 3)):
+            group_recs = recs[start:start + 3]
+            group = _record_wires(group_recs)
+            m.emit_inverse(compress_triple_circuit, m, group)
+            for rec in reversed(group_recs):
+                replay_round(*rec)
+            compress_triple_circuit(m, group)
+    else:
+        for rec in reversed(recs):
+            replay_round(*rec)
+    return state["s"]
 \end{lstlisting}
 
 \noindent
@@ -4026,18 +4077,28 @@ Assembling the three phases --- dialog, replay, dialog backwards --- gives the i
 multiplication, and the rebuild consumes the record on its way out, so nothing is left behind:
 
 \begin{lstlisting}
-def inplace_mul(m, x, y, q, iters=None, dbl=None, cadd=None):
+def inplace_mul(m, x, y, q, iters=None, dbl=None, cadd=None,
+                register_sharing=False, c_pad=2.3, c_iter=2.4, compress=False):
     """|x, y> -> |x, y*x mod q>.  [1128] Algorithm 4.
 
     ..."""
     n = len(x)
-    iters = iters or eea_iterations(n)
+    iters = iters or eea_iterations(n, c_iter)
+    if register_sharing:
+        return _inplace_mul_register_sharing(
+            m, x, y, q, iters, dbl, cadd, c_pad, c_iter)
+    if not compress:
+        return _inplace_mul_plain(m, x, y, q, iters, dbl, cadd)
 
-    recs, u, v = dialog(m, x, q, iters)                  # 1: x -> dialog
+    recs, u, v = dialog(m, x, q, iters, compress=True)   # 1: x -> dialog
     clear_dialog_end(m, u, v)
 
+    full = len(recs) - len(recs) % 3
+    spares = [Reg([_record_wires(recs[i:i + 3])[5]])
+              for i in range(0, full, 3)]
+    m.reserve(*spares)
     s = m.anc(n, "bz")                                   # 2: replay onto (y, 0)
-    bezout_replay(m, y, s, recs, q, dbl, cadd)
+    s = bezout_replay(m, y, s, recs, q, dbl, cadd, compressed=True)
     for a, b in zip(y, s):                               # r is 0, s is the answer
         m.ctx.swap(a, b)
     m.free(s)
@@ -4046,12 +4107,18 @@ def inplace_mul(m, x, y, q, iters=None, dbl=None, cadd=None):
     u2 = m.anc(n + 1, "u")
     v2 = Reg(list(x) + list(hi), "v")
     m.ctx.x(u2[0])                                       # the dialog ends at u = 1
-    for rec in reversed(recs):
-        m.emit_inverse(dialog_round, m, u2, v2, rec)
+    for i in reversed(range(full, len(recs))):
+        m.emit_inverse(dialog_round, m, u2, v2, recs[i])
+        m.free(*recs[i])
+    for start in reversed(range(0, full, 3)):
+        group_recs = recs[start:start + 3]
+        group = _record_wires(group_recs)
+        m.emit_inverse(compress_triple_circuit, m, group)
+        for rec in reversed(group_recs):
+            m.emit_inverse(dialog_round, m, u2, v2, rec)
+        m.free(Reg(group))
     A.encode_const(m.ctx, u2, q)                         # and starts at u = q
     m.free(u2, hi)
-    for rec in recs:
-        m.free(*rec)
 \end{lstlisting}
 
 \begin{keybox}[title={Direction matters, and it is easy to get wrong}]
@@ -4096,6 +4163,14 @@ three pairs carry $3^3=27<32$ states and fit in five bits instead of six. One qu
 iterations, taking the record from $2.83n$ to $2.355n$ asymptotically, and (unlike a shift-based
 encoding) leaving it a \emph{fixed} size, which is what lets the rest of the circuit be laid out
 statically.
+
+That packing is implemented (\code{compress\_triple\_circuit}, with its inverse used in the replay)
+but it is \emph{standalone and opt-in}: \code{inplace\_mul(..., compress=True)}. The multiplier
+measured in the table above, and used everywhere else in this part, is the unpacked one. At these
+sizes packing saves no peak width --- the peak sits in the replay's scratch, not in the record ---
+and the encode/decode network costs Toffolis: $672$ against $612$ at $p=7$, and $1\,975$ against
+$1\,875$ at $p=61$, at the same $39$ and $66$ qubits. The packing pays only where the record is
+the widest live thing, which is the cryptographic regime of \S\ref{ec:sec:space}.
 
 \subsection{Level 4, rebuilt: projective coordinates}\label{ec:sec:proj}
 
@@ -4254,17 +4329,28 @@ live at once --- and together they take the garbage from $24\,576$ qubits to $6\
 The subsections above each hold one thing fixed. This one does not: it stacks them, on the operation
 that actually matters --- one point addition --- and then on the whole circuit.
 
+Two different kinds of number appear below, and they should not be read against each other. The
+point-addition table and the keybox are \emph{component comparisons}: each construction is built
+and measured on its own, with the arithmetic options that construction names. The whole-circuit
+table at the end is a single \emph{reference} build: \code{ecdlp\_circuit(..., oracle="arith")}
+with its defaults, which are the affine addition of Alg.~3 with the reference multiplier and the
+\cite{ec:hjnrs20} Kaliski inversion --- no windowing, no dialog, no projective coordinates, none of
+the Level~1--4 optimisations. It is there to show the size of a complete, simulated, correct
+circuit, not the best one the components above could assemble. (\code{ec\_shor} does accept the
+optimised backends, \code{arithmetic="windowed"}, \code{multiplier=}, \code{inversion=}, and the
+test suite runs them end to end; they are not what that row measures.)
+
 \begin{center}\small
 \begin{tabular}{@{}llrrrr@{}}
 \toprule
 curve & construction & Toffoli & qubits & depth & vs.\ affine\\
 \midrule
 \multicolumn{6}{@{}l}{\footnotesize Alg.~3, Alg.~4 are \cite{ec:kim26}'s; Alg.~1 is \cite{ec:schrott26}'s.}\\
-$p=7$ & affine, in place (Alg.~3) & $2\,756$ & $64$ & $11\,890$ & ---\\
+$p=7$ & affine, in place (Alg.~3) & $2\,756$ & $64$ & $11\,886$ & ---\\
  & Jacobian, out of place (Alg.~4) & $1\,544$ & $75$ & $8\,511$ & $44\%$\\
-$p=11$ & affine, in place (Alg.~3) & $4\,769$ & $83$ & $21\,024$ & ---\\
+$p=11$ & affine, in place (Alg.~3) & $4\,769$ & $83$ & $21\,023$ & ---\\
  & Jacobian, out of place (Alg.~4) & $2\,642$ & $98$ & $15\,126$ & $45\%$\\
-$p=7$ & windowed $w{=}2$, dialog mult.\ (Alg.~1) & $1\,523$ & $49$ & $6\,893$ & $45\%$\\
+$p=7$ & windowed $w{=}2$, dialog mult.\ (Alg.~1) & $1\,523$ & $49$ & $6\,907$ & $45\%$\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -4309,14 +4395,15 @@ windowing and their last on gate counts.
 \end{keybox}
 
 \noindent
-And the whole circuit, on the toy curve $y^2=x^3+5x+4 \bmod 7$ with $\mathrm{ord}(G)=5$:
+And the whole circuit --- the reference-affine arithmetic oracle, not a stack of the optimisations
+above --- on the toy curve $y^2=x^3+5x+4 \bmod 7$ with $\mathrm{ord}(G)=5$:
 
 \begin{center}\small
 \begin{tabular}{@{}lrrrr@{}}
 \toprule
 ECDLP circuit & qubits & Toffoli & gates & depth\\
 \midrule
-real arithmetic, two counting registers & $69$ & $16\,488$ & $105\,339$ & $70\,991$\\
+real arithmetic, two counting registers & $69$ & $16\,488$ & $105\,339$ & $70\,967$\\
 permutation oracle, two counting registers & $12$ & --- & $603$ & $282$\\
 permutation oracle, semiclassical QFT & $7$ & --- & $619$ & $287$\\
 \bottomrule
@@ -4334,7 +4421,10 @@ scalar registers as free.
 \subsection{Space at cryptographic size}\label{ec:sec:space}
 
 The one place where a projection is worth making, because it is what the papers' headline qubit
-counts are built from. The dialog record dominates the space of \cite{ec:schrott26}'s construction:
+counts are built from. The dialog record dominates the space of \cite{ec:schrott26}'s construction.
+Every column here is the \code{ec\_cost} closed form, not a circuit measurement, and the
+``Fig.~1 packing'' column prices the standalone packing of \S\ref{ec:sec:dialog}, which the measured
+multiplier does not use:
 
 \begin{center}\small
 \begin{tabular}{@{}rrrrr@{}}
@@ -4520,8 +4610,8 @@ stops at the logical layer, as Parts II--VI do.
 \noindent
 The Montgomery implementation now exposes both layouts from \cite{ec:kim26}: the
 \emph{depth-optimised} form allocates fresh accumulator outputs per carry-save addition, while the
-\emph{qubit-optimised} form reuses the accumulator in place. The former is deeper in qubit use and
-shallower in circuit depth; both are checked against the same Montgomery reference by the tests.
+\emph{qubit-optimised} form reuses the accumulator in place. The former uses more qubits and is
+shallower; both are checked against the same Montgomery reference by the tests.
 
 \begin{keybox}[title={Where this part sits}]
 The affine construction is \cite{ec:rnsl17} as improved by \cite{ec:hjnrs20}, with

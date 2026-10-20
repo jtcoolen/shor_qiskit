@@ -29,9 +29,10 @@ the tests pin down which is which.
 
 What is and is not implemented here
 -----------------------------------
-Implemented: the dialog (Alg. 2), the streaming five-Toffoli compression
-(Fig. 1), the Bezout replay (Alg. 3), and in-place multiplication and division
-(Alg. 4).
+Implemented: the dialog (Alg. 2), the Bezout replay (Alg. 3), and in-place
+multiplication and division (Alg. 4).  The streaming five-Toffoli compression
+(Fig. 1) is implemented and tested but opt-in (`compress=True`): the measured
+multiplier keeps the raw record.
 
 Opt-in: the register *sharing* of Sec 3.1, where u and v shrink and freed
 qubits absorb the record. This is probabilistic (c_pad ~ 2.3), not a drop-in
@@ -219,12 +220,28 @@ def bezout_replay(m, r, s, recs, q, dbl=None, cadd=None, compressed=False):
     supplies the cheaper approximate ones.  The same `cadd` runs on every
     iteration, and once per multiplication it is handed r + s = q exactly (see
     `ec_approx`), so a pseudo-Mersenne `cadd` must be Algorithm 11, not 10.
+
+    Returns the register that holds s on exit.  With the default doubling it
+    is *not* the handle passed in: the replay owns s outright, so it uses
+    `moddbl_rotate`, which lets the doubled value live one wire lower each
+    round instead of paying n SWAPs to move it home.  Callers must adopt the
+    returned handle.  A caller-supplied `dbl` is applied in place as before.
     """
-    dbl = dbl or (lambda mm, reg: MA.moddbl(mm, reg, q))
+    if dbl is None:
+        state = {"s": s}
+
+        def do_dbl():
+            state["s"] = MA.moddbl_rotate(m, state["s"], q)
+    else:
+        state = {"s": s}
+
+        def do_dbl():
+            dbl(m, state["s"])
     cadd = cadd or (lambda mm, c, a, b: MA.cmodadd(mm, c, a, b, q))
 
     def replay_round(b0, b0b1):
-        dbl(m, s)                                        # s <- 2s mod q
+        do_dbl()                                         # s <- 2s mod q
+        s = state["s"]
         cadd(m, b0[0], r, s)                             # if b0: s += r mod q
         for i in range(len(r)):
             m.ctx.cswap(b0b1[0], r[i], s[i])             # if b0b1: swap r, s
@@ -243,11 +260,12 @@ def bezout_replay(m, r, s, recs, q, dbl=None, cadd=None, compressed=False):
     else:
         for rec in reversed(recs):
             replay_round(*rec)
+    return state["s"]
 
 
 # --- Algorithm 4: in-place modular multiplication ---------------------------
 def inplace_mul(m, x, y, q, iters=None, dbl=None, cadd=None,
-                register_sharing=False, c_pad=2.3, c_iter=2.4):
+                register_sharing=False, c_pad=2.3, c_iter=2.4, compress=False):
     """|x, y> -> |x, y*x mod q>.  [1128] Algorithm 4.
 
     Three phases: x becomes a dialog, the dialog is replayed onto (y, 0), the
@@ -262,12 +280,19 @@ def inplace_mul(m, x, y, q, iters=None, dbl=None, cadd=None,
     ``register_sharing=True`` opts into the probabilistic Sec. 3.1 layout.
     Overflow is checked by the basis-state simulator at register-shrink
     boundaries; the default remains the exact fixed-width implementation.
+
+    ``compress=True`` streams Fig. 1 packing through all three phases.  It is
+    off by default: it costs 5 Toffolis per three rounds, each way, and at the
+    widths simulated here the freed wire does not lower the peak qubit count
+    (39 qubits either way at p = 7), so the measured multiplier is unpacked.
     """
     n = len(x)
     iters = iters or eea_iterations(n, c_iter)
     if register_sharing:
         return _inplace_mul_register_sharing(
             m, x, y, q, iters, dbl, cadd, c_pad, c_iter)
+    if not compress:
+        return _inplace_mul_plain(m, x, y, q, iters, dbl, cadd)
 
     recs, u, v = dialog(m, x, q, iters, compress=True)   # 1: x -> dialog
     clear_dialog_end(m, u, v)
@@ -277,7 +302,7 @@ def inplace_mul(m, x, y, q, iters=None, dbl=None, cadd=None,
               for i in range(0, full, 3)]
     m.reserve(*spares)
     s = m.anc(n, "bz")                                   # 2: replay onto (y, 0)
-    bezout_replay(m, y, s, recs, q, dbl, cadd, compressed=True)
+    s = bezout_replay(m, y, s, recs, q, dbl, cadd, compressed=True)
     for a, b in zip(y, s):                               # r is 0, s is the answer
         m.ctx.swap(a, b)
     m.free(s)
@@ -296,6 +321,29 @@ def inplace_mul(m, x, y, q, iters=None, dbl=None, cadd=None,
         for rec in reversed(group_recs):
             m.emit_inverse(dialog_round, m, u2, v2, rec)
         m.free(Reg(group))
+    A.encode_const(m.ctx, u2, q)                         # and starts at u = q
+    m.free(u2, hi)
+
+
+def _inplace_mul_plain(m, x, y, q, iters, dbl, cadd):
+    """[1128] Algorithm 4 with the record kept as raw (b0, b0b1) pairs."""
+    n = len(x)
+    recs, u, v = dialog(m, x, q, iters)                  # 1: x -> dialog
+    clear_dialog_end(m, u, v)
+
+    s = m.anc(n, "bz")                                   # 2: replay onto (y, 0)
+    s = bezout_replay(m, y, s, recs, q, dbl, cadd)
+    for a, b in zip(y, s):                               # r is 0, s is the answer
+        m.ctx.swap(a, b)
+    m.free(s)
+
+    hi = m.anc(1, "vhi")                                 # 3: dialog -> x
+    u2 = m.anc(n + 1, "u")
+    v2 = Reg(list(x) + list(hi), "v")
+    m.ctx.x(u2[0])                                       # the dialog ends at u = 1
+    for rec in reversed(recs):
+        m.emit_inverse(dialog_round, m, u2, v2, rec)
+        m.free(*rec)
     A.encode_const(m.ctx, u2, q)                         # and starts at u = q
     m.free(u2, hi)
 
@@ -322,7 +370,7 @@ def _inplace_mul_register_sharing(m, x, y, q, iters, dbl, cadd, c_pad, c_iter):
               for i in range(0, full, 3)]
     m.reserve(*spares)
     s = m.anc(n, "bz")
-    bezout_replay(m, y, s, recs, q, dbl, cadd, compressed=True)
+    s = bezout_replay(m, y, s, recs, q, dbl, cadd, compressed=True)
     for a, b in zip(y, s):
         m.ctx.swap(a, b)
     m.free(s)
@@ -349,11 +397,12 @@ def _inplace_mul_register_sharing(m, x, y, q, iters, dbl, cadd, c_pad, c_iter):
 
 
 def inplace_div(m, x, y, q, iters=None, dbl=None, cadd=None,
-                register_sharing=False, c_pad=2.3, c_iter=2.4):
+                register_sharing=False, c_pad=2.3, c_iter=2.4, compress=False):
     """|x, y> -> |x, y*x^{-1} mod q>: `inplace_mul` run backwards."""
     m.emit_inverse(
         inplace_mul, m, x, y, q, iters, dbl, cadd,
-        register_sharing=register_sharing, c_pad=c_pad, c_iter=c_iter)
+        register_sharing=register_sharing, c_pad=c_pad, c_iter=c_iter,
+        compress=compress)
 
 
 # --- Fig. 1: compressing three (b0, b0&b1) pairs into five bits -------------

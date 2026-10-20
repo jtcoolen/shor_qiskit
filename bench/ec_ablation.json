@@ -953,10 +953,10 @@
         "toffoli_paper": 612,
         "toffoli_equiv": 1116,
         "t": 2772,
-        "depth": 2753,
+        "depth": 2760,
         "and": 504,
         "and_dg": 504,
-        "gates": 3854,
+        "gates": 3827,
         "failure_rate": 0.0,
         "note": ""
       }
@@ -982,10 +982,10 @@
         "toffoli_paper": 957,
         "toffoli_equiv": 1749,
         "t": 4323,
-        "depth": 4433,
+        "depth": 4452,
         "and": 792,
         "and_dg": 792,
-        "gates": 6205,
+        "gates": 6161,
         "failure_rate": 0.0,
         "note": ""
       }
@@ -1011,10 +1011,10 @@
         "toffoli_paper": 957,
         "toffoli_equiv": 1749,
         "t": 4323,
-        "depth": 4433,
+        "depth": 4452,
         "and": 792,
         "and_dg": 792,
-        "gates": 6205,
+        "gates": 6161,
         "failure_rate": 0.0,
         "note": ""
       }
@@ -1040,10 +1040,10 @@
         "toffoli_paper": 1378,
         "toffoli_equiv": 2522,
         "t": 6214,
-        "depth": 6527,
+        "depth": 6562,
         "and": 1144,
         "and_dg": 1144,
-        "gates": 9104,
+        "gates": 9039,
         "failure_rate": 0.0,
         "note": ""
       }
@@ -1069,10 +1069,10 @@
         "toffoli_paper": 1875,
         "toffoli_equiv": 3435,
         "t": 8445,
-        "depth": 8987,
+        "depth": 9042,
         "and": 1560,
         "and_dg": 1560,
-        "gates": 12543,
+        "gates": 12453,
         "failure_rate": 0.0,
         "note": ""
       }
@@ -1086,7 +1086,7 @@
         "toffoli_paper": 2756,
         "toffoli_equiv": 4976,
         "t": 12632,
-        "depth": 11890,
+        "depth": 11886,
         "and": 2220,
         "and_dg": 2220,
         "gates": 17626,
@@ -1115,7 +1115,7 @@
         "toffoli_paper": 4769,
         "toffoli_equiv": 8632,
         "t": 21794,
-        "depth": 21024,
+        "depth": 21023,
         "and": 3863,
         "and_dg": 3863,
         "gates": 31328,
@@ -1144,10 +1144,10 @@
         "toffoli_paper": 1523,
         "toffoli_equiv": 2763,
         "t": 6941,
-        "depth": 6893,
+        "depth": 6907,
         "and": 1240,
         "and_dg": 1240,
-        "gates": 9668,
+        "gates": 9614,
         "failure_rate": 0.0,
         "note": "dialog multiplier; handles i=0 (adding O) with no special case"
       }
@@ -1248,7 +1248,7 @@
         "toffoli_paper": 16488,
         "toffoli_equiv": 29760,
         "t": 75600,
-        "depth": 70991,
+        "depth": 70967,
         "and": 13272,
         "and_dg": 13272,
         "gates": 105339,

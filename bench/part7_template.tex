@@ -503,6 +503,13 @@ What it costs is qubits. The last two columns are the plain adders' widths, $2n+
 $3n-1$; for the controlled pair the gap is wider still, $@@recon32q@@$ against $@@copy32q@@$ at
 $n=32$, since the copy needs a register of its own.
 
+\noindent
+For a classical constant offset, the separate module
+\code{gidney\_dirty\_adder} implements Gidney's dynamic $3n\pm O(1)$ construction with two clean
+and $n-2$ dirty ancillas. It vents carries by mid-circuit measurement and repairs their phases by
+classical feed-forward. This path is not composed into the unitary modular adders above: it has no
+unitary inverse and requires a backend that supports dynamic circuits.
+
 \subsection{Level 0: temporary ANDs}\label{ec:sec:fastand}
 
 Part~V measured this for factoring; it applies unchanged, and matters more here because there is so
@@ -626,7 +633,8 @@ on this; the tests measure the width rather than trusting it.
 
 \subsection{Level 3: dropping the counter and postponing the reduction}\label{ec:sec:kalopt}
 
-Two changes to \S\ref{ec:sec:kaliski}, both from \cite{ec:kim26}, and they compound.
+Three changes to \S\ref{ec:sec:kaliski}, all from \cite{ec:kim26} Sec~3.3. The first two compound
+and carry the saving; the third is a scheduling change that buys depth with qubits.
 
 \emph{Run every round unconditionally.} Drop the ``is $v$ still nonzero?'' test. An inert round does
 nothing except double $r$, so instead of stopping at $-x^{-1}2^{k}$ the register runs on to
@@ -663,6 +671,22 @@ the \emph{product} of qubit count and $T$-depth, which is the trade-off measure 
 throughout. The columns above are plain counts, which is why they are not directly comparable ---
 a construction that spends qubits to buy depth looks better under a product metric than under
 either factor alone. The direction agrees; the magnitudes should not be read against each other.
+
+\emph{Fan the swap control out.} Each round swaps $(u,v)$ and $(r,s)$ under the decision bit $a$,
+twice --- $6n$ controlled swaps hanging off a single qubit, which must therefore run one after
+another. \code{kaliski\_round\_opt} copies $a$ into $k$ clean ancillas (\code{fanout}, default
+$k=4$) and controls swap $i$ on copy $i \bmod k$, so $k$ swaps can run in the same layer; the copies
+are cleared with the same CNOTs at the end of the round. The Toffoli count does not move, since
+$2k$ CNOTs are free in this accounting, and the width grows by $k-1$ --- the $84$ qubits in the
+$n=5$ row below would be $81$ at $k=1$. What the
+fan-out does \emph{not} reliably buy at these sizes is depth. Within one round it helps ($281$
+against $288$ layers at $n=7$, $k=4$ against $k=1$). Across the whole inversion, though, the $k$ ancillas are freed
+last and recycled as the next round's comparator scratch, so the next round queues behind the
+un-fan-out and the total grows: $5\,342$ layers at $k=4$ against $4\,793$ at $k=1$ and $4\,708$ at
+$k=2$, for $n=7$. A doubling-tree fan-out (depth $\lceil\log_2(k+1)\rceil$) changes this by under
+$1\%$, so the cost is the allocation order rather than the copying. The table keeps $k=4$ to stay
+comparable with \cite{ec:kim26}, whose fan-out draws on the following multiplier's idle scratch
+rather than fresh qubits.
 
 The $2n$-bit budget is not a comfortable margin, it is the exact requirement --- $r$ reaches $6$
 bits for $p=7$ and $32$ bits for $p=65521$, both exactly $2n$. The test measures it rather than
@@ -772,6 +796,14 @@ iterations, taking the record from $2.83n$ to $2.355n$ asymptotically, and (unli
 encoding) leaving it a \emph{fixed} size, which is what lets the rest of the circuit be laid out
 statically.
 
+That packing is implemented (\code{compress\_triple\_circuit}, with its inverse used in the replay)
+but it is \emph{standalone and opt-in}: \code{inplace\_mul(..., compress=True)}. The multiplier
+measured in the table above, and used everywhere else in this part, is the unpacked one. At these
+sizes packing saves no peak width --- the peak sits in the replay's scratch, not in the record ---
+and the encode/decode network costs Toffolis: $672$ against $612$ at $p=7$, and $1\,975$ against
+$1\,875$ at $p=61$, at the same $39$ and $66$ qubits. The packing pays only where the record is
+the widest live thing, which is the cryptographic regime of \S\ref{ec:sec:space}.
+
 \subsection{Level 4, rebuilt: projective coordinates}\label{ec:sec:proj}
 
 The other way to make an inversion cheap is not to do it. In Jacobian coordinates
@@ -857,6 +889,17 @@ live at once --- and together they take the garbage from $@@g256_none@@$ qubits 
 The subsections above each hold one thing fixed. This one does not: it stacks them, on the operation
 that actually matters --- one point addition --- and then on the whole circuit.
 
+Two different kinds of number appear below, and they should not be read against each other. The
+point-addition table and the keybox are \emph{component comparisons}: each construction is built
+and measured on its own, with the arithmetic options that construction names. The whole-circuit
+table at the end is a single \emph{reference} build: \code{ecdlp\_circuit(..., oracle="arith")}
+with its defaults, which are the affine addition of Alg.~3 with the reference multiplier and the
+\cite{ec:hjnrs20} Kaliski inversion --- no windowing, no dialog, no projective coordinates, none of
+the Level~1--4 optimisations. It is there to show the size of a complete, simulated, correct
+circuit, not the best one the components above could assemble. (\code{ec\_shor} does accept the
+optimised backends, \code{arithmetic="windowed"}, \code{multiplier=}, \code{inversion=}, and the
+test suite runs them end to end; they are not what that row measures.)
+
 \begin{center}\small
 \begin{tabular}{@{}llrrrr@{}}
 \toprule
@@ -908,7 +951,8 @@ windowing and their last on gate counts.
 \end{keybox}
 
 \noindent
-And the whole circuit, on the toy curve $y^2=x^3+5x+4 \bmod 7$ with $\mathrm{ord}(G)=5$:
+And the whole circuit --- the reference-affine arithmetic oracle, not a stack of the optimisations
+above --- on the toy curve $y^2=x^3+5x+4 \bmod 7$ with $\mathrm{ord}(G)=5$:
 
 \begin{center}\small
 \begin{tabular}{@{}lrrrr@{}}
@@ -931,7 +975,10 @@ scalar registers as free.
 \subsection{Space at cryptographic size}\label{ec:sec:space}
 
 The one place where a projection is worth making, because it is what the papers' headline qubit
-counts are built from. The dialog record dominates the space of \cite{ec:schrott26}'s construction:
+counts are built from. The dialog record dominates the space of \cite{ec:schrott26}'s construction.
+Every column here is the \code{ec\_cost} closed form, not a circuit measurement, and the
+``Fig.~1 packing'' column prices the standalone packing of \S\ref{ec:sec:dialog}, which the measured
+multiplier does not use:
 
 \begin{center}\small
 \begin{tabular}{@{}rrrrr@{}}
@@ -946,9 +993,11 @@ $n$ & record, raw & with Fig.~1 packing & per $n$ & with register sharing\\
 \noindent
 The middle column converges to the paper's $2.355n$ from above --- the gap is the $O(\sqrt n)$
 safety margin on the iteration count, which is a constant fraction at these sizes and vanishes
-asymptotically. The last column is \emph{not} implemented here: it is Sec 3.1's register sharing, in
-which $u$ and $v$ shrink as the algorithm proceeds and the freed qubits absorb the record. It is
-priced here but not built --- \S\ref{ec:sec:gaps} says why.
+asymptotically. Register sharing is available as an opt-in layout: it shrinks $u$ and $v$ and reuses
+their cleared wires. Its overflow probability depends on the padding and input distribution; the
+basis-state simulator detects overflow rather than truncating. The implementation keeps fixed
+five-bit record packing, so these measured circuit widths do not claim the paper's tighter
+$2.12n+O(\sqrt n)$ projection.
 
 The paper's own closed form for the total --- its asymptotic $2.355n$ record plus $2n$ for the pair
 of modular integers the reconstruction holds, i.e.\ $4.355n+O(\sqrt n)$ --- gives
@@ -1044,14 +1093,9 @@ moment the vote shares were printed next to the uniform baseline.
 Named rather than glossed:
 
 \begin{itemize}\setlength\itemsep{2pt}
-\item \textbf{Register sharing} (\cite{ec:schrott26} Sec 3.1), which takes the dialog space from
-$2.83n$ to $2.12n$ by shrinking $u$ and $v$ as the algorithm proceeds. It is left out not for being
-probabilistic --- \S\ref{ec:sec:approx} builds and measures several circuits that are --- but
-because its failure mode is a \emph{register overflow} rather than a wrong answer, so the
-exact-simulation harness of \S\ref{ec:sec:verify} would be checking a circuit whose register layout
-is itself only probably right. Priced in \S\ref{ec:sec:space}, not built.
-\item \textbf{Gidney's dirty-ancilla constant adder} \cite{ec:gidney25}. Constant addition here uses
-clean ancillas: correct, and more qubits than the papers' accounting.
+\item \textbf{Composing Gidney's dirty-ancilla adder} \cite{ec:gidney25} into the modular
+arithmetic. The standalone dynamic adder is implemented, but the surrounding arithmetic still
+requires unitary inverse emission and does not yet use it.
 \item \textbf{The Ed25519 extension} of \cite{ec:kim26} Sec 4.4, in extended Edwards coordinates.
 The curve model here is short Weierstrass only.
 \item \textbf{Physical-level estimates} --- surface codes, QLDPC, wall-clock runtime. This part
@@ -1059,11 +1103,10 @@ stops at the logical layer, as Parts II--VI do.
 \end{itemize}
 
 \noindent
-And one thing implemented in only one of its two forms: \cite{ec:kim26} distinguishes a
-\emph{depth-optimised} Montgomery multiplier, which allocates fresh output qubits per two-operand
-addition, from a \emph{qubit-optimised} one, which uncomputes and reuses them. The implementation
-here always accumulates in place --- the qubit-optimised shape --- which is why the depth win from
-the carry-save tree shows up smaller than the paper's depth-optimised figures.
+The Montgomery implementation now exposes both layouts from \cite{ec:kim26}: the
+\emph{depth-optimised} form allocates fresh accumulator outputs per carry-save addition, while the
+\emph{qubit-optimised} form reuses the accumulator in place. The former uses more qubits and is
+shallower; both are checked against the same Montgomery reference by the tests.
 
 \begin{keybox}[title={Where this part sits}]
 The affine construction is \cite{ec:rnsl17} as improved by \cite{ec:hjnrs20}, with

@@ -2093,7 +2093,7 @@ builds, since partial implementations of it are easy to mistake for the whole th
 \S3.5 \ nested exponent $+$ multiplication windows & \textbf{built} & \S\ref{im:sec:nested}, \code{windowed\_exponentiate}\\
 \midrule
 \S2, Fig.~3 \ measurement-based uncomputation & \textbf{built} & \S\ref{im:sec:mbu}, \code{run\_windowed\_acc\_mbu} --- hybrid, so it runs as circuit/measure/classical/circuit\\[3pt]
-\S3.2 \ windowed in-place multiplication      & not built & not needed: we multiply out-of-place and swap (Fig.~6)\\
+\S3.2 \ windowed in-place multiplication      & \textbf{built} & \code{windowed\_inplace.times\_equal}, $x\mathrel{*}=k \bmod 2^L$, exact on every input; the modular ladder still multiplies out-of-place and swaps (Fig.~6)\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -2382,10 +2382,17 @@ $4$ & $7$ & $15$ & $0.0135$ & $0.4375$\\
 
 \begin{warnbox}[title={What is built, and what is not}]
 Built and verified: the coset encoding, the plain-adder modular addition, the deviation law, and
-the coset multiplier. \textbf{Not built: the full coset order-finding circuit.} Level~4's
-multiply/swap/uncompute in coset form is the remaining piece --- the accumulator must start in
-$\ket0_{\mathrm{coset}}=\sum_j\ket{jN}$ rather than $\ket0$, and the uncomputation must return it
-there to within the deviation budget.
+the coset multiplier. \textbf{Also built:} the full coset order-finding circuit (\code{coset\_order.py}) and oblivious
+carry runways \cite{gidney-approx} (\code{runway.py}). The encoder is a circuit (pad qubit in $\ket+$,
+add $2^hN$, uncompute the pad by comparison) and matches the ideal coset state exactly. Level~4 runs in
+coset form --- the accumulator starts in $\ket0_{\mathrm{coset}}$ and the un-multiply returns it
+there --- with runways attached to the accumulator only for the duration of each accumulation
+(encode, add piecewise, remove). One runway of length $m$ deviates by at most $2^{-m}$ per addition, and
+\code{tests/test\_runway.py} measures $0.2513$ against $0.25$ for $m=2$. At toy sizes the whole
+multiplication is far from the ideal state, as the bound $2m\cdot2^{-c_{\mathrm{pad}}}$ predicts: for
+$N=7$, fidelity $0.43/0.63/0.76$ at $c_{\mathrm{pad}}=3/4/5$. End to end ($N=15$, $A=7$, $t=3$)
+$50/60$ shots land on the exact-phase outcomes without runways and $47/60$ with them, and both
+recover $r=4$.
 
 There is also a change of character worth stating plainly. Every other construction in this note is
 \emph{exact}, and its tests assert exact equality with ancillas provably clean. The coset
@@ -4635,6 +4642,9 @@ representation of modular integers.
 \bibitem{gidney-ekera} C.~Gidney and M.~Eker\aa, \emph{How to factor 2048 bit RSA integers
 in 8 hours using 20 million noisy qubits}, Quantum \textbf{5}:433, 2021.
 \href{https://arxiv.org/abs/1905.09749}{arXiv:1905.09749}.
+\bibitem{gidney-approx}
+C.~Gidney, \emph{Approximate encoded permutations and piecewise quantum adders}, 2019.
+\href{https://arxiv.org/abs/1905.08488}{arXiv:1905.08488}.
 \bibitem{gidney-window}
 C.~Gidney,
 \emph{Windowed quantum arithmetic},

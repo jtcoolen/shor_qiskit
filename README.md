@@ -92,6 +92,9 @@ exact distribution:
 | `shor_qiskit/shor_stats.py` | exact output distributions of both circuits, per-shot success probability, TVD against the shot-noise null | — |
 | `shor_qiskit/resources.py` | logical resource counts for any circuit here: qubits, Toffolis, T (plain and temporary-AND), controlled phases, small-angle rotations and their synthesis cost | — |
 | `shor_qiskit/coset.py` | Zalka **coset representation**: deletes the modular adder — a plain adder does modular arithmetic | V.22 |
+| `shor_qiskit/runway.py` | **oblivious carry runways** (Gidney 1905.08488 §4): `|+>` runway subtracted out of the register, piecewise addition, exact removal | V.22 |
+| `shor_qiskit/coset_order.py` | the **full coset order-finding circuit**: circuit-built coset encoder, multiply/swap/un-multiply in coset form, optional runways and windowing | V.22 |
+| `shor_qiskit/windowed_inplace.py` | Gidney's **windowed in-place multiplication** `x *= k mod 2^L` (§3.2) | V.19 |
 | `tests/` | the verification suite; each file asserts its own results | IV.17 |
 | `examples/toy_demo.py` | toy RSA and toy ECDLP broken end to end on Aer | — |
 | `bench/` | the cost measurements quoted in the document | — |
@@ -208,7 +211,7 @@ lineage, and where this stops:
 | 2018 | Gidney temporary AND | **built** |
 | 2019 | Gidney windowed arithmetic | **built, in full** |
 | 2021 | Gidney–Ekerå: Zalka coset representation | **built** (`coset.py`) |
-| 2021 | Gidney–Ekerå: oblivious carry runways | absent — depth only |
+| 2019 | Gidney: oblivious carry runways | **built** (`runway.py`, `coset_order.py`) |
 | 2025 | Chevignard–Fouque–Schrottenloher: residue number system | absent |
 | 2025 | Gidney: approximate residue arithmetic + yoked surface codes | absent |
 
@@ -219,8 +222,11 @@ slide instead of needing a reduction. Measured saving over the seven-block modul
 adder: **1.7–2.8×** with the Fourier adder, **3.0–3.9×** with ripple-carry (padding
 costs less when the adder is linear rather than quadratic in width).
 
-What remains from Gidney–Ekerå 2021 is **oblivious carry runways**, which attack depth
-rather than gate count — the ripple-carry adder is Θ(n)-deep by construction. Beyond
+Oblivious carry runways (`runway.py`) attack depth rather than gate count: the register
+is added to as independent pieces, each runway deviating by at most 2^-m per addition
+(measured tight in `tests/test_runway.py`). `coset_order.py` assembles them with the coset
+representation and windowed lookups into the full order-finding circuit, and
+`windowed_inplace.py` adds Gidney's windowed in-place multiplication (§3.2). Beyond
 that the lineage leaves this architecture entirely (RNS).
 
 A separate lineage (Regev 2023; Ragavan–Vaikuntanathan 2024) changes the algorithm

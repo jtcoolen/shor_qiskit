@@ -107,8 +107,10 @@ def proj_eea_space(n, c_iter=2.4, c_pad=2.3):
     """Record and working space for [1128]'s Euclidean algorithm.
 
     `record_compressed` is the streaming Fig. 1 record used by `inplace_mul`;
-    `with_register_sharing` is the projected space with the additional,
-    probabilistic Sec 3.1 optimization, which is not implemented.
+    `with_register_sharing` remains the paper's ideal projected space for the
+    probabilistic Sec 3.1 optimization. The opt-in dialog circuit shares
+    shrinking u/v wires with the record, but retains fixed five-bit packing and
+    is not a measured implementation of that tighter projection.
     """
     from ec_eea import dialog_width, dialog_width_compressed
     import math

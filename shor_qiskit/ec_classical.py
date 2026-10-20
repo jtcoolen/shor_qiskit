@@ -14,7 +14,9 @@ Sources
     [Eke19]  Ekera, Revisiting Shor's algorithm for discrete logarithms
 """
 
+import math
 from math import gcd
+from typing import NamedTuple
 
 
 # =============================================================================
@@ -346,6 +348,50 @@ def eea_iterations(n, c_iter=2.4):
     suffice on average, with standard deviation ~0.6 sqrt(n).
     """
     return int(1.413 * n + c_iter * n**0.5) + 1
+
+
+class EEARegisterSharingResult(NamedTuple):
+    bits: list
+    u: int
+    v: int
+    overflow: bool
+    converged: bool
+
+
+def eea_shrink_schedule(n, c_pad=2.3, iters=None, c_iter=2.4):
+    """Scheduled widths from [1128] Sec. 3.1."""
+    count = iters if iters is not None else eea_iterations(n, c_iter)
+    step = 0.5 * math.log2(8 / 3)
+    return [
+        max(1, math.ceil(n - step * i + c_pad * math.sqrt(n)))
+        for i in range(count)
+    ]
+
+
+def eea_dialog_register_sharing(u, v, n, iters=None, c_pad=2.3, c_iter=2.4):
+    """Classical oracle for [1128] Sec. 3.1's probabilistic width schedule.
+
+    The arithmetic itself remains full-width: ``overflow`` records whether
+    either value exceeded the scheduled width before an iteration. This avoids
+    silently truncating an overflowing input. ``converged`` is reported
+    separately because failure to reach (1, 0) is not a layout overflow.
+    """
+    iters = iters or eea_iterations(n, c_iter)
+    widths = eea_shrink_schedule(n, c_pad, iters=iters, c_iter=c_iter)
+    bits = []
+    overflow = False
+    for width in widths:
+        overflow |= u >= (1 << width) or v >= (1 << width)
+        b0 = v & 1
+        b1 = int(u > v)
+        b0b1 = b0 & b1
+        bits.append((b0, b0b1))
+        if b0b1:
+            u, v = v, u
+        if b0:
+            v -= u
+        v >>= 1
+    return EEARegisterSharingResult(bits, u, v, overflow, u == 1 and v == 0)
 
 
 def bezout_replay(bits, r, s, q):

@@ -3688,6 +3688,13 @@ What it costs is qubits. The last two columns are the plain adders' widths, $2n+
 $3n-1$; for the controlled pair the gap is wider still, $66$ against $128$ at
 $n=32$, since the copy needs a register of its own.
 
+\noindent
+For a classical constant offset, the separate module
+\code{gidney\_dirty\_adder} implements Gidney's dynamic $3n\pm O(1)$ construction with two clean
+and $n-2$ dirty ancillas. It vents carries by mid-circuit measurement and repairs their phases by
+classical feed-forward. This path is not composed into the unitary modular adders above: it has no
+unitary inverse and requires a backend that supports dynamic circuits.
+
 \subsection{Level 0: temporary ANDs}\label{ec:sec:fastand}
 
 Part~V measured this for factoring; it applies unchanged, and matters more here because there is so
@@ -4337,9 +4344,11 @@ $521$ & $1\,582$ & $1\,319$ & $2.532n$ & $1\,157$\\
 \noindent
 The middle column converges to the paper's $2.355n$ from above --- the gap is the $O(\sqrt n)$
 safety margin on the iteration count, which is a constant fraction at these sizes and vanishes
-asymptotically. The last column is \emph{not} implemented here: it is Sec 3.1's register sharing, in
-which $u$ and $v$ shrink as the algorithm proceeds and the freed qubits absorb the record. It is
-priced here but not built --- \S\ref{ec:sec:gaps} says why.
+asymptotically. Register sharing is available as an opt-in layout: it shrinks $u$ and $v$ and reuses
+their cleared wires. Its overflow probability depends on the padding and input distribution; the
+basis-state simulator detects overflow rather than truncating. The implementation keeps fixed
+five-bit record packing, so these measured circuit widths do not claim the paper's tighter
+$2.12n+O(\sqrt n)$ projection.
 
 The paper's own closed form for the total --- its asymptotic $2.355n$ record plus $2n$ for the pair
 of modular integers the reconstruction holds, i.e.\ $4.355n+O(\sqrt n)$ --- gives
@@ -4492,14 +4501,9 @@ moment the vote shares were printed next to the uniform baseline.
 Named rather than glossed:
 
 \begin{itemize}\setlength\itemsep{2pt}
-\item \textbf{Register sharing} (\cite{ec:schrott26} Sec 3.1), which takes the dialog space from
-$2.83n$ to $2.12n$ by shrinking $u$ and $v$ as the algorithm proceeds. It is left out not for being
-probabilistic --- \S\ref{ec:sec:approx} builds and measures several circuits that are --- but
-because its failure mode is a \emph{register overflow} rather than a wrong answer, so the
-exact-simulation harness of \S\ref{ec:sec:verify} would be checking a circuit whose register layout
-is itself only probably right. Priced in \S\ref{ec:sec:space}, not built.
-\item \textbf{Gidney's dirty-ancilla constant adder} \cite{ec:gidney25}. Constant addition here uses
-clean ancillas: correct, and more qubits than the papers' accounting.
+\item \textbf{Composing Gidney's dirty-ancilla adder} \cite{ec:gidney25} into the modular
+arithmetic. The standalone dynamic adder is implemented, but the surrounding arithmetic still
+requires unitary inverse emission and does not yet use it.
 \item \textbf{The Ed25519 extension} of \cite{ec:kim26} Sec 4.4, in extended Edwards coordinates.
 The curve model here is short Weierstrass only.
 \item \textbf{Physical-level estimates} --- surface codes, QLDPC, wall-clock runtime. This part

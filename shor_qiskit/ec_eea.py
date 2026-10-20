@@ -33,13 +33,13 @@ Implemented: the dialog (Alg. 2), the streaming five-Toffoli compression
 (Fig. 1), the Bezout replay (Alg. 3), and in-place multiplication and division
 (Alg. 4).
 
-Not implemented: the register *sharing* of Sec 3.1, where u and v shrink as the
-algorithm proceeds and the freed qubits absorb the record, taking the space from
-2.83n to 2.12n.  That optimization is probabilistic -- it works "with high
-probability" for a padding constant c_pad ~ 2.3 -- and everything else in this
-package is exact.  `shrink_schedule` computes the widths it would use, so
-`ec_cost` can price it. `dialog_width` is the raw-record baseline;
-`dialog_width_compressed` reports the packed record used by `inplace_mul`.
+Opt-in: the register *sharing* of Sec 3.1, where u and v shrink and freed
+qubits absorb the record. This is probabilistic (c_pad ~ 2.3), not a drop-in
+replacement for the exact default. Basis-state simulation checks every
+shrinking boundary and raises on overflow rather than truncating. The circuit
+uses the existing fixed five-bit/three-round encoding, so it does not claim the
+paper's tighter 2.12n asymptotic record bound. `inplace_mul` remains exact and
+uses its original layout.
 
 The compressed record is emitted as each group of three rounds completes.
 Its clean sixth wire is returned to the ancilla pool and reused by later
@@ -49,7 +49,7 @@ used.
 
 import ec_adders as A
 import ec_modarith as MA
-from ec_classical import eea_iterations
+from ec_classical import eea_iterations, eea_shrink_schedule
 from ec_sim import Reg
 
 
@@ -81,19 +81,28 @@ def dialog_round(m, u, v, rec):
         ctx.swap(v[i], v[i + 1])
 
 
-def dialog(m, x, q, iters=None, ctrl=None, compress=False):
-    """Consume x, produce the dialog.  Returns (records, u, v).
+def dialog(m, x, q, iters=None, ctrl=None, compress=False,
+           register_sharing=False, c_pad=2.3, c_iter=2.4):
+    """Consume x, produce the dialog. Returns (records, u, v).
 
     On termination u = 1 and v = 0, so x's own register comes back clean -- the
-    value has been traded for the record.  That is [1128] Alg. 4 step 1.
+    value has been traded for the record. That is [1128] Alg. 4 step 1.
+    ``register_sharing=True`` opts into Sec. 3.1's probabilistic layout; in that
+    case u/v are only the final active slices and simulator cleanliness checks
+    detect scheduled-width overflow.
     """
     ctx, n = m.ctx, len(x)
-    iters = iters or eea_iterations(n)
+    iters = iters or eea_iterations(n, c_iter)
     assert ctrl is None, (
         "a controlled dialog is not implemented -- gate the caller instead. "
         "Unlike Kaliski, loading v <- 0 does not make the rounds inert here: "
         "the dialog would record a different bit string and the replay would "
         "no longer invert it.")
+    if register_sharing:
+        return dialog_register_sharing(
+            m, x, q, iters=iters, compress=compress, c_pad=c_pad,
+            c_iter=c_iter)
+
     hi = m.anc(1, "vhi")
     u = m.anc(n + 1, "u")
     v = Reg(list(x) + list(hi), "v")
@@ -115,6 +124,60 @@ def dialog(m, x, q, iters=None, ctrl=None, compress=False):
             m.free(spare)
             spares.append(spare)
     return recs, u, v
+
+
+def dialog_register_sharing(m, x, q, iters=None, compress=True, c_pad=2.3,
+                            c_iter=2.4):
+    """Build [1128] Sec. 3.1's probabilistic shrinking-width EEA dialog.
+
+    Wires above each scheduled u/v width are returned to the clean-ancilla
+    pool and can hold dialog bits. ``Machine.free`` installs a simulator check
+    at each boundary, so a basis-state overflow raises instead of being
+    silently truncated. Returned u/v handles cover only the final active
+    slices; upper wires may now hold dialog data.
+
+    ``inplace_mul(..., register_sharing=True)`` uses this layout end to end.
+    A quantum device cannot expose a non-destructive overflow flag for this
+    probabilistic schedule; callers must validate the arithmetic result.
+    """
+    recs, u, v, widths = _build_dialog_register_sharing(
+        m, x, q, iters, compress, c_pad, c_iter)
+    return recs, u[:widths[-1]], v[:widths[-1]]
+
+
+def _build_dialog_register_sharing(m, x, q, iters, compress, c_pad, c_iter):
+    n = len(x)
+    iters = iters or eea_iterations(n, c_iter)
+    widths = shrink_schedule(n, c_pad, iters=iters, c_iter=c_iter)
+    width_max = widths[0]
+    if width_max < n:
+        raise ValueError("register-sharing schedule is narrower than the input")
+
+    u = m.anc(width_max, "u")
+    vhi = m.anc(width_max - n, "vhi")
+    v = Reg(list(x) + list(vhi), "v")
+    A.encode_const(m.ctx, u, q)
+
+    recs = []
+    spares = []
+    previous_width = width_max
+    for width in widths:
+        if width < previous_width:
+            m.free(u[width:previous_width], v[width:previous_width])
+        rec = (
+            m.anc(1, "b0", exclude=spares if compress else ()),
+            m.anc(1, "b1", exclude=spares if compress else ()),
+        )
+        dialog_round(m, u[:width], v[:width], rec)
+        recs.append(rec)
+        if compress and len(recs) % 3 == 0:
+            group = _record_wires(recs[-3:])
+            compress_triple_circuit(m, group)
+            spare = Reg([group[5]])
+            m.free(spare)
+            spares.append(spare)
+        previous_width = width
+    return recs, u, v, widths
 
 
 def dialog_undo(m, x, q, recs, u, v, iters=None, compressed=False):
@@ -183,7 +246,8 @@ def bezout_replay(m, r, s, recs, q, dbl=None, cadd=None, compressed=False):
 
 
 # --- Algorithm 4: in-place modular multiplication ---------------------------
-def inplace_mul(m, x, y, q, iters=None, dbl=None, cadd=None):
+def inplace_mul(m, x, y, q, iters=None, dbl=None, cadd=None,
+                register_sharing=False, c_pad=2.3, c_iter=2.4):
     """|x, y> -> |x, y*x mod q>.  [1128] Algorithm 4.
 
     Three phases: x becomes a dialog, the dialog is replayed onto (y, 0), the
@@ -194,9 +258,16 @@ def inplace_mul(m, x, y, q, iters=None, dbl=None, cadd=None):
     The rebuild also consumes the record: running a dialog round backwards
     un-copies b0 and un-ANDs b0b1, so every record qubit returns to |0> and the
     whole multiplication is garbage-free.
+
+    ``register_sharing=True`` opts into the probabilistic Sec. 3.1 layout.
+    Overflow is checked by the basis-state simulator at register-shrink
+    boundaries; the default remains the exact fixed-width implementation.
     """
     n = len(x)
-    iters = iters or eea_iterations(n)
+    iters = iters or eea_iterations(n, c_iter)
+    if register_sharing:
+        return _inplace_mul_register_sharing(
+            m, x, y, q, iters, dbl, cadd, c_pad, c_iter)
 
     recs, u, v = dialog(m, x, q, iters, compress=True)   # 1: x -> dialog
     clear_dialog_end(m, u, v)
@@ -229,9 +300,60 @@ def inplace_mul(m, x, y, q, iters=None, dbl=None, cadd=None):
     m.free(u2, hi)
 
 
-def inplace_div(m, x, y, q, iters=None, dbl=None, cadd=None):
+def _inplace_mul_register_sharing(m, x, y, q, iters, dbl, cadd, c_pad, c_iter):
+    """Run shared EEA, replay it, then invert the captured dialog gates.
+
+    Shrinking-register wires can successively hold register bits, records, and
+    replay workspace. After uncomputation, consolidate those clean ancillas
+    back into the pool state that existed on entry.
+    """
+    start = m.begin()
+    initial_qubits = set(m.qc.qubits)
+    initial_pool = list(m._pool)
+    live_before = m._live
+
+    recs, u, v, _ = _build_dialog_register_sharing(
+        m, x, q, iters, True, c_pad, c_iter)
+    dialog_body = m.since(start)
+
+    n = len(x)
+    full = len(recs) - len(recs) % 3
+    spares = [Reg([_record_wires(recs[i:i + 3])[5]])
+              for i in range(0, full, 3)]
+    m.reserve(*spares)
+    s = m.anc(n, "bz")
+    bezout_replay(m, y, s, recs, q, dbl, cadd, compressed=True)
+    for a, b in zip(y, s):
+        m.ctx.swap(a, b)
+    m.free(s)
+
+    m.undo(dialog_body)
+
+    local = {qbit for ci in m.qc.data[start:] for qbit in ci.qubits}
+    local.update(qbit for qbit in m.qc.qubits if qbit not in initial_qubits)
+    inputs = set(x) | set(y)
+    local_qubits = [
+        qbit for qbit in m.qc.qubits if qbit in local and qbit not in inputs
+    ]
+
+    local_set = set(local_qubits)
+    pooled_local = [qbit for qbit in m._pool if qbit in local_set]
+    if pooled_local:
+        m.reserve(Reg(pooled_local))
+    if local_qubits:
+        m.free(Reg(local_qubits))
+
+    new_qubits = [qbit for qbit in m.qc.qubits if qbit not in initial_qubits]
+    m._pool = initial_pool + new_qubits
+    m._live = live_before
+
+
+def inplace_div(m, x, y, q, iters=None, dbl=None, cadd=None,
+                register_sharing=False, c_pad=2.3, c_iter=2.4):
     """|x, y> -> |x, y*x^{-1} mod q>: `inplace_mul` run backwards."""
-    m.emit_inverse(inplace_mul, m, x, y, q, iters, dbl, cadd)
+    m.emit_inverse(
+        inplace_mul, m, x, y, q, iters, dbl, cadd,
+        register_sharing=register_sharing, c_pad=c_pad, c_iter=c_iter)
 
 
 # --- Fig. 1: compressing three (b0, b0&b1) pairs into five bits -------------
@@ -319,17 +441,10 @@ def dialog_width_compressed(n, c_iter=2.4):
     return 2 * it - it // 3
 
 
-def shrink_schedule(n, c_pad=2.3):
+def shrink_schedule(n, c_pad=2.3, iters=None, c_iter=2.4):
     """[1128] Sec 3.1: the width u and v would occupy at each iteration.
 
-    n - 0.5 log2(8/3) i + c_pad sqrt(n).  Not used by the circuits here -- it is
-    a probabilistic optimization and this package is exact -- but it is what the
-    paper's 2.12n rests on, so `ec_cost` can quote both.
+    n - 0.5 log2(8/3) i + c_pad sqrt(n). Used only by the opt-in
+    ``dialog_register_sharing`` layout; the default circuit remains exact.
     """
-    import math
-    step = 0.5 * math.log2(8 / 3)
-    out = []
-    for i in range(eea_iterations(n)):
-        w = n - step * i + c_pad * math.sqrt(n)
-        out.append(max(1, int(math.ceil(w))))
-    return out
+    return eea_shrink_schedule(n, c_pad, iters, c_iter)

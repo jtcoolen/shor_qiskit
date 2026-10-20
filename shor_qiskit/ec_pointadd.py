@@ -43,11 +43,21 @@ Shor's algorithm is built to tolerate.  The circuit does not detect them -- a
 check would cost more than it saves -- so on an excluded input it returns
 garbage and leaves ancillas dirty.  The tests exclude them explicitly and
 report how many, rather than quietly passing.
+
+Backend selection
+-----------------
+`multiplier` may be `reference`, `montgomery-qcsa`, or `montgomery-lookup`;
+`inversion` may be `kaliski` or `kaliski-opt`. Montgomery multiplication
+converts the ordinary field residues at its boundary, so the point-adder
+formula remains unchanged. The optimized inverse likewise converts its
+Montgomery-scaled result back to an ordinary residue.
 """
 
 import ec_adders as A
 import ec_kaliski as K
+import ec_kaliski_opt as KO
 import ec_modarith as MA
+import ec_montgomery as MG
 import ec_mult as MU
 
 
@@ -74,7 +84,104 @@ def _csub_2x2_or_x2(m, q, x, x2, p):
     m.free(creg)
 
 
-def point_add_ctrl(m, q, x1, y1, x2, y2, p):
+def _mont_word_size(n, requested):
+    if requested is not None:
+        if requested < 1 or n % requested:
+            raise ValueError(f"Montgomery word size {requested} must divide {n}")
+        return requested
+    return next(w for w in range(min(16, n), 0, -1) if n % w == 0)
+
+
+def _modmul(m, x, y, out, p, multiplier, word_size):
+    if multiplier == "reference":
+        MU.modmul(m, x, y, out, p)
+        return
+    if multiplier not in ("montgomery-qcsa", "montgomery-lookup"):
+        raise ValueError(f"unknown multiplier backend {multiplier!r}")
+
+    n = len(x)
+    w = _mont_word_size(n, word_size)
+    R = pow(2, n, p)
+    x_mont, y_mont = m.anc(n, "xm"), m.anc(n, "ym")
+    product_mont = m.anc(n, "pm")
+    kind = "qcsa" if multiplier == "montgomery-qcsa" else "lookup"
+    MU.modmul_const(m, x, R, x_mont, p)
+    MU.modmul_const(m, y, R, y_mont, p)
+    MG.mont_mul_clean(m, x_mont, y_mont, product_mont, p, w, kind=kind)
+    one = m.anc(n, "one")
+    m.ctx.x(one[0])
+    MG.mont_mul_clean(m, product_mont, one, out, p, w, kind=kind)
+    m.ctx.x(one[0])
+    m.emit_inverse(
+        MG.mont_mul_clean, m, x_mont, y_mont, product_mont, p, w,
+        kind)
+    m.emit_inverse(MU.modmul_const, m, y, R, y_mont, p)
+    m.emit_inverse(MU.modmul_const, m, x, R, x_mont, p)
+    m.free(x_mont, y_mont, product_mont, one)
+
+
+def _modmul_xor(m, x, y, acc, p, multiplier, word_size):
+    product = m.anc(len(x), "prod")
+    _modmul(m, x, y, product, p, multiplier, word_size)
+    for a, b in zip(product, acc):
+        m.ctx.cx(a, b)
+    m.emit_inverse(_modmul, m, x, y, product, p, multiplier, word_size)
+    m.free(product)
+
+
+def _modsqr_sub(m, x, acc, p, multiplier, word_size):
+    n = len(x)
+    copy = m.anc(n, "sq")
+    product = m.anc(n, "sqprod")
+    for a, b in zip(x, copy):
+        m.ctx.cx(a, b)
+    _modmul(m, copy, x, product, p, multiplier, word_size)
+    MA.modsub(m, product, acc, p)
+    m.emit_inverse(_modmul, m, copy, x, product, p, multiplier, word_size)
+    for a, b in zip(x, copy):
+        m.ctx.cx(a, b)
+    m.free(copy, product)
+
+
+def _modmul_add(m, x, y, acc, p, multiplier, word_size):
+    product = m.anc(len(x), "prod")
+    _modmul(m, x, y, product, p, multiplier, word_size)
+    MA.modadd(m, product, acc, p)
+    m.emit_inverse(_modmul, m, x, y, product, p, multiplier, word_size)
+    m.free(product)
+
+
+def _moddiv(m, q, x, y, out, p, multiplier, word_size, inversion):
+    n = len(x)
+    if inversion not in ("kaliski", "kaliski-opt"):
+        raise ValueError(f"unknown inversion backend {inversion!r}")
+
+    def build_inverse(machine, src, dst, modulus, ctrl):
+        if inversion == "kaliski":
+            recs, counter = K.mod_inv(machine, src, dst, modulus, ctrl=ctrl)
+            garbage = [bit for record in recs for bit in record]
+            if counter is not None:
+                garbage.append(counter)
+            return garbage
+
+        raw = machine.anc(n, "inv_mont")
+        KO.mod_inv_mont_clean(machine, src, raw, modulus, ctrl=ctrl)
+        correction = pow(pow(2, 2 * n, modulus), -1, modulus)
+        if correction == 1:
+            for a, b in zip(raw, dst):
+                machine.ctx.cx(a, b)
+        else:
+            MU.modmul_const(machine, raw, correction, dst, modulus)
+        return [raw]
+
+    def multiply(machine, a, b, dst, modulus):
+        _modmul(machine, a, b, dst, modulus, multiplier, word_size)
+
+    K.mod_div(m, q, x, y, out, p, build_inverse, multiply)
+
+
+def point_add_ctrl(m, q, x1, y1, x2, y2, p, multiplier="reference",
+                   inversion="kaliski", word_size=None):
     """(x1, y1) <- (x1, y1) + (x2, y2) when q; unchanged when q = 0.
 
     In place, no garbage.  x2, y2 are classical.
@@ -84,12 +191,12 @@ def point_add_ctrl(m, q, x1, y1, x2, y2, p):
 
     MA.modsub_const(m, x1, x2, p)                 # 1  x <- x1 - x2
     MA.cmodsub_const(m, q, y1, y2, p)             # 2  y <- y1 - q y2
-    K.mod_div(m, q, x1, y1, lam, p)               # 3  lambda <- q y/x
-    MU.modmul_xor(m, x1, lam, y1, p)              # 4  y <- y XOR x lambda  (= 0)
+    _moddiv(m, q, x1, y1, lam, p, multiplier, word_size, inversion)  # 3
+    _modmul_xor(m, x1, lam, y1, p, multiplier, word_size)             # 4
     MA.modadd_const(m, x1, 3 * x2 % p, p)         # 5  x <- x + 3 x2
-    MU.modsqr_sub(m, lam, x1, p)                  # 6  x <- x - lambda^2
-    MU.modmul_add(m, x1, lam, y1, p)              # 7  y <- y + x lambda
-    K.mod_div(m, q, x1, y1, lam, p)               # 8  lambda <- 0
+    _modsqr_sub(m, lam, x1, p, multiplier, word_size)                  # 6
+    _modmul_add(m, x1, lam, y1, p, multiplier, word_size)              # 7
+    _moddiv(m, q, x1, y1, lam, p, multiplier, word_size, inversion)   # 8
     _csub_2x2_or_x2(m, q, x1, x2, p)              # 9  x <- -x3
     MA.cmodsub_const(m, q, y1, y2, p)             # 10 y <- y3
     MA.cmodneg(m, q, x1, p)                       # 11 x <- x3
@@ -97,6 +204,9 @@ def point_add_ctrl(m, q, x1, y1, x2, y2, p):
     m.free(lam)
 
 
-def point_add_ctrl_inv(m, q, x1, y1, x2, y2, p):
+def point_add_ctrl_inv(m, q, x1, y1, x2, y2, p, multiplier="reference",
+                       inversion="kaliski", word_size=None):
     """The subtraction of the classical point: `point_add_ctrl` run backwards."""
-    m.emit_inverse(point_add_ctrl, m, q, x1, y1, x2, y2, p)
+    m.emit_inverse(
+        point_add_ctrl, m, q, x1, y1, x2, y2, p, multiplier, inversion,
+        word_size)

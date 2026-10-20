@@ -33,9 +33,13 @@ def main():
     section("arithmetic oracle: every basis state gives S + [u]P + [v]Q")
     curve, P, Q = C.CLASSIQ, C.CLASSIQ_G, C.CLASSIQ_Q
     order = curve.point_order(P)
-    m, info = S.ecdlp_circuit(curve, P, Q, order, oracle="arith")
+    qc, info = S.ecdlp_circuit(
+        curve, P, Q, order, oracle="arith", m_bits=1)
+    m = info["machine"]
     kr, lr, px, py = info["regs"]
     mb, S0 = info["m_bits"], info["offset"]
+    assert qc.count_ops()["h"] >= 2 * mb
+    assert qc.count_ops()["measure"] == 2 * mb
     good = exc = 0
     for u in range(1 << mb):
         for v in range(1 << mb):
@@ -56,6 +60,56 @@ def main():
             good += 1
     ok(f"{good} basis states exact on {info['qubits']} qubits "
        f"({len(m.qc.data)} gates), {exc} hit an exceptional addition")
+    ok("the arithmetic result is a full circuit with Hadamards, inverse QFTs, "
+       "and measurement; the oracle Machine remains available for exact checks")
+    try:
+        S.ecdlp_circuit(
+            C.TOY11, C.TOY11_G, C.TOY11_G, 13, oracle="arith")
+    except ValueError as exc:
+        assert "generic domain" in str(exc)
+    else:
+        raise AssertionError("full-group arithmetic accepted exceptional states")
+    ok("full-group arithmetic rejects unsupported infinity/exceptional "
+       "branches rather than silently building an incorrect circuit")
+
+    section("windowed arithmetic circuit: dialog-based additions in the ECDLP path")
+    qc, info = S.ecdlp_circuit(
+        curve, P, Q, order, oracle="arith", arithmetic="windowed",
+        window_size=1, m_bits=1)
+    m = info["machine"]
+    kr, lr, px, py = info["regs"]
+    for u in range(1 << info["m_bits"]):
+        for v in range(1 << info["m_bits"]):
+            acc = info["offset"]
+            for scalar, base in ((u, P), (v, Q)):
+                if scalar:
+                    acc = curve.add(acc, base)
+            rd = run(m, {kr: u, lr: v})
+            assert (rd(px), rd(py)) == (acc.x, acc.y)
+    assert qc.count_ops()["measure"] == 2 * info["m_bits"]
+    ok("windowed-point-add / Euclidean-dialog arithmetic composes into the "
+       "same full QFT-and-measure circuit")
+
+    section("Montgomery/QCSA multiplication and optimized Kaliski in the affine path")
+    qc, info = S.ecdlp_circuit(
+        curve, P, Q, order, oracle="arith", m_bits=1,
+        multiplier="montgomery-qcsa", inversion="kaliski-opt")
+    m = info["machine"]
+    kr, lr, px, py = info["regs"]
+    for u in range(1 << info["m_bits"]):
+        for v in range(1 << info["m_bits"]):
+            acc = info["offset"]
+            if u:
+                acc = curve.add(acc, P)
+            if v:
+                acc = curve.add(acc, Q)
+            rd = run(m, {kr: u, lr: v})
+            assert (rd(px), rd(py)) == (acc.x, acc.y), (u, v)
+    assert info["multiplier"] == "montgomery-qcsa"
+    assert info["inversion"] == "kaliski-opt"
+    assert qc.count_ops()["measure"] == 2 * info["m_bits"]
+    ok("the optimized arithmetic backends produce the same ECDLP point map "
+       "and are enclosed by the full QFT/readout")
 
     section("table oracle: full algorithm, real superposition, real measurement")
     for label, cu, G in (("y^2=x^3+5x+4 mod 7", C.CLASSIQ, C.CLASSIQ_G),

@@ -121,9 +121,11 @@ def main():
     curve, P, Q = C.CLASSIQ, C.CLASSIQ_G, C.CLASSIQ_Q
     order = curve.point_order(P)
     import ec_shor as S
-    m, info = S.ecdlp_circuit(curve, P, Q, order, oracle="arith")
+    _, info = S.ecdlp_circuit(curve, P, Q, order, oracle="arith")
+    m = info["machine"]
     c = CO.count(m)
-    print(f"  arithmetic oracle : {c['qubits']} qubits, {c['toffoli_equiv']} "
+    print(f"  arithmetic oracle (full control registers): {c['qubits']} qubits, "
+          f"{c['toffoli_equiv']} "
           f"Toffoli-eq, {c['gates']} gates, depth {c['depth']}")
     qc, info2 = S.ecdlp_circuit(curve, P, Q, order, oracle="table")
     print(f"  table oracle      : {qc.num_qubits} qubits, {len(qc.data)} gates "

@@ -316,6 +316,18 @@ whichever optimization interests you.
 | `ec_approx.py` | approximate and pseudo-Mersenne modular arithmetic | 1128 §4, Alg 6, 7, 9, 10, 11 |
 | `ec_window.py` | windowed point addition | 1128 Alg 1 |
 
+`ec_shor.ecdlp_circuit(..., oracle="arith")` returns the complete quantum
+circuit, including Hadamards, inverse QFTs, and measurement. The underlying
+arithmetic-only `Machine` is available as `info["machine"]` for exact
+basis-state checks and resource counting. The affine path accepts
+`multiplier="montgomery-qcsa"` or `"montgomery-lookup"` and
+`inversion="kaliski-opt"`; `arithmetic="windowed", window_size=w` selects the
+dialog-based windowed point adder. These arithmetic adders still require all
+reachable additions to avoid their exceptional inputs, which is checked when
+choosing the offset. The table oracle is the exact full-group toy-curve path.
+Projective zig-zag is not yet a selectable controlled ECDLP backend because it
+does not return a canonical affine point.
+
 ## How this is verified
 
 Three layers, because no one of them is sufficient.
@@ -501,9 +513,10 @@ iterations; here that test is gated on `ctrl ∧ [y < x]` (and the all-ones test
 does (sums between `q` and `2^u`), which `tests/test_ec_opt1128.py` asserts
 input by input.
 
-The ECDLP circuit with real arithmetic is verified on every basis state — which
-for a permutation is the whole truth — but at 69 qubits and ~10^5 gates for a
-7-element field it cannot be run in superposition. The end-to-end demonstration
-uses a permutation oracle of the same circuit shape. Both halves are tested; the
-join between them is an argument, not a simulation, and that is the honest limit
-of what runs on a laptop.
+The arithmetic ECDLP circuit includes the complete QFT/readout structure, and
+its point-arithmetic portion is verified on basis states. The circuit is too
+wide to simulate in superposition, so end-to-end measurement statistics are
+verified with the exact table oracle on toy curves. Arithmetic circuits reject
+offsets whose reachable branches include exceptional additions; on curves
+where the full subgroup covers the whole curve, exact full-group arithmetic
+requires a total point-adder that is not implemented here.

@@ -145,7 +145,8 @@ def test_closed_forms():
            f"qubits, 8n^3+22n^2 = {full.toffoli}; one-control {semi.qubits} qubits "
            f"and {t*(t-1)//2} CP traded for classically controlled phases")
 
-    m, _ = S.ecdlp_circuit(C.CLASSIQ, C.CLASSIQ_G, C.CLASSIQ_Q, 5, oracle="arith")
+    _, info = S.ecdlp_circuit(C.CLASSIQ, C.CLASSIQ_G, C.CLASSIQ_Q, 5, oracle="arith")
+    m = info["machine"]
     r = R.count(m)
     assert r.rotations == 0 and r.cphase == 0
     ok(f"ECDLP arithmetic oracle, p=7: {r.toffoli + r.and_} Toffoli-eq, "

@@ -16,22 +16,26 @@ interference that Shor relies on.
 
 Two oracles, for two different jobs
 -----------------------------------
-`oracle="arith"` builds the real thing out of `ec_pointadd.point_add_ctrl`:
-Kaliski inversion, modular multiplication, the lot.  It is a permutation, so
-checking it on every basis state *is* checking it -- which the tests do -- but
-at ~50 qubits and ~10^5 gates per addition no simulator will run it in
-superposition, so it cannot be taken end to end.  This is the circuit to cost.
+`oracle="arith"` now builds the complete circuit: Hadamards, reversible point
+arithmetic, inverse QFTs and measurement.  `info["machine"]` retains the
+arithmetic-only `Machine` for exact basis-state verification and cost
+inspection. The circuit is still too wide for statevector simulation at useful
+field sizes, and generic arithmetic requires a safe offset that avoids its
+exceptional addition inputs.
 
-`oracle="table"` keeps the identical circuit shape -- same registers, same
-controlled additions, same QFT, same post-processing -- and replaces only the
-point addition by an explicit permutation over the toy curve's points.  That
-fits in a dozen qubits, so Aer runs it with genuine superposition and real
-measurement statistics, and the discrete logarithm actually comes out.  It is
-the same move the Classiq tutorial makes with its lookup-table inverse, for the
-same reason.
+`arithmetic="affine"` uses `ec_pointadd.point_add_ctrl` and can select the
+reference or Montgomery/QCSA/lookup multiplier and reference or optimized
+Kaliski inversion. `arithmetic="windowed"` composes
+`ec_window.windowed_point_add`, including its Euclidean-dialog multiplication,
+into the same ECDLP circuit. The projective zig-zag implementation remains a
+lower-level component: its out-of-place projective result is not a canonical
+affine point and does not yet implement this path's controlled point-addition
+contract.
 
-Between the two, everything is covered: the arithmetic is verified exactly at
-full width, and the algorithm around it is verified end to end.
+`oracle="table"` remains the exact, simulable path for toy curves. It assigns
+the point at infinity a dedicated code and therefore supports the complete
+subgroup, including the exceptional states excluded by the arithmetic
+adders.
 """
 
 import math
@@ -40,7 +44,8 @@ from qiskit.circuit import ClassicalRegister, QuantumCircuit, QuantumRegister
 
 import ec_classical as C
 import ec_pointadd as PA
-from ec_sim import Machine, Reg
+import ec_window as W
+from ec_sim import Machine
 from semiclassical import semiclassical_iqft
 from shor_essentials import qft
 
@@ -112,7 +117,6 @@ def point_perm(curve, R, n):
     are unreachable from a valid start, and leaving them alone keeps the gate
     count down.
     """
-    p = curve.p
     assert not any(P.x == 0 and P.y == 0 for P in curve.points() if not P.inf), (
         "(0,0) is on this curve, so it cannot double as the infinity code")
 
@@ -129,35 +133,76 @@ def point_perm(curve, R, n):
 # The circuit
 # =============================================================================
 def ecdlp_circuit(curve, P, Q, order, oracle="table", offset=None, m_bits=None,
-                  mode="and"):
+                  mode="and", arithmetic="affine", window_size=None,
+                  multiplier="reference", inversion="kaliski",
+                  word_size=None):
     """Shor's ECDLP circuit.  Returns (QuantumCircuit, info dict).
 
     `order`  the order of P (the group the logarithm lives in)
-    `oracle` "table" (simulable end to end) or "arith" (the real arithmetic)
+    `oracle` "table" (simulable end to end) or "arith" (the arithmetic circuit)
     `offset` the fixed non-identity starting point S
+    `arithmetic` for `oracle="arith"`, "affine" or "windowed"
+    `window_size` address width for windowed point additions
+    `multiplier` for affine arithmetic: reference, Montgomery/QCSA, or lookup
+    `inversion` for affine arithmetic: reference or optimized Kaliski
+    `word_size` for a Montgomery multiplier; defaults to a divisor of the field width
+
+    The arithmetic oracle is now returned as a complete quantum circuit.  Its
+    underlying reversible arithmetic-only `Machine` is exposed in
+    `info["machine"]` for basis-state checks and cost inspection.
     """
     p = curve.p
     n = p.bit_length()
-    mb = m_bits or max(1, math.ceil(math.log2(order)))
-    S = offset or _pick_offset(curve, P, Q, order, mb, strict=(oracle == "arith"))
+    mb = max(1, math.ceil(math.log2(order))) if m_bits is None else m_bits
+    if mb < 1:
+        raise ValueError("m_bits must be positive")
+    if arithmetic not in ("affine", "windowed"):
+        raise ValueError(f"unknown arithmetic backend {arithmetic!r}")
+    if window_size is not None and window_size < 1:
+        raise ValueError("window_size must be positive")
+    if arithmetic == "windowed" and oracle == "arith" and window_size is None:
+        raise ValueError("windowed arithmetic requires window_size")
+    if multiplier not in ("reference", "montgomery-qcsa", "montgomery-lookup"):
+        raise ValueError(f"unknown multiplier backend {multiplier!r}")
+    if inversion not in ("kaliski", "kaliski-opt"):
+        raise ValueError(f"unknown inversion backend {inversion!r}")
+    if arithmetic == "windowed" and (
+            multiplier != "reference" or inversion != "kaliski"):
+        raise ValueError(
+            "windowed arithmetic uses the Euclidean dialog internally; "
+            "multiplier and inversion selections apply only to affine arithmetic")
+    if oracle not in ("table", "arith"):
+        raise ValueError(f"unknown oracle {oracle!r}")
+    if offset is None:
+        S = _pick_offset(
+            curve, P, Q, order, mb, strict=(oracle == "arith"),
+            arithmetic=arithmetic, window_size=window_size)
+    else:
+        S = offset
+        if oracle == "arith" and not _offset_is_safe(
+                curve, P, Q, mb, S, arithmetic, window_size):
+            raise ValueError(
+                f"offset {S!r} reaches an exceptional input for the "
+                f"{arithmetic} arithmetic backend")
 
     if oracle == "table":
         return _ecdlp_table(curve, P, Q, order, S, n, mb)
     if oracle == "arith":
-        return _ecdlp_arith(curve, P, Q, order, S, n, mb, mode)
-    raise ValueError(f"unknown oracle {oracle!r}")
+        return _ecdlp_arith(
+            curve, P, Q, order, S, n, mb, mode, arithmetic, window_size,
+            multiplier, inversion, word_size)
+    raise AssertionError("validated oracle")
 
 
-def _pick_offset(curve, P, Q, order, mb, strict):
+def _pick_offset(curve, P, Q, order, mb, strict, arithmetic="affine",
+                 window_size=None):
     """A start point S for the accumulator.
 
-    `strict` (the arithmetic oracle) demands that no reachable S + [u]P + [v]Q
-    is the point at infinity, because the affine formulas cannot represent it.
-    That is possible only when the control registers do not cover the whole
-    group -- once 2^mb >= order, every offset's orbit contains infinity, and
-    there is nothing to pick.  Failing loudly there is the point: silently
-    returning a bad offset would produce a circuit that is wrong on inputs the
-    caller never thinks to check.
+    `strict` (the arithmetic oracle) demands that every reachable addition is
+    in the generic domain of the selected point adder.  The arithmetic adders
+    do not handle infinity or their exceptional division inputs. If the control
+    registers cover the subgroup, there may be no such offset; failing loudly
+    is preferable to building a circuit that is wrong on reachable inputs.
 
     The table oracle is not strict: it gives infinity its own code and handles
     it, so any non-identity point will do.
@@ -170,14 +215,13 @@ def _pick_offset(curve, P, Q, order, mb, strict):
             best = S
         if not strict:
             return S
-        if all(not curve.add(curve.add(S, curve.mul(u, P)), curve.mul(v, Q)).inf
-               for u in range(1 << mb) for v in range(1 << mb)):
+        if _offset_is_safe(curve, P, Q, mb, S, arithmetic, window_size):
             return S
     if strict:
         raise ValueError(
-            f"no offset keeps the orbit off infinity: 2^{mb} control values "
-            f"cover the whole group of order {order}, so the affine circuit "
-            f"cannot avoid the point at infinity here")
+            f"no offset keeps all reachable additions in the generic domain "
+            f"for the {arithmetic} backend with {mb}-bit controls and "
+            f"subgroup order {order}; use the table oracle or reduce m_bits")
     return best
 
 
@@ -185,6 +229,41 @@ def _rungs(curve, P, Q, mb):
     """The 2*mb constant points added, one per control qubit."""
     return ([curve.mul(1 << i, P) for i in range(mb)],
             [curve.mul(1 << i, Q) for i in range(mb)])
+
+
+def _offset_is_safe(curve, P, Q, mb, S, arithmetic, window_size):
+    if S.inf or not curve.on_curve(S):
+        return False
+    Ps, Qs = _rungs(curve, P, Q, mb)
+    for u in range(1 << mb):
+        for v in range(1 << mb):
+            acc = S
+            if arithmetic == "windowed":
+                assert window_size is not None
+                for base, scalar in ((P, u), (Q, v)):
+                    for shift in range(0, mb, window_size):
+                        w = min(window_size, mb - shift)
+                        addr = (scalar >> shift) & ((1 << w) - 1)
+                        addend = curve.mul(addr << shift, base)
+                        if addend.inf:
+                            if acc.x == 0:
+                                return False
+                            continue
+                        if C.point_add_exceptional(curve, acc, addend):
+                            return False
+                        acc = curve.add(acc, addend)
+                continue
+            for i, R in enumerate(Ps):
+                if (u >> i) & 1:
+                    if R.inf or C.point_add_exceptional(curve, acc, R):
+                        return False
+                    acc = curve.add(acc, R)
+            for i, R in enumerate(Qs):
+                if (v >> i) & 1:
+                    if R.inf or C.point_add_exceptional(curve, acc, R):
+                        return False
+                    acc = curve.add(acc, R)
+    return True
 
 
 def _ecdlp_table(curve, P, Q, order, S, n, mb):
@@ -216,9 +295,9 @@ def _ecdlp_table(curve, P, Q, order, S, n, mb):
                 "oracle": "table", "qubits": qc.num_qubits}
 
 
-def _ecdlp_arith(curve, P, Q, order, S, n, mb, mode):
-    """The same circuit with real modular arithmetic. For costing and for
-    basis-state verification -- too wide to simulate in superposition."""
+def _ecdlp_arith(curve, P, Q, order, S, n, mb, mode, arithmetic,
+                 window_size, multiplier, inversion, word_size):
+    """Build a complete QFT circuit around the reversible arithmetic oracle."""
     p = curve.p
     m = Machine(mode, "ecdlp")
     kr = m.alloc(mb, "k")
@@ -231,14 +310,40 @@ def _ecdlp_arith(curve, P, Q, order, S, n, mb, mode):
             m.ctx.x(py[i])
 
     Ps, Qs = _rungs(curve, P, Q, mb)
-    for i, R in enumerate(Ps):
-        PA.point_add_ctrl(m, kr[i], px, py, R.x, R.y, p)
-    for i, R in enumerate(Qs):
-        PA.point_add_ctrl(m, lr[i], px, py, R.x, R.y, p)
+    if arithmetic == "affine":
+        for i, R in enumerate(Ps):
+            PA.point_add_ctrl(
+                m, kr[i], px, py, R.x, R.y, p, multiplier, inversion,
+                word_size)
+        for i, R in enumerate(Qs):
+            PA.point_add_ctrl(
+                m, lr[i], px, py, R.x, R.y, p, multiplier, inversion,
+                word_size)
+    else:
+        assert window_size is not None
+        for base, ctrls in ((P, kr), (Q, lr)):
+            for shift in range(0, mb, window_size):
+                addr = ctrls[shift:min(shift + window_size, mb)]
+                points = W.window_points(
+                    curve, curve.mul(1 << shift, base), len(addr))
+                W.windowed_point_add(m, addr, px, py, points, p)
 
-    return m, {"n": n, "m_bits": mb, "offset": S, "order": order,
-               "oracle": "arith", "regs": (kr, lr, px, py),
-               "qubits": m.qc.num_qubits}
+    ck, cl = ClassicalRegister(mb, "ok"), ClassicalRegister(mb, "ol")
+    qc = QuantumCircuit(*m.qc.qregs, ck, cl, name="ecdlp_arith")
+    qc.h(kr)
+    qc.h(lr)
+    qc.compose(m.qc, inplace=True)
+    qc.append(qft(mb).inverse(), list(kr))
+    qc.append(qft(mb).inverse(), list(lr))
+    qc.measure(kr, ck)
+    qc.measure(lr, cl)
+
+    return qc, {"n": n, "m_bits": mb, "offset": S, "order": order,
+                "oracle": "arith", "arithmetic": arithmetic,
+                "window_size": window_size, "multiplier": multiplier,
+                "inversion": inversion, "word_size": word_size,
+                "regs": (kr, lr, px, py),
+                "machine": m, "qubits": qc.num_qubits}
 
 
 # =============================================================================
@@ -300,14 +405,26 @@ def ecdlp_circuit_1c(curve, P, Q, order, offset=None, m_bits=None):
 # Running it
 # =============================================================================
 def run_ecdlp(curve, P, Q, order, shots=4096, seed=7, one_control=False, **kw):
-    """Build the table-oracle circuit, sample it, and solve for k."""
+    """Build a circuit, sample it, and solve for k.
+
+    `oracle="table"` is the practical Aer path. The full arithmetic circuit is
+    intended for resource inspection or hardware; its width is too large for
+    statevector simulation.
+    """
     from qiskit_aer import AerSimulator
     from qiskit import transpile
 
+    oracle = kw.pop("oracle", "table")
     if one_control:
+        if oracle != "table":
+            raise ValueError("the one-control runner currently supports only the table oracle")
         qc, info = ecdlp_circuit_1c(curve, P, Q, order, **kw)
     else:
-        qc, info = ecdlp_circuit(curve, P, Q, order, oracle="table", **kw)
+        if oracle != "table":
+            raise ValueError(
+                "run_ecdlp is the Aer table-oracle runner; build the arithmetic "
+                "circuit with ecdlp_circuit and run it on suitable hardware")
+        qc, info = ecdlp_circuit(curve, P, Q, order, oracle=oracle, **kw)
     sim = AerSimulator(seed_simulator=seed)
     res = sim.run(transpile(qc, sim, optimization_level=0), shots=shots).result()
     counts = res.get_counts()

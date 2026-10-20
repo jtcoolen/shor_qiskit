@@ -210,7 +210,8 @@ def mod_inv(m, x, out, p, conditional=True, ctrl=None):
     return recs, cnt
 
 
-def mod_div(m, ctrl, x, y, out, p):
+def mod_div(m, ctrl, x, y, out, p, inverse_builder=None,
+            multiply_builder=None):
     """out ^= ctrl * (y / x mod p).  [106] Fig. 7, the modular division.
 
     Invert x, multiply by y, copy the answer out, then undo the multiplication
@@ -229,14 +230,23 @@ def mod_div(m, ctrl, x, y, out, p):
 
     def build():
         inv = m.anc(n, "inv")
-        recs, cnt = mod_inv(m, x, inv, p, ctrl=ctrl)
-        import ec_mult as MU
-        MU.modmul(m, y, inv, lam, p)
-        return inv, recs, cnt
+        if inverse_builder is None:
+            recs, cnt = mod_inv(m, x, inv, p, ctrl=ctrl)
+            garbage = [bit for record in recs for bit in record]
+            if cnt is not None:
+                garbage.append(cnt)
+        else:
+            garbage = inverse_builder(m, x, inv, p, ctrl)
+        if multiply_builder is None:
+            import ec_mult as MU
+            MU.modmul(m, y, inv, lam, p)
+        else:
+            multiply_builder(m, y, inv, lam, p)
+        return inv, garbage
 
     # forward: lam = ctrl * y * x^{-1}
     start = len(m.qc.data)
-    inv, recs, cnt = build()
+    inv, garbage = build()
     body = list(m.qc.data[start:])
 
     # lam is already 0 on the ctrl = 0 branch, so the copy needs no control
@@ -245,8 +255,4 @@ def mod_div(m, ctrl, x, y, out, p):
 
     for ci in reversed(body):                         # undo everything else
         m.qc.append(ci.operation.inverse(), ci.qubits, ci.clbits)
-    m.free(lam, inv)
-    for rec in recs:
-        m.free(*rec)
-    if cnt is not None:
-        m.free(cnt)
+    m.free(lam, inv, *garbage)

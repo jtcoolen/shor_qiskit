@@ -135,7 +135,7 @@ def point_perm(curve, R, n):
 def ecdlp_circuit(curve, P, Q, order, oracle="table", offset=None, m_bits=None,
                   mode="and", arithmetic="affine", window_size=None,
                   multiplier="reference", inversion="kaliski",
-                  word_size=None):
+                  word_size=None, gcd="dialog"):
     """Shor's ECDLP circuit.  Returns (QuantumCircuit, info dict).
 
     `order`  the order of P (the group the logarithm lives in)
@@ -146,6 +146,8 @@ def ecdlp_circuit(curve, P, Q, order, oracle="table", offset=None, m_bits=None,
     `multiplier` for affine arithmetic: reference, Montgomery/QCSA, or lookup
     `inversion` for affine arithmetic: reference or optimized Kaliski
     `word_size` for a Montgomery multiplier; defaults to a divisor of the field width
+    `gcd` for windowed arithmetic: "dialog" ([1128] Alg. 3) or "pingpong"
+          (the comparison-free walk of ECDSA.Fail Sec 5.3.3)
 
     The arithmetic oracle is now returned as a complete quantum circuit.  Its
     underlying reversible arithmetic-only `Machine` is exposed in
@@ -171,6 +173,10 @@ def ecdlp_circuit(curve, P, Q, order, oracle="table", offset=None, m_bits=None,
         raise ValueError(
             "windowed arithmetic uses the Euclidean dialog internally; "
             "multiplier and inversion selections apply only to affine arithmetic")
+    if gcd not in ("dialog", "pingpong"):
+        raise ValueError(f"unknown gcd backend {gcd!r}")
+    if gcd != "dialog" and arithmetic != "windowed":
+        raise ValueError("gcd selection applies only to windowed arithmetic")
     if oracle not in ("table", "arith"):
         raise ValueError(f"unknown oracle {oracle!r}")
     if offset is None:
@@ -190,7 +196,7 @@ def ecdlp_circuit(curve, P, Q, order, oracle="table", offset=None, m_bits=None,
     if oracle == "arith":
         return _ecdlp_arith(
             curve, P, Q, order, S, n, mb, mode, arithmetic, window_size,
-            multiplier, inversion, word_size)
+            multiplier, inversion, word_size, gcd)
     raise AssertionError("validated oracle")
 
 
@@ -296,7 +302,7 @@ def _ecdlp_table(curve, P, Q, order, S, n, mb):
 
 
 def _ecdlp_arith(curve, P, Q, order, S, n, mb, mode, arithmetic,
-                 window_size, multiplier, inversion, word_size):
+                 window_size, multiplier, inversion, word_size, gcd="dialog"):
     """Build a complete QFT circuit around the reversible arithmetic oracle."""
     p = curve.p
     m = Machine(mode, "ecdlp")
@@ -326,7 +332,7 @@ def _ecdlp_arith(curve, P, Q, order, S, n, mb, mode, arithmetic,
                 addr = ctrls[shift:min(shift + window_size, mb)]
                 points = W.window_points(
                     curve, curve.mul(1 << shift, base), len(addr))
-                W.windowed_point_add(m, addr, px, py, points, p)
+                W.windowed_point_add(m, addr, px, py, points, p, gcd=gcd)
 
     ck, cl = ClassicalRegister(mb, "ok"), ClassicalRegister(mb, "ol")
     qc = QuantumCircuit(*m.qc.qregs, ck, cl, name="ecdlp_arith")
@@ -340,7 +346,7 @@ def _ecdlp_arith(curve, P, Q, order, S, n, mb, mode, arithmetic,
 
     return qc, {"n": n, "m_bits": mb, "offset": S, "order": order,
                 "oracle": "arith", "arithmetic": arithmetic,
-                "window_size": window_size, "multiplier": multiplier,
+                "window_size": window_size, "gcd": gcd, "multiplier": multiplier,
                 "inversion": inversion, "word_size": word_size,
                 "regs": (kr, lr, px, py),
                 "machine": m, "qubits": qc.num_qubits}

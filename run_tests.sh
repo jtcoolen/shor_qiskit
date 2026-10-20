@@ -23,7 +23,8 @@ SLOW="test_precision test_n21 test_win_n21 test_n33"
 
 # --- ECDLP (elliptic-curve discrete log) ------------------------------------
 EC="test_ec_classical test_ec_quantum test_ec_arith test_ec_kaliski
-    test_ec_pointadd test_ec_shor test_ec_opt106 test_ec_opt1128 test_ec_pbt"
+    test_ec_pointadd test_ec_shor test_ec_opt106 test_ec_opt1128 test_ec_pbt
+    test_ec_eea_register_sharing test_ec_pingpong"
 
 # Part VII of shor-complete.tex is generated from bench/ec_ablation.json; this
 # asserts the document still matches what the benchmark measured.

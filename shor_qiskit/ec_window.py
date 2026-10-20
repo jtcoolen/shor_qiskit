@@ -48,14 +48,27 @@ def _lookup(m, one, addr, out, table):
     m.free(anc)
 
 
-def windowed_point_add(m, addr, x2, y2, points, p, iters=None):
+def windowed_point_add(m, addr, x2, y2, points, p, iters=None, gcd="dialog"):
     """[1128] Algorithm 1.  `points[i]` is the window entry for address i.
+
+    `gcd` picks the in-place multiply/divide: "dialog" is [1128] Alg. 3
+    (`ec_eea`), "pingpong" the comparison-free walk of ECDSA.Fail
+    (`ec_pingpong`).
 
     points[0] must be the point at infinity; it is encoded as (0, 0), which is
     what makes the i = 0 branch fall out for free.
     """
     ctx, n = m.ctx, len(x2)
     w = len(addr)
+    if gcd == "dialog":
+        div = lambda: E.inplace_div(m, x2, y2, p, iters)
+        mul = lambda: E.inplace_mul(m, x2, y2, p, iters)
+    elif gcd == "pingpong":
+        import ec_pingpong as PP
+        div = lambda: PP.pp_div(m, x2, y2, p, iters)
+        mul = lambda: PP.pp_mul(m, x2, y2, p, iters)
+    else:
+        raise ValueError(f"unknown gcd backend {gcd!r}")
     assert len(points) == 1 << w, "the window must be full"
     assert points[0].inf, "entry 0 must be the point at infinity"
 
@@ -76,7 +89,7 @@ def windowed_point_add(m, addr, x2, y2, points, p, iters=None):
     _lookup(m, one[0], addr, x1, xs)                   # 5
     _lookup(m, one[0], addr, y1, ys)
 
-    E.inplace_div(m, x2, y2, p, iters)                 # 6  y2 <- y2 / x2
+    div()                                              # 6  y2 <- y2 / x2
 
     xx = m.anc(n, "3x")
     _lookup(m, one[0], addr, xx, x3s)                  # 7
@@ -85,7 +98,7 @@ def windowed_point_add(m, addr, x2, y2, points, p, iters=None):
     m.free(xx)
 
     _csub_square(m, c[0], y2, x2, p)                   # 10 if c: x2 -= y2^2
-    E.inplace_mul(m, x2, y2, p, iters)                 # 11 y2 <- y2 * x2
+    mul()                                              # 11 y2 <- y2 * x2
     MA.cmodneg(m, c[0], x2, p)                         # 12 if c: x2 <- -x2
 
     _lookup(m, one[0], addr, x1, xs)                   # 13

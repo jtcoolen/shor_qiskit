@@ -56,3 +56,30 @@ def random_generator(rnd, curve, pts, min_order=3):
     """A point of order at least `min_order`, or None."""
     cands = [P for P in pts if curve.point_order(P) >= min_order]
     return rnd.choice(cands) if cands else None
+
+
+def aer_e2e(label, shots=4000, seed=5, **kw):
+    """Run the arithmetic ECDLP circuit on Aer (GPU if available) and check it.
+
+    Toy curve, full QFT and measurement, genuine superposition.  Asserts the
+    discrete log is recovered and the histogram sits within shot noise of the
+    exact Shor distribution.  `kw` is passed to `ec_shor.ecdlp_circuit`.
+    """
+    import ec_classical as C
+    import ec_shor as S
+    import shor_stats as ST
+    curve, P, Q = C.CLASSIQ, C.CLASSIQ_G, C.CLASSIQ_Q
+    order = curve.point_order(P)
+    k = next(k for k in range(order) if curve.mul(k, P) == Q)
+    counts, cands, info = S.run_ecdlp_arith(
+        curve, P, Q, order, shots=shots, seed=seed, **kw)
+    mb = info["m_bits"]
+    q = 1 << mb
+    exact = ST.ecdlp_probs(order, k, mb)
+    emp = ST.empirical(S.pair_counts(counts), (q, q))
+    tvd, null = ST.tvd(emp, exact), ST.tvd_null(exact, shots)
+    assert cands and cands[0][0] == k, (label, cands[:3], k)
+    assert tvd <= null, (label, tvd, null)
+    ok(f"{label}: {info['qubits']}-qubit arithmetic circuit on {info['aer']}, "
+       f"k = {k} recovered, TVD {tvd:.3f} <= shot noise {null:.3f}")
+    return info

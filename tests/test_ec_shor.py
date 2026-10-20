@@ -10,7 +10,7 @@ Every Aer run, full-register and semiclassical alike, is also held to the exact
 output distribution (shor_stats.ecdlp_probs): the measured histogram must sit
 within shot noise of it, not merely put the right k on top.
 """
-from _ec_util import ok, section
+from _ec_util import aer_e2e, ok, section
 
 import ec_classical as C
 import ec_shor as S
@@ -89,6 +89,8 @@ def main():
     assert qc.count_ops()["measure"] == 2 * info["m_bits"]
     ok("windowed-point-add / Euclidean-dialog arithmetic composes into the "
        "same full QFT-and-measure circuit")
+    aer_e2e("windowed dialog w=2 m=3", arithmetic="windowed",
+            window_size=2, m_bits=3)
 
     section("Montgomery/QCSA multiplication and optimized Kaliski in the affine path")
     qc, info = S.ecdlp_circuit(

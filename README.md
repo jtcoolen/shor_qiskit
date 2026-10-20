@@ -123,6 +123,15 @@ on its own:
 PYTHONPATH=shor_qiskit:tests ./venv/bin/python tests/test_semiclassical.py
 ```
 
+**Aer device (GPU).** Every Aer run that goes through `shor_qiskit/aer_device.py`
+(the ECDLP runners `ec_shor.run_ecdlp` / `run_ecdlp_arith`, and the end-to-end
+sections of the EC optimisation tests) uses a CUDA GPU when `qiskit-aer-gpu` is
+installed and falls back to CPU otherwise. Force it with
+`SHOR_AER_DEVICE=GPU` (fails loudly without CUDA) or `SHOR_AER_DEVICE=CPU`.
+The 40+-qubit arithmetic ECDLP circuits run on matrix-product states (CPU) or
+tensor networks (GPU), since only the 2m control qubits are ever in
+superposition; each test line reports the device and method it used.
+
 The one-control circuit (`test_1c.py`) defaults to N=15 and 21. Mid-circuit
 measurement forces Aer to simulate **shot by shot** rather than evolve one
 statevector, so its cost grows steeply despite the low qubit count — N=33 takes

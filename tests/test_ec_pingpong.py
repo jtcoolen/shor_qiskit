@@ -7,7 +7,7 @@ with `gcd="pingpong"` gives S + [u]P + [v]Q on every basis state.
 """
 import math
 
-from _ec_util import ok, section
+from _ec_util import aer_e2e, ok, section
 
 import ec_classical as C
 import ec_cost as CO
@@ -122,6 +122,12 @@ def main():
     else:
         raise AssertionError("gcd selection accepted for affine arithmetic")
     ok("gcd selection is rejected outside the windowed path")
+
+    section("Aer end to end: superposition, QFT, measurement (GPU if present)")
+    for gcd in ['pingpong']:
+        for ws, mbits in ((2, 2), (2, 3)):
+            aer_e2e(f"{gcd} w={ws} m={mbits}", arithmetic="windowed",
+                    window_size=ws, m_bits=mbits, gcd=gcd)
 
 
 if __name__ == "__main__":

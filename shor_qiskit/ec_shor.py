@@ -146,8 +146,9 @@ def ecdlp_circuit(curve, P, Q, order, oracle="table", offset=None, m_bits=None,
     `multiplier` for affine arithmetic: reference, Montgomery/QCSA, or lookup
     `inversion` for affine arithmetic: reference or optimized Kaliski
     `word_size` for a Montgomery multiplier; defaults to a divisor of the field width
-    `gcd` for windowed arithmetic: "dialog" ([1128] Alg. 3) or "pingpong"
-          (the comparison-free walk of ECDSA.Fail Sec 5.3.3)
+    `gcd` for windowed arithmetic: "dialog" ([1128] Alg. 3), "pingpong"
+          (the comparison-free walk of ECDSA.Fail Sec 5.3.3), "jump2" or
+          "jump2-codec" (its Jump-2 dialog, Sec 5.3.1-5.3.2)
 
     The arithmetic oracle is now returned as a complete quantum circuit.  Its
     underlying reversible arithmetic-only `Machine` is exposed in
@@ -173,7 +174,7 @@ def ecdlp_circuit(curve, P, Q, order, oracle="table", offset=None, m_bits=None,
         raise ValueError(
             "windowed arithmetic uses the Euclidean dialog internally; "
             "multiplier and inversion selections apply only to affine arithmetic")
-    if gcd not in ("dialog", "pingpong"):
+    if gcd not in ("dialog", "pingpong", "jump2", "jump2-codec"):
         raise ValueError(f"unknown gcd backend {gcd!r}")
     if gcd != "dialog" and arithmetic != "windowed":
         raise ValueError("gcd selection applies only to windowed arithmetic")
@@ -417,9 +418,6 @@ def run_ecdlp(curve, P, Q, order, shots=4096, seed=7, one_control=False, **kw):
     intended for resource inspection or hardware; its width is too large for
     statevector simulation.
     """
-    from qiskit_aer import AerSimulator
-    from qiskit import transpile
-
     oracle = kw.pop("oracle", "table")
     if one_control:
         if oracle != "table":
@@ -431,9 +429,24 @@ def run_ecdlp(curve, P, Q, order, shots=4096, seed=7, one_control=False, **kw):
                 "run_ecdlp is the Aer table-oracle runner; build the arithmetic "
                 "circuit with ecdlp_circuit and run it on suitable hardware")
         qc, info = ecdlp_circuit(curve, P, Q, order, oracle=oracle, **kw)
-    sim = AerSimulator(seed_simulator=seed)
-    res = sim.run(transpile(qc, sim, optimization_level=0), shots=shots).result()
-    counts = res.get_counts()
+    import aer_device as AD
+    counts = AD.run(qc, shots=shots, seed=seed)
+    cands = C.ecdlp_postprocess(pair_counts(counts), order, info["m_bits"])
+    return counts, cands, info
+
+
+def run_ecdlp_arith(curve, P, Q, order, shots=2048, seed=7, **kw):
+    """Sample the *arithmetic* oracle circuit end to end on Aer.
+
+    The circuit is too wide for a statevector, but only the 2m control qubits
+    are ever in superposition, so `aer_device` runs it on matrix-product
+    states (CPU) or tensor networks (CUDA GPU).  Returns (counts, candidates,
+    info) with info["aer"] naming the device and method used.
+    """
+    import aer_device as AD
+    qc, info = ecdlp_circuit(curve, P, Q, order, oracle="arith", **kw)
+    counts = AD.run(qc, shots=shots, seed=seed)
+    info["aer"] = AD.describe(qc.num_qubits)
     cands = C.ecdlp_postprocess(pair_counts(counts), order, info["m_bits"])
     return counts, cands, info
 

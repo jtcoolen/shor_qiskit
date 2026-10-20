@@ -52,8 +52,9 @@ def windowed_point_add(m, addr, x2, y2, points, p, iters=None, gcd="dialog"):
     """[1128] Algorithm 1.  `points[i]` is the window entry for address i.
 
     `gcd` picks the in-place multiply/divide: "dialog" is [1128] Alg. 3
-    (`ec_eea`), "pingpong" the comparison-free walk of ECDSA.Fail
-    (`ec_pingpong`).
+    (`ec_eea`); "pingpong" the comparison-free walk of ECDSA.Fail Sec 5.3.3
+    (`ec_pingpong`); "jump2" / "jump2-codec" its Jump-2 macro-step dialog,
+    raw or with the base-5 transcript codec (`ec_jump2`).
 
     points[0] must be the point at infinity; it is encoded as (0, 0), which is
     what makes the i = 0 branch fall out for free.
@@ -67,6 +68,11 @@ def windowed_point_add(m, addr, x2, y2, points, p, iters=None, gcd="dialog"):
         import ec_pingpong as PP
         div = lambda: PP.pp_div(m, x2, y2, p, iters)
         mul = lambda: PP.pp_mul(m, x2, y2, p, iters)
+    elif gcd in ("jump2", "jump2-codec"):
+        import ec_jump2 as J2
+        codec = gcd == "jump2-codec"
+        div = lambda: J2.j2_div(m, x2, y2, p, iters, codec)
+        mul = lambda: J2.j2_mul(m, x2, y2, p, iters, codec)
     else:
         raise ValueError(f"unknown gcd backend {gcd!r}")
     assert len(points) == 1 << w, "the window must be full"

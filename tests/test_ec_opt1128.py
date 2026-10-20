@@ -7,7 +7,7 @@ import ec_classical as C
 import ec_eea as E
 import ec_modarith as MA
 import ec_window as W
-from ec_sim import Machine, SimError, run
+from ec_sim import Machine, Reg, SimError, run
 
 
 def ands(m):
@@ -31,6 +31,17 @@ def main():
             assert [(rd(a), rd(b)) for a, b in recs] == bits
     ok("decision bits match the classical model exactly; u=1, v=0 at the end, "
        "so x's own register comes back clean")
+
+    m = Machine("and")
+    x = m.alloc(5, "x")
+    recs, u, v = E.dialog(m, x, 31, compress=True)
+    E.dialog_undo(m, x, 31, recs, u, v, compressed=True)
+    m.free(u, Reg([v[-1]]))
+    for rec in recs:
+        m.free(*rec)
+    for xv in range(1, 31):
+        assert run(m, {x: xv})(x) == xv
+    ok("compressed dialog can be replayed backwards and all packed records clear")
 
     section("in-place multiplication (Alg. 3 + 4)")
     for q in (7, 11, 13, 31) + ((61,) if scope(0, 1) else ()):
@@ -80,7 +91,17 @@ def main():
                 val = sum(bits[idx[qb]] << i for i, qb in enumerate(qs))
                 assert val == C.compress_triple([a, b, c])
                 assert bits[idx[freed[0]]] == 0
+    assert sum(ci.operation.name == "ccx" for ci in m.qc.data) == 5
     ok("all 27 valid patterns compress correctly and free one qubit per 3 rounds")
+
+    widths = []
+    for packed in (False, True):
+        md = Machine("and")
+        xd = md.alloc(5, "x")
+        E.dialog(md, xd, 31, C.eea_iterations(5), compress=packed)
+        widths.append(md.qc.num_qubits)
+    assert widths[1] < widths[0], widths
+    ok(f"streaming Fig. 1 packing reuses workspace ({widths[0]} -> {widths[1]} qubits)")
     w = E.dialog_width_compressed(4096) / 4096
     assert 2.35 < w < 2.45, w
     ok(f"asymptotically 2.355n record qubits (measured {w:.3f}n at n=4096)")

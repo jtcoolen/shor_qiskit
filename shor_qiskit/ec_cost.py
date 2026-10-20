@@ -106,9 +106,9 @@ def proj_106_additions(n, w):
 def proj_eea_space(n, c_iter=2.4, c_pad=2.3):
     """Record and working space for [1128]'s Euclidean algorithm.
 
-    Returns (what this package spends, what Sec 3.1's register sharing would).
-    The gap is entirely the sharing optimization, which is probabilistic and is
-    deliberately not implemented -- see `ec_eea`.
+    `record_compressed` is the streaming Fig. 1 record used by `inplace_mul`;
+    `with_register_sharing` is the projected space with the additional,
+    probabilistic Sec 3.1 optimization, which is not implemented.
     """
     from ec_eea import dialog_width, dialog_width_compressed
     import math

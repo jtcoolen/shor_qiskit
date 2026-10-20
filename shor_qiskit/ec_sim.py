@@ -79,11 +79,16 @@ class Machine:
         self.qc.add_register(r)
         return Reg(list(r), name)
 
-    def anc(self, size, name="anc"):
-        """`size` clean ancillas, drawn from the pool where possible."""
+    def anc(self, size, name="anc", *, exclude=(), reuse_pool=True):
+        """`size` clean ancillas, optionally reusing the pool except `exclude`."""
         out = []
-        while len(out) < size and self._pool:
-            out.append(self._pool.pop())
+        excluded = {id(q) for reg in exclude for q in reg}
+        while reuse_pool and len(out) < size:
+            idx = next((i for i in range(len(self._pool) - 1, -1, -1)
+                        if id(self._pool[i]) not in excluded), None)
+            if idx is None:
+                break
+            out.append(self._pool.pop(idx))
         need = size - len(out)
         if need:
             r = QuantumRegister(need, f"{name}_{self._nanc}")
@@ -93,6 +98,19 @@ class Machine:
         self._live += size
         self.peak_live = max(self.peak_live, self._live)
         return Reg(out, name)
+
+    def reserve(self, *regs):
+        """Temporarily remove clean pooled qubits from future `anc()` calls."""
+        qs = [q for reg in regs for q in reg]
+        ids = {id(q) for q in qs}
+        if len(ids) != len(qs):
+            raise ValueError("a qubit cannot be reserved more than once")
+        pool_ids = {id(q) for q in self._pool}
+        if not ids <= pool_ids:
+            raise ValueError("only pooled clean ancillas can be reserved")
+        self._pool = [q for q in self._pool if id(q) not in ids]
+        self._live += len(qs)
+        self.peak_live = max(self.peak_live, self._live)
 
     def free(self, *regs):
         """Return ancillas to the pool, asserting they are |0> at this point."""

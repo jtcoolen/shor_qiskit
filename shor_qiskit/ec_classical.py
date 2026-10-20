@@ -427,26 +427,42 @@ def compress_triple(pairs):
     """[1128] Fig. 1: three (b0, b0&b1) pairs -> 5 bits.
 
     Each pair is one of (0,0), (1,0), (1,1) -- never (0,1), since b0&b1 can
-    only be set when b0 is.  So three pairs carry 3^3 = 27 < 32 states and fit
-    in 5 bits instead of 6, releasing one qubit per three iterations.  Over
-    1.413n iterations that is the difference between 2.83n and 2.355n garbage
-    qubits.
+    only be set when b0 is.  The Fig. 1 circuit maps these 27 inputs
+    injectively to five bits, with the sixth output bit zero.
     """
     assert len(pairs) == 3
-    v = 0
-    for i, (b0, b0b1) in enumerate(pairs):
-        assert (b0, b0b1) in ((0, 0), (1, 0), (1, 1)), "impossible pair"
-        digit = 0 if b0 == 0 else (1 if b0b1 == 0 else 2)
-        v += digit * 3**i
-    return v
+    assert all(pair in ((0, 0), (1, 0), (1, 1)) for pair in pairs), \
+        "impossible pair"
+    q = [bit for pair in pairs for bit in pair]
+
+    def cx(control, target):
+        q[target] ^= q[control]
+
+    def ccx(control_a, control_b, target):
+        q[target] ^= q[control_a] & q[control_b]
+
+    cx(1, 0); cx(3, 2); cx(5, 4); cx(0, 2); cx(5, 3)
+    q[2] ^= 1
+    q[4] ^= 1
+    ccx(1, 3, 5)
+    cx(1, 4)
+    ccx(3, 4, 5)
+    ccx(4, 5, 1)
+    ccx(2, 5, 0)
+    ccx(0, 1, 5)
+    assert q[5] == 0
+    return sum(q[i] << i for i in range(5))
 
 
 def decompress_triple(v):
-    out = []
-    for _ in range(3):
-        d, v = v % 3, v // 3
-        out.append((0, 0) if d == 0 else ((1, 0) if d == 1 else (1, 1)))
-    return out
+    assert 0 <= v < 32, "compressed record must fit in five bits"
+    for a in ((0, 0), (1, 0), (1, 1)):
+        for b in ((0, 0), (1, 0), (1, 1)):
+            for c in ((0, 0), (1, 0), (1, 1)):
+                pairs = [a, b, c]
+                if compress_triple(pairs) == v:
+                    return pairs
+    raise ValueError(f"{v} is not a valid compressed EEA record")
 
 
 # =============================================================================

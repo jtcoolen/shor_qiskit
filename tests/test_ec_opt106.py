@@ -41,12 +41,13 @@ def main():
     ok("qcsa_sum exact for 3..8 operands; tree teardown returns every ancilla")
 
     section("word-level Montgomery multiplication")
-    for kind in ("qcsa", "lookup"):
+    for kind, fn in (("qcsa", MG.mont_mul_qcsa),
+                     ("qcsa_depth", MG.mont_mul_qcsa_depth),
+                     ("lookup", MG.mont_mul_lookup)):
         for n, w, p in ((8, 2, 251), (8, 4, 251), (9, 3, 509), (12, 4, 4093)):
             m = Machine("and")
             a, b, o = m.alloc(n, "a"), m.alloc(n, "b"), m.alloc(n, "o")
-            (MG.mont_mul_qcsa if kind == "qcsa" else MG.mont_mul_lookup)(
-                m, a, b, o, p, w)
+            fn(m, a, b, o, p, w)
             R = pow(2, -n, p)
             for _ in range(scope(15, 60)):
                 av, bv = r.randrange(p), r.randrange(p)
@@ -54,8 +55,17 @@ def main():
                 assert rd(o) == av * bv * R % p, (kind, n, w, av, bv)
                 assert rd(a) == av and rd(b) == bv
         ok(f"mont_mul_{kind} == a*b*2^-n mod p")
+    base = Machine("and")
+    aa, bb, oo = base.alloc(8, "a"), base.alloc(8, "b"), base.alloc(8, "o")
+    MG.mont_mul_qcsa(base, aa, bb, oo, 251, 2)
+    depth = Machine("and")
+    ad, bd, od = depth.alloc(8, "a"), depth.alloc(8, "b"), depth.alloc(8, "o")
+    MG.mont_mul_qcsa_depth(depth, ad, bd, od, 251, 2)
+    assert depth.qc.depth() < base.qc.depth()
+    assert depth.qc.num_qubits > base.qc.num_qubits
+    ok("fresh-output Montgomery layout trades more qubits for lower depth")
     for n, w, p in ((8, 2, 251), (12, 4, 4093)):
-        for kind in ("qcsa", "lookup"):
+        for kind in ("qcsa", "qcsa_depth", "lookup"):
             m = Machine("and")
             a, b, o = m.alloc(n, "a"), m.alloc(n, "b"), m.alloc(n, "o")
             MG.mont_mul_clean(m, a, b, o, p, w, kind)

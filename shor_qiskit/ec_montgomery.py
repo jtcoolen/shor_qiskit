@@ -18,6 +18,13 @@ it replaces:
     "load w shifted copies of a constant under w control bits, then sum them" --
     and one carry-save tree serves both.  No lookup table at all.
 
+`mont_mul_qcsa_depth` uses the depth-optimised layout from [106]: each
+carry-save reduction writes its result to a fresh accumulator instead of
+adding the final two operands into the old accumulator serially.  The old
+accumulators are retained as garbage until the caller uncomputes the
+multiplication.  This trades O(n^2 / w) additional qubits for one rather than
+two carry-propagating additions per reduction.
+
     The reformulation is not free, and the paper does not dwell on it.  M p and
     c_w d differ by 2^w * floor(c_w p'_w / 2^w) * p, and with both c_w and p'_w
     below 2^w that reaches about 2^{2w} p -- so the reduction over-adds by up to
@@ -143,6 +150,54 @@ def mont_mul_qcsa(m, a, b, out, p, w):
     return garbage
 
 
+def mont_mul_qcsa_depth(m, a, b, out, p, w):
+    """Depth-optimised QCSA Montgomery product, retaining prior accumulators.
+
+    This is the fresh-output layout of [106].  Each accumulation computes
+    ``old_c + sum(ops)`` into a new register with one carry-propagating
+    addition.  Old nonzero accumulator registers are retained as garbage;
+    they are cleaned when the caller reverses this multiplier.
+    """
+    n = len(b)
+    assert len(a) == n and n % w == 0, "n must be a whole number of words"
+    s, W = n // w, _acc_width(n, w)
+    d = mont_d_constant(p, w)
+
+    c = m.anc(W, "mc")
+    garbage = []
+    for i in range(s):
+        awrd = Reg(list(a[i * w:(i + 1) * w]), "aw")
+
+        ops = _load_shifted(m, awrd, b, W, classical=False)
+        next_c = m.anc(W, "mc_depth")
+        Q.qcsa_sum(m, [*ops, c], next_c)
+        _unload_shifted(m, awrd, b, ops, W, classical=False)
+        if i == 0:
+            m.free(c)
+        else:
+            garbage.append(c)
+
+        cw = m.anc(w, "cw")
+        for j in range(w):
+            m.ctx.cx(next_c[j], cw[j])
+        garbage.append(cw)
+
+        ops = _load_shifted(m, cw, d, W, classical=True)
+        next_next_c = m.anc(W, "mc_depth")
+        Q.qcsa_sum(m, [*ops, next_c], next_next_c)
+        _unload_shifted(m, cw, d, ops, W, classical=True)
+        garbage.append(next_c)
+
+        # The reduced low word is zero, so rotating its wires is a free shift.
+        c = Reg(list(next_next_c[w:]) + list(next_next_c[:w]), "mc")
+
+    garbage += _reduce_below_p(m, c, p, W - p.bit_length())
+    for i in range(len(out)):
+        m.ctx.cx(c[i], out[i])
+    garbage.append(c)
+    return garbage
+
+
 def mont_mul_lookup(m, a, b, out, p, w):
     """out (|0>) <- a*b*2^-n mod p.  [HJN+20]: a QROM lookup per word.
 
@@ -202,7 +257,15 @@ def mont_mul_clean(m, a, b, out, p, w, kind="qcsa"):
     multiplications for one clean result, which is the standard price and the
     reason the papers count multiplications rather than gates.
     """
-    fn = mont_mul_qcsa if kind == "qcsa" else mont_mul_lookup
+    fns = {
+        "qcsa": mont_mul_qcsa,
+        "qcsa_depth": mont_mul_qcsa_depth,
+        "lookup": mont_mul_lookup,
+    }
+    try:
+        fn = fns[kind]
+    except KeyError:
+        raise ValueError(f"unknown Montgomery multiplier kind: {kind!r}") from None
     n = len(b)
     tmp = m.anc(n, "mt")
     start = len(m.qc.data)

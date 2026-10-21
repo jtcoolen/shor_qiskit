@@ -245,6 +245,9 @@ def mod_inv(m, x, out, p, ctrl=None, history="full", *,
     depths = (_round_depths(p, rounds,
                             include_noncanonical=round_limit is not None)
               if history == "arithmetic" else None)
+    # The last round's shared (swap, odd) bits are left set: nothing between
+    # its forward and reverse (symmetric) toggles reads them, so both cancel.
+    keep_last = history == "arithmetic" and round_limit is None
     fv, gv = m.anc(coeff_width, "fv"), m.anc(coeff_width, "gv")
     A.encode_const(m.ctx, f, p, ctrl)
     for src, dst in zip(x, g):
@@ -274,11 +277,12 @@ def mod_inv(m, x, out, p, ctrl=None, history="full", *,
             _round(m, z, f, g, fv, gv, p, record)
         if shared:
             bodies.append(m.since(mark))
-            if history == "arithmetic":
+            if history == "arithmetic" and not (
+                    keep_last and index == rounds - 1):
                 arithmetic_codec.toggle(
                     m, z, g, fv, gv, active[0], record[1][0], record[2][0],
                     max_depth=depths[index])
-            else:
+            elif history != "arithmetic":
                 codec.toggle(m, (*layout, active),
                              (record[1][0], record[2][0]), tables[index])
         records.append(record)
@@ -354,11 +358,12 @@ def mod_inv(m, x, out, p, ctrl=None, history="full", *,
     if shared:
         for index in range(rounds - 1, -1, -1):
             record = records[index]
-            if history == "arithmetic":
+            if history == "arithmetic" and not (
+                    keep_last and index == rounds - 1):
                 arithmetic_codec.toggle(
                     m, z, g, fv, gv, record[0][0], shared[0][0], shared[1][0],
                     max_depth=depths[index])
-            else:
+            elif history != "arithmetic":
                 codec.toggle(m, (*layout, record[0]),
                              (shared[0][0], shared[1][0]), tables[index])
             m.undo(bodies[index])

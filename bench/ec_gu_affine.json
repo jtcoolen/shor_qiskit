@@ -49,9 +49,9 @@
     {
       "label": "divsteps-arithmetic",
       "qubits": 63,
-      "toffoli_paper": 32248,
-      "depth": 85213,
-      "t": 198784,
+      "toffoli_paper": 31736,
+      "depth": 84237,
+      "t": 196448,
       "basis_cases": 16,
       "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
       "tvd": 0.032227

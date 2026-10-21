@@ -1,5 +1,9 @@
 """End-to-end affine checks for signed Appendix A arithmetic decoding."""
 
+from qiskit import QuantumCircuit, transpile
+from qiskit.circuit.library import StatePreparation
+from qiskit_aer import AerSimulator
+
 import ec_classical as C
 import ec_pointadd as PA
 import ec_shor as S
@@ -26,6 +30,34 @@ def main():
                 assert (result(out), result(x), result(c)) == (
                     expected, value, control)
         ok(f"p={p}: signed inverse on controlled branches, all scratch clean")
+
+    section("final round keeps its decisions across the copy-out")
+    m = Machine("and")
+    c = m.alloc(1, "control")
+    x, out = m.alloc(3, "x"), m.alloc(3, "out")
+    mod_inv(m, x, out, 5, c[0], history="arithmetic")
+    prep = StatePreparation([0.5 if 0 < v < 5 else 0 for v in range(8)])
+    qc = QuantumCircuit(*m.qc.qregs)
+    qc.h(c[0])
+    qc.append(prep, x)
+    qc.compose(m.qc, inplace=True)
+    for value in range(1, 5):
+        flips = [x[j] for j in range(3) if not (value >> j) & 1]
+        for wire in flips:
+            qc.x(wire)
+        for i in range(3):
+            if (pow(value, -1, 5) >> i) & 1:
+                qc.mcx([c[0], *x], out[i])
+        for wire in flips:
+            qc.x(wire)
+    qc.append(prep.inverse(), x)
+    qc.h(c[0])
+    qc.measure_all()
+    sim = AerSimulator(method="matrix_product_state", device="CPU")
+    counts = sim.run(transpile(qc, sim, optimization_level=0),
+                     shots=64, seed_simulator=5).result().get_counts()
+    assert {int(key.replace(" ", ""), 2) for key in counts} == {0}, counts
+    ok("p=5 Aer CPU: controlled unit superposition returns to |0>")
 
     section("controlled division, including the disabled branch")
     for p in (5, 7):

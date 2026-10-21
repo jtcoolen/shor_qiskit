@@ -971,9 +971,17 @@ some toy input actually reaches there after an ambiguous nonswap. For
 $p=5,7,11$, these are $(1,1,2,2,1)$, $(1,1,2,2,1,1)$ and
 $(1,1,2,2,3,3,2,1)$, where $1$ means no Eq.~(A11) window. The same exhaustive
 inverse checks pass. This cuts the $p=5$ ECDLP oracle from $37{,}912$ to
-$32{,}248$ Toffolis. For $p=5$ every round sees both swap outcomes. In
-the final exact round for $p=7,11$, every active input swaps, but that round is
-not specialised. The active/frozen bit remains stored once per round. The signed
+$32{,}248$ Toffolis. In the final round of an exact arithmetic schedule,
+the shared swap/parity bits can remain set across inverse copy-out: no
+intervening operation reads them, and the symmetric decoder toggles
+would cancel. Omitting both toggles reduces the $p=5$ oracle further to
+$31{,}736$ Toffolis and depth $84{,}237$, without changing its $63$-qubit
+width or its sampled TVD $0.032$. A controlled superposition of all
+four nonzero inputs returns exactly to the initial state on Aer CPU;
+all $16$ full-oracle basis inputs and the complete inverse-QFT ECDLP
+also pass. This skip is restricted to the exact arithmetic schedule,
+not the bounded-round or lookup-decoded schedules. The active/frozen bit
+remains stored once per round. The signed
 coefficient is reduced modulo $p$ only when copying out the inverse, before
 the same $2^{-t}$ correction and reverse cleanup. Thus this implements the
 arithmetic decoder, but does not reproduce the paper's packed layout,

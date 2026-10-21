@@ -23,7 +23,7 @@ SLOW="test_precision test_n21 test_win_n21 test_n33"
 
 # --- ECDLP (elliptic-curve discrete log) ------------------------------------
 EC="test_ec_classical test_ec_quantum test_ec_arith test_ec_kaliski
-    test_ec_divsteps_reference test_ec_divsteps
+    test_ec_divsteps_reference test_ec_divsteps test_ec_packed_euclid
     test_ec_pointadd test_ec_shor test_ec_opt106 test_ec_opt1128 test_ec_pbt
     test_ec_eea_register_sharing test_ec_pingpong test_ec_jump2 test_ec_karatsuba
     test_ec_pareto"

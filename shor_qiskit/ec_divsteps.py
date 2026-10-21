@@ -144,17 +144,25 @@ def _signed_width(p, *, include_noncanonical=False, max_rounds=None):
     return largest.bit_length() + 2
 
 
-def _max_depth(p):
-    """Exact toy-domain valuation ceiling for the arithmetic decoder."""
-    maximum = 0
-    for w in range(1, p):
+def _round_depths(p, rounds, *, include_noncanonical=False):
+    """Per-round valuation windows needed by the arithmetic decoder.
+
+    Entry r is the largest valuation v_2(f_v') over ambiguous nonswap states
+    after round r, enumerated over the same toy input domain as
+    `_signed_width`; 1 means that round never needs an Eq. (A11) window.
+    """
+    depths = [1] * rounds
+    stop = 1 << p.bit_length() if include_noncanonical else p
+    for w in range(1, stop):
         state = State(0, p, w, 0, 1)
-        while state.g:
+        for index in range(rounds):
+            if not state.g:
+                break
             state, _ = step(state)
             if state.fv % 4 != 2 and state.z <= 0 and state.g:
                 valuation = (abs(state.fv) & -abs(state.fv)).bit_length() - 1
-                maximum = max(maximum, valuation)
-    return maximum
+                depths[index] = max(depths[index], valuation)
+    return depths
 
 
 def _signed_double(m, ctrl, x):
@@ -234,7 +242,9 @@ def mod_inv(m, x, out, p, ctrl=None, history="full", *,
     coeff_width = (_signed_width(p, include_noncanonical=round_limit is not None,
                                  max_rounds=rounds)
                    if history == "arithmetic" else n)
-    max_depth = _max_depth(p) if history == "arithmetic" else None
+    depths = (_round_depths(p, rounds,
+                            include_noncanonical=round_limit is not None)
+              if history == "arithmetic" else None)
     fv, gv = m.anc(coeff_width, "fv"), m.anc(coeff_width, "gv")
     A.encode_const(m.ctx, f, p, ctrl)
     for src, dst in zip(x, g):
@@ -267,7 +277,7 @@ def mod_inv(m, x, out, p, ctrl=None, history="full", *,
             if history == "arithmetic":
                 arithmetic_codec.toggle(
                     m, z, g, fv, gv, active[0], record[1][0], record[2][0],
-                    max_depth=max_depth)
+                    max_depth=depths[index])
             else:
                 codec.toggle(m, (*layout, active),
                              (record[1][0], record[2][0]), tables[index])
@@ -347,7 +357,7 @@ def mod_inv(m, x, out, p, ctrl=None, history="full", *,
             if history == "arithmetic":
                 arithmetic_codec.toggle(
                     m, z, g, fv, gv, record[0][0], shared[0][0], shared[1][0],
-                    max_depth=max_depth)
+                    max_depth=depths[index])
             else:
                 codec.toggle(m, (*layout, record[0]),
                              (shared[0][0], shared[1][0]), tables[index])

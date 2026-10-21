@@ -8,8 +8,8 @@
       "failures": 3,
       "failure_rate": 0.75,
       "qubits": 50,
-      "toffoli_paper": 1691,
-      "depth": 3752,
+      "toffoli_paper": 1455,
+      "depth": 3427,
       "scope": "controlled inversion component with explicit failure wire"
     },
     {
@@ -20,8 +20,8 @@
       "failures": 0,
       "failure_rate": 0.0,
       "qubits": 53,
-      "toffoli_paper": 2174,
-      "depth": 4720,
+      "toffoli_paper": 1820,
+      "depth": 4223,
       "scope": "controlled inversion component with explicit failure wire"
     },
     {
@@ -32,8 +32,8 @@
       "failures": 2,
       "failure_rate": 0.3333333333333333,
       "qubits": 53,
-      "toffoli_paper": 2174,
-      "depth": 4733,
+      "toffoli_paper": 1820,
+      "depth": 4236,
       "scope": "controlled inversion component with explicit failure wire"
     },
     {
@@ -44,8 +44,8 @@
       "failures": 0,
       "failure_rate": 0.0,
       "qubits": 54,
-      "toffoli_paper": 2563,
-      "depth": 5421,
+      "toffoli_paper": 2091,
+      "depth": 4757,
       "scope": "controlled inversion component with explicit failure wire"
     },
     {
@@ -56,8 +56,8 @@
       "failures": 2,
       "failure_rate": 0.2,
       "qubits": 66,
-      "toffoli_paper": 5757,
-      "depth": 10597,
+      "toffoli_paper": 3891,
+      "depth": 8090,
       "scope": "controlled inversion component with explicit failure wire"
     },
     {
@@ -68,8 +68,8 @@
       "failures": 0,
       "failure_rate": 0.0,
       "qubits": 67,
-      "toffoli_paper": 6530,
-      "depth": 11815,
+      "toffoli_paper": 4220,
+      "depth": 8720,
       "scope": "controlled inversion component with explicit failure wire"
     }
   ],

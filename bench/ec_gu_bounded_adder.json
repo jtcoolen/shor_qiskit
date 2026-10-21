@@ -1,0 +1,62 @@
+{
+  "scope": "classical same-task model of a skip-on-failure affine adder with retained per-addition failure flags; not an Aer run",
+  "shots_for_bound": 4096,
+  "rows": [
+    {
+      "p": 5,
+      "order": 3,
+      "k": 2,
+      "m_bits": 2,
+      "step_limit": 4,
+      "exact_steps": 5,
+      "div1_steps": 5,
+      "div2_steps": 5,
+      "failed_additions": 32,
+      "additions": 32,
+      "tvd_vs_exact": 0.476562,
+      "tvd_limit": 0.040283
+    },
+    {
+      "p": 5,
+      "order": 3,
+      "k": 2,
+      "m_bits": 2,
+      "step_limit": 5,
+      "exact_steps": 5,
+      "div1_steps": 5,
+      "div2_steps": 5,
+      "failed_additions": 0,
+      "additions": 32,
+      "tvd_vs_exact": 0.0,
+      "tvd_limit": 0.040283
+    },
+    {
+      "p": 7,
+      "order": 5,
+      "k": 4,
+      "m_bits": 2,
+      "step_limit": 5,
+      "exact_steps": 6,
+      "div1_steps": 6,
+      "div2_steps": 6,
+      "failed_additions": 20,
+      "additions": 32,
+      "tvd_vs_exact": 0.4375,
+      "tvd_limit": 0.041016
+    },
+    {
+      "p": 7,
+      "order": 5,
+      "k": 4,
+      "m_bits": 2,
+      "step_limit": 6,
+      "exact_steps": 6,
+      "div1_steps": 6,
+      "div2_steps": 6,
+      "failed_additions": 0,
+      "additions": 32,
+      "tvd_vs_exact": 0.0,
+      "tvd_limit": 0.041016
+    }
+  ]
+}

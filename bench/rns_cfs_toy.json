@@ -1,0 +1,384 @@
+{
+ "paper": "Chevignard-Fouque-Schrottenloher, ePrint 2024/222",
+ "scope": "toy Algorithm 1 (coherent, clean) + toy Algorithm 2 for N=15; Shor order finding (deviation) for N=21",
+ "shots": 2000,
+ "seed": 7,
+ "simulator": "Aer MPS CPU",
+ "algorithm1": {
+  "n15_good": {
+   "N": 15,
+   "multipliers": [
+    2,
+    4,
+    1,
+    1,
+    8,
+    4
+   ],
+   "primes": [
+    7,
+    11,
+    13,
+    19
+   ],
+   "r": 2,
+   "nu": 1,
+   "u": 10,
+   "u_prime": 6,
+   "t_N": 12,
+   "registers": {
+    "x": 6,
+    "s": 4,
+    "residue": 5,
+    "qm": 15,
+    "qn": 8,
+    "res": 2,
+    "anc": 16
+   },
+   "qubits": 56,
+   "gate_counts": {
+    "ccx": 4324,
+    "cx": 2192,
+    "x": 1046,
+    "mcx_o7": 44,
+    "mcx_o5": 36,
+    "mcx_o6": 32,
+    "mcx_o8": 28,
+    "mcx_o4": 24,
+    "mcx_o1": 20,
+    "mcx_o3": 20,
+    "mcx_o0": 16,
+    "mcx_o2": 16,
+    "mcx_o9": 8,
+    "mcx_o10": 4
+   },
+   "aer_transpiled_gates": 18378,
+   "tally": {
+    "residue_computations": 8,
+    "controlled_additions": 144,
+    "constant_additions": 2,
+    "lookups": 16,
+    "lookup_entries": 152
+   },
+   "failures": {},
+   "internal_failures": {}
+  },
+  "n15_failing": {
+   "N": 15,
+   "multipliers": [
+    2,
+    4,
+    1,
+    1,
+    8,
+    4
+   ],
+   "primes": [
+    3,
+    5,
+    7,
+    11
+   ],
+   "r": 2,
+   "nu": 1,
+   "u": 8,
+   "u_prime": 5,
+   "t_N": 12,
+   "registers": {
+    "x": 6,
+    "s": 4,
+    "residue": 4,
+    "qm": 12,
+    "qn": 7,
+    "res": 2,
+    "anc": 13
+   },
+   "qubits": 48,
+   "gate_counts": {
+    "ccx": 2976,
+    "cx": 1512,
+    "x": 748,
+    "mcx_o7": 28,
+    "mcx_o1": 20,
+    "mcx_o3": 20,
+    "mcx_o5": 20,
+    "mcx_o0": 16,
+    "mcx_o2": 16,
+    "mcx_o4": 16,
+    "mcx_o6": 16,
+    "mcx_o8": 16,
+    "mcx_o9": 8,
+    "mcx_o10": 4
+   },
+   "aer_transpiled_gates": 13120,
+   "tally": {
+    "residue_computations": 8,
+    "controlled_additions": 118,
+    "constant_additions": 2,
+    "lookups": 16,
+    "lookup_entries": 128
+   },
+   "failures": {
+    "0": "heuristic3",
+    "4": "heuristic3",
+    "8": "heuristic3",
+    "12": "heuristic3",
+    "17": "heuristic3",
+    "21": "heuristic3",
+    "25": "heuristic3",
+    "29": "heuristic3",
+    "34": "heuristic3",
+    "38": "heuristic3",
+    "42": "heuristic3",
+    "46": "heuristic3",
+    "51": "lemma5",
+    "55": "lemma5",
+    "59": "lemma5",
+    "63": "lemma5"
+   },
+   "internal_failures": {
+    "0": "heuristic3",
+    "4": "heuristic3",
+    "8": "heuristic3",
+    "12": "heuristic3",
+    "17": "heuristic3",
+    "19": "lemma5",
+    "21": "heuristic3",
+    "23": "lemma5",
+    "25": "heuristic3",
+    "27": "lemma5",
+    "29": "heuristic3",
+    "31": "lemma5",
+    "34": "heuristic3",
+    "38": "heuristic3",
+    "42": "heuristic3",
+    "46": "heuristic3",
+    "49": "lemma5",
+    "50": "lemma5",
+    "51": "lemma5",
+    "53": "lemma5",
+    "54": "lemma5",
+    "55": "lemma5",
+    "57": "lemma5",
+    "58": "lemma5",
+    "59": "lemma5",
+    "61": "lemma5",
+    "62": "lemma5",
+    "63": "lemma5"
+   }
+  },
+  "n21_order": {
+   "N": 21,
+   "multipliers": [
+    2,
+    4,
+    16,
+    4,
+    16
+   ],
+   "primes": [
+    5,
+    7,
+    11,
+    13,
+    29
+   ],
+   "r": 2,
+   "nu": 2,
+   "u": 11,
+   "u_prime": 7,
+   "t_N": 18,
+   "registers": {
+    "x": 5,
+    "s": 4,
+    "residue": 5,
+    "qm": 17,
+    "qn": 9,
+    "res": 2,
+    "anc": 18
+   },
+   "qubits": 60,
+   "gate_counts": {
+    "ccx": 5944,
+    "cx": 3008,
+    "x": 1370,
+    "mcx_o7": 40,
+    "mcx_o5": 36,
+    "mcx_o9": 36,
+    "mcx_o11": 32,
+    "mcx_o3": 28,
+    "mcx_o4": 28,
+    "mcx_o6": 28,
+    "mcx_o8": 28,
+    "mcx_o13": 28,
+    "mcx_o1": 24,
+    "mcx_o10": 24,
+    "mcx_o12": 24,
+    "mcx_o0": 20,
+    "mcx_o2": 20,
+    "mcx_o14": 4
+   },
+   "aer_transpiled_gates": 34786,
+   "tally": {
+    "residue_computations": 10,
+    "controlled_additions": 188,
+    "constant_additions": 2,
+    "lookups": 20,
+    "lookup_entries": 252
+   },
+   "failures": {},
+   "internal_failures": {}
+  }
+ },
+ "algorithm2_n15": [
+  {
+   "beta": 1,
+   "qubits": 57,
+   "seconds": 5.35,
+   "counts": {
+    "0,0": 1194,
+    "4,3": 256,
+    "8,2": 272,
+    "12,1": 278
+   },
+   "ideal": {
+    "0,0": 0.625,
+    "4,3": 0.125,
+    "8,2": 0.125,
+    "12,1": 0.125
+   },
+   "tv_distance": 0.028,
+   "p_zero": 0.625,
+   "theorem3_bound": 0.635,
+   "result": [
+    3,
+    5,
+    1
+   ]
+  },
+  {
+   "beta": 2,
+   "qubits": 57,
+   "seconds": 5.35,
+   "counts": {
+    "0,0": 1194,
+    "4,3": 256,
+    "8,2": 272,
+    "12,1": 278
+   },
+   "ideal": {
+    "0,0": 0.625,
+    "4,3": 0.125,
+    "8,2": 0.125,
+    "12,1": 0.125
+   },
+   "tv_distance": 0.028,
+   "p_zero": 0.625,
+   "theorem3_bound": 0.635,
+   "result": [
+    3,
+    5,
+    1
+   ]
+  },
+  {
+   "beta": 3,
+   "qubits": 57,
+   "seconds": 5.23,
+   "counts": {
+    "0,0": 992,
+    "4,3": 476,
+    "12,1": 532
+   },
+   "ideal": {
+    "0,0": 0.5,
+    "4,3": 0.25,
+    "12,1": 0.25
+   },
+   "tv_distance": 0.016,
+   "p_zero": 0.5,
+   "theorem3_bound": 0.635,
+   "result": [
+    3,
+    5,
+    1
+   ]
+  }
+ ],
+ "order_n21": {
+  "beta": 1,
+  "qubits": 61,
+  "seconds": 23.1,
+  "counts": {
+   "00000": 1068,
+   "00001": 1,
+   "00010": 3,
+   "00011": 5,
+   "00100": 5,
+   "00101": 210,
+   "00110": 71,
+   "00111": 14,
+   "01000": 2,
+   "01001": 1,
+   "01010": 14,
+   "01011": 102,
+   "01100": 10,
+   "01101": 7,
+   "01110": 4,
+   "01111": 5,
+   "10000": 3,
+   "10001": 1,
+   "10010": 4,
+   "10011": 5,
+   "10100": 10,
+   "10101": 105,
+   "10110": 10,
+   "10111": 3,
+   "11000": 3,
+   "11001": 12,
+   "11010": 74,
+   "11011": 222,
+   "11100": 22,
+   "11101": 3,
+   "11110": 1
+  },
+  "ideal": {
+   "00000": 0.548828,
+   "00001": 0.000295,
+   "00010": 0.000604,
+   "00011": 0.001562,
+   "00100": 0.005859,
+   "00101": 0.10945,
+   "00110": 0.030374,
+   "00111": 0.005091,
+   "01000": 0.001953,
+   "01001": 0.001172,
+   "01010": 0.00573,
+   "01011": 0.049108,
+   "01100": 0.005859,
+   "01101": 0.003157,
+   "01110": 0.002355,
+   "01111": 0.00204,
+   "10000": 0.001953,
+   "10001": 0.00204,
+   "10010": 0.002355,
+   "10011": 0.003157,
+   "10100": 0.005859,
+   "10101": 0.049108,
+   "10110": 0.00573,
+   "10111": 0.001172,
+   "11000": 0.001953,
+   "11001": 0.005091,
+   "11010": 0.030374,
+   "11011": 0.10945,
+   "11100": 0.005859,
+   "11101": 0.001562,
+   "11110": 0.000604,
+   "11111": 0.000295
+  },
+  "tv_distance": 0.031,
+  "order": 6,
+  "true_order": 6,
+  "per_shot_success": 0.238
+ }
+}

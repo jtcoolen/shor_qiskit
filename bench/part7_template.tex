@@ -1052,6 +1052,22 @@ affine inverse & qubits & Toffoli & depth & Aer sampling & frontier\\
 \end{tabular}
 \end{center}
 The p=5 affine task is not comparable with the p=7 windowed frontier above.
+\begin{figure}[htbp]\centering
+\includegraphics[width=\linewidth]{bench/ec_optimisation_frontiers.pdf}
+\caption{Two \emph{separate}, equal-task three-axis resource frontiers from
+\protect\path{bench/ec_pareto.json} and \protect\path{bench/ec_gu_affine.json}
+(regenerate with \protect\path{bench/plot_optimisation_frontiers.py}).
+Horizontal position is logical width, vertical position is the pre-synthesis
+Toffoli count, and frontier membership additionally requires nondominance
+in logical depth. Green points are resource-nondominated; grey points are
+dominated. Tied Jump-2/codec points overlay each other. The hollow Kaliski
+square is basis-checked but too wide for Aer sampling on this host; a
+resource-frontier point is \emph{not} automatically Aer-certified. The
+affine panel uses a logarithmic Toffoli axis to retain the unoptimised
+packed-Euclidean walk. Different tasks and component-only bounded schedules
+are never compared as frontier points.}
+\label{fig:ec-toy-frontiers}
+\end{figure}
 The arithmetic decoder's extra signed registers and generic reversible
 integer products cost more on this toy task than the round-specific lookup;
 an exact arithmetic decoder alone is \emph{not} the paper's complete optimised

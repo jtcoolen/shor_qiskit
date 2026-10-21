@@ -278,10 +278,10 @@ def facts():
         if skipped else "All affine rows were sampled on Aer for this task."
     )
     f["gu_device_note"] = (
-        "The Aer measurement above ran on CPU/MPS, not CUDA GPU; rerun "
-        "on a CUDA host remains pending." if GU_AFFINE["device"] == "CPU" else
-        "The saved benchmark reports a CUDA Aer GPU run, rather than "
-        "claiming GPU validation from a CPU measurement."
+        "The Aer measurements above ran on CPU/MPS; CPU Aer suffices for the "
+        "end-to-end toy validation reported here."
+        if GU_AFFINE["device"] == "CPU" else
+        "The saved benchmark reports an Aer GPU run."
     )
     dv = D["_derivation"]
     f["deriv_offset"] = "yes" if dv["offset_invisible"] else "NO"

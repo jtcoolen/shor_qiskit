@@ -1,6 +1,7 @@
 \documentclass[11pt]{article}
 \usepackage[margin=2.4cm]{geometry}
 \usepackage{amsmath,amssymb,amsthm,booktabs,xcolor}
+\usepackage{graphicx}
 \usepackage{tikz}
 \usepackage{quantikz}
 \usepackage{listings}
@@ -2482,6 +2483,27 @@ same compressed oracle recovers $\mathrm{ord}_{21}(2)=6$. It uses
 $m=5$ exponent bits, primes $(5,7,11,13,29)$ and $61$ qubits, with total
 variation distance $0.031$ and per-shot success $0.24$.
 
+The saved \path{bench/rns_cfs_toy.json} records these \emph{different}
+verification tasks separately. Algorithm~1 uses a register-exact
+classical reference and all $64$ basis inputs; the other rows run
+Aer CPU/MPS with $2\,000$ shots (seed $7$):
+\begin{center}\footnotesize
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+CFS toy check & qubits & Aer-transpiled gates & measured result\\
+\midrule
+Algorithm~1, primes $(7,11,13,19)$ & 56 & 18\,378 & $0/64$ output failures\\
+Algorithm~1, primes $(3,5,7,11)$ & 48 & 13\,120 & $16/64$ output failures\\
+Algorithm~2, $N=15$, $\beta=1,2,3$ & 57 & --- & TVD $\leq0.028$; $3\times5$\\
+Shor order finding, $N=21$ & 61 & --- & order $6$; TVD $0.031$\\
+\bottomrule
+\end{tabular}
+\end{center}
+The last row is \emph{not} CFS Algorithm~2, and the gate totals of
+the two Algorithm~1 rows are not a comparable full-factoring Pareto
+frontier. Reproduce them with
+\path{PYTHONPATH=shor_qiskit:bench:tests venv/bin/python bench/rns_cfs_toy.py}.
+
 Labelled deviations:
 \begin{itemize}
 \item a toy RNS with $M>\prod A_i$, instead of the Lemma~4 Hamming-weight
@@ -2498,11 +2520,26 @@ Labelled deviations:
 This verifies the CFS dataflow at toy size. It is not the paper's
 cryptographic-scale qubit count, and not Sec.~5.2's general-$N$ path.
 
-There is also a change of character worth stating plainly. Every other construction in this note is
-\emph{exact}, and its tests assert exact equality with ancillas provably clean. The coset
-representation is approximate by design, so its tests measure an error \emph{rate} against a
-padding budget instead. That is not a weaker standard, but it is a different one, and it propagates:
-once the arithmetic is approximate, every claim above it becomes probabilistic.
+\begin{center}
+\includegraphics[width=.86\linewidth]{bench/rns_order_frontier.pdf}
+\par\smallskip\footnotesize
+\textbf{Order-finding resource plot.} Saved $N=15$, base-2 circuits
+(\path{bench/rns_gidney_toy.json}; regenerate with
+\path{bench/plot_optimisation_frontiers.py}). Every row recovers order
+four. The exact Fourier-modular oracle needs $13$ qubits and $324$
+Toffolis; the toy high-bit CRT oracle needs $18$ and $2\,654$, while
+Gidney's App.~A.1 toy needs $18$ and $1\,816$ (mask zero; mask one has
+identical resources). The latter uses mid-circuit measurements and
+feed-forward, so these pre-synthesis Toffoli counts alone are not
+fault-tolerant running times. CFS's low-bit \emph{factoring} task is
+different and is deliberately absent.
+\end{center}
+
+There is also a change of character worth stating plainly. The exact modular
+baselines assert equality and clean ancillas; coset arithmetic and both RNS
+approximations additionally measure their errors against their stated input
+promises. This is a different standard, not a weaker one: once the arithmetic
+is approximate, claims built on it become probabilistic.
 \end{warnbox}
 
 \section{Where to go from here}\label{im:sec:beyond}
@@ -3147,6 +3184,8 @@ $N=15$ one-control circuit far exceeds current coherence \cite{repo}. The packag
 Part~II made executable and testable, not a factoring machine; the gap between the two is the
 fault-tolerance overhead priced in Part~III's bill.
 \end{warnbox}
+
+
 
 
 
@@ -4651,6 +4690,22 @@ packed-euclid & $57$ & $3\,522\,984$ & $3\,524\,181$ & TVD $0.032$ & no\\
 \end{tabular}
 \end{center}
 The p=5 affine task is not comparable with the p=7 windowed frontier above.
+\begin{figure}[htbp]\centering
+\includegraphics[width=\linewidth]{bench/ec_optimisation_frontiers.pdf}
+\caption{Two \emph{separate}, equal-task three-axis resource frontiers from
+\protect\path{bench/ec_pareto.json} and \protect\path{bench/ec_gu_affine.json}
+(regenerate with \protect\path{bench/plot_optimisation_frontiers.py}).
+Horizontal position is logical width, vertical position is the pre-synthesis
+Toffoli count, and frontier membership additionally requires nondominance
+in logical depth. Green points are resource-nondominated; grey points are
+dominated. Tied Jump-2/codec points overlay each other. The hollow Kaliski
+square is basis-checked but too wide for Aer sampling on this host; a
+resource-frontier point is \emph{not} automatically Aer-certified. The
+affine panel uses a logarithmic Toffoli axis to retain the unoptimised
+packed-Euclidean walk. Different tasks and component-only bounded schedules
+are never compared as frontier points.}
+\label{fig:ec-toy-frontiers}
+\end{figure}
 The arithmetic decoder's extra signed registers and generic reversible
 integer products cost more on this toy task than the round-specific lookup;
 an exact arithmetic decoder alone is \emph{not} the paper's complete optimised
@@ -4663,7 +4718,7 @@ two-bit signed-decoder complete oracle requires $64$ qubits, above this Aer
 CPU installation's $63$-qubit limit; its inverse, division and in-place point
 addition have basis-state validation but are not described as an Aer ECDLP
 result.
-The Aer measurement above ran on CPU/MPS, not CUDA GPU; rerun on a CUDA host remains pending.
+The Aer measurements above ran on CPU/MPS; CPU Aer suffices for the end-to-end toy validation reported here.
 Likewise, ECDSA.Fail's lane-lifetime refinements, general constant
 propagation and post-generation dead-code elimination are not represented
 by a selectable, end-to-end measured point-adder backend here. The separate

@@ -17,7 +17,8 @@ from ec_sim import run as run_basis
 
 
 OUT = pathlib.Path(__file__).with_suffix(".json")
-BACKENDS = ("kaliski", "kaliski-opt", "divsteps", "divsteps-decoded")
+BACKENDS = ("kaliski", "kaliski-opt", "divsteps",
+            "divsteps-decoded", "divsteps-arithmetic")
 
 
 def measure(shots=1024, seed=5):

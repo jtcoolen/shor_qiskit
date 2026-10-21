@@ -47,14 +47,15 @@ report how many, rather than quietly passing.
 Backend selection
 -----------------
 `multiplier` may be `reference`, `montgomery-qcsa`, or `montgomery-lookup`;
-`inversion` may be `kaliski`, `kaliski-opt`, `divsteps`, or
-`divsteps-decoded`. Montgomery multiplication
+`inversion` may be `kaliski`, `kaliski-opt`, `divsteps`,
+`divsteps-decoded`, or `divsteps-arithmetic`. Montgomery multiplication
 converts the ordinary field residues at its boundary, so the point-adder
 formula remains unchanged. The optimized inverse likewise converts its
 Montgomery-scaled result back to an ordinary residue.
 The toy-width `divsteps` inverter stores all branch decisions;
-`divsteps-decoded` reuses its decision qubits via an exact toy-state lookup.
-Neither is Gu's scalable packed/bit-window circuit.
+`divsteps-decoded` reuses its decision qubits via an exact toy-state lookup;
+`divsteps-arithmetic` uses the signed coefficients and arithmetic bit-window
+decoder of Gu Appendix A. None is Gu's packed-Euclidean circuit.
 """
 
 import ec_adders as A
@@ -158,13 +159,16 @@ def _modmul_add(m, x, y, acc, p, multiplier, word_size):
 
 def _moddiv(m, q, x, y, out, p, multiplier, word_size, inversion):
     n = len(x)
-    if inversion not in ("kaliski", "kaliski-opt", "divsteps", "divsteps-decoded"):
+    if inversion not in ("kaliski", "kaliski-opt", "divsteps",
+                         "divsteps-decoded", "divsteps-arithmetic"):
         raise ValueError(f"unknown inversion backend {inversion!r}")
 
     def build_inverse(machine, src, dst, modulus, ctrl):
-        if inversion in ("divsteps", "divsteps-decoded"):
+        if inversion in ("divsteps", "divsteps-decoded", "divsteps-arithmetic"):
             D.mod_inv(machine, src, dst, modulus, ctrl,
-                      history="decoded" if inversion == "divsteps-decoded" else "full")
+                      history={"divsteps": "full",
+                               "divsteps-decoded": "decoded",
+                               "divsteps-arithmetic": "arithmetic"}[inversion])
             return []
         if inversion == "kaliski":
             recs, counter = K.mod_inv(machine, src, dst, modulus, ctrl=ctrl)

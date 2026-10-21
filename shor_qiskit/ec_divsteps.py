@@ -1,13 +1,16 @@
 """Toy-width reversible divsteps inversion using Gu et al. Eq. (6).
 
-This initial circuit keeps exact per-round branch history. It does not yet
-implement the paper's Appendix A history-free decoder or packed wire layout.
+The arithmetic history mode uses signed coefficients and Appendix A's
+bit-window decoder. The original modes retain modular coefficients and
+either explicit history or a finite-toy-state lookup. None uses the
+paper's packed wire layout.
 """
 
 import ec_adders as A
 import ec_modarith as MA
-from ec_divsteps_reference import walk
+from ec_divsteps_reference import State, step, walk
 import ec_divsteps_codec as codec
+import ec_divsteps_arith_codec as arithmetic_codec
 
 
 def _signed_neg(m, ctrl, reg):
@@ -121,6 +124,80 @@ def _round(m, z, f, g, fv, gv, p, record):
     ctx.cx(g[-2], g[-1])
 
 
+def _signed_width(p):
+    """Bound every intermediate signed coefficient on the exact toy domain."""
+    largest = 1
+    for w in range(1, p):
+        state = State(0, p, w, 0, 1)
+        while state.g:
+            fv, gv = state.fv, state.gv
+            if state.g & 1 and state.z >= 0:
+                fv, gv = gv, -fv
+            largest = max(largest, abs(fv), abs(gv),
+                          abs(gv + (state.g & 1) * fv), abs(2 * fv))
+            state, _ = step(state)
+    return largest.bit_length() + 2
+
+
+def _max_depth(p):
+    """Exact toy-domain valuation ceiling for the arithmetic decoder."""
+    maximum = 0
+    for w in range(1, p):
+        state = State(0, p, w, 0, 1)
+        while state.g:
+            state, _ = step(state)
+            if state.fv % 4 != 2 and state.z <= 0 and state.g:
+                valuation = (abs(state.fv) & -abs(state.fv)).bit_length() - 1
+                maximum = max(maximum, valuation)
+    return maximum
+
+
+def _signed_double(m, ctrl, x):
+    """Reversible signed double when the sign has one bit of headroom."""
+    z = m.anc(1, "top")
+    word = z + x
+    for i in range(len(x), 0, -1):
+        m.ctx.cswap(ctrl, word[i], word[i - 1])
+    m.ctx.ccx(ctrl, x[-1], z[0])
+    m.free(z)
+
+
+def _round_signed(m, z, f, g, fv, gv, record):
+    active, swap, odd = (r[0] for r in record)
+    ctx = m.ctx
+    MA.is_nonzero(m, g, active)
+    ctx.cx(g[0], odd)
+    ctx.x(z[-1])
+    ctx.and_(odd, z[-1], swap)
+    ctx.x(z[-1])
+    for left, right in ((f, g), (fv, gv)):
+        for a, b in zip(left, right):
+            ctx.cswap(swap, a, b)
+    _signed_neg(m, swap, g)
+    _add_signed(m, odd, f, g)
+    _signed_neg(m, swap, gv)
+    _add_signed(m, odd, fv, gv)
+    _signed_double(m, active, fv)
+    _signed_neg(m, swap, z)
+    ctx.x(swap)
+    increment = m.anc(1, "increment")
+    ctx.and_(active, swap, increment[0])
+    _add_const_small(m, increment[0], z, 1)
+    ctx.and_dg(active, swap, increment[0])
+    ctx.x(swap)
+    m.free(increment)
+    for i in range(len(g) - 1):
+        ctx.swap(g[i], g[i + 1])
+    ctx.cx(g[-2], g[-1])
+
+
+def _copy_signed_residue(m, signed, residue, p):
+    """Add signed two's-complement coefficients into a reduced residue."""
+    for i, control in enumerate(signed):
+        weight = (-(1 << i) if i == len(signed) - 1 else 1 << i) % p
+        MA.cmodadd_const(m, control, residue, weight, p)
+
+
 def mod_inv(m, x, out, p, ctrl=None, history="full"):
     """XOR the exact inverse of nonzero x into out; clean every ancilla.
 
@@ -131,14 +208,16 @@ def mod_inv(m, x, out, p, ctrl=None, history="full"):
     if (n != p.bit_length() or p < 3 or p > 127 or
             any(p % d == 0 for d in range(2, int(p ** 0.5) + 1))):
         raise ValueError("divsteps circuit requires a toy prime <= 127")
-    if history not in ("full", "decoded"):
+    if history not in ("full", "decoded", "arithmetic"):
         raise ValueError(f"unknown divsteps history mode {history!r}")
     rounds = max(walk(w, p)[1] for w in range(1, p))
     width = n + 1
     z_width = (rounds + 1).bit_length() + 1
     z = m.anc(z_width, "z")
     f, g = m.anc(width, "f"), m.anc(width, "g")
-    fv, gv = m.anc(n, "fv"), m.anc(n, "gv")
+    coeff_width = _signed_width(p) if history == "arithmetic" else n
+    max_depth = _max_depth(p) if history == "arithmetic" else None
+    fv, gv = m.anc(coeff_width, "fv"), m.anc(coeff_width, "gv")
     A.encode_const(m.ctx, f, p, ctrl)
     for src, dst in zip(x, g):
         if ctrl is None:
@@ -150,9 +229,9 @@ def mod_inv(m, x, out, p, ctrl=None, history="full"):
     else:
         m.ctx.cx(ctrl, gv[0])
 
-    shared = (m.anc(1, "swap"), m.anc(1, "odd")) if history == "decoded" else None
+    shared = (m.anc(1, "swap"), m.anc(1, "odd")) if history != "full" else None
     layout = (z, f, g, fv, gv)
-    tables = codec.tables(p, tuple(map(len, layout)) + (1,)) if shared else None
+    tables = codec.tables(p, tuple(map(len, layout)) + (1,)) if history == "decoded" else None
     start = m.begin()
     records = []
     bodies = []
@@ -161,17 +240,28 @@ def mod_inv(m, x, out, p, ctrl=None, history="full"):
         record = (active, *shared) if shared else (
             active, m.anc(1, "swap"), m.anc(1, "odd"))
         mark = m.begin()
-        _round(m, z, f, g, fv, gv, p, record)
+        if history == "arithmetic":
+            _round_signed(m, z, f, g, fv, gv, record)
+        else:
+            _round(m, z, f, g, fv, gv, p, record)
         if shared:
             bodies.append(m.since(mark))
-            codec.toggle(m, (*layout, active), (record[1][0], record[2][0]),
-                         tables[index])
+            if history == "arithmetic":
+                arithmetic_codec.toggle(
+                    m, z, g, fv, gv, active[0], record[1][0], record[2][0],
+                    max_depth=max_depth)
+            else:
+                codec.toggle(m, (*layout, active),
+                             (record[1][0], record[2][0]), tables[index])
         records.append(record)
     body = m.since(start) if not shared else None
 
     inverse = m.anc(n, "inverse")
-    for a, b in zip(fv, inverse):
-        m.ctx.cx(a, b)
+    if history == "arithmetic":
+        _copy_signed_residue(m, fv, inverse, p)
+    else:
+        for a, b in zip(fv, inverse):
+            m.ctx.cx(a, b)
     correction = m.begin()
     _cmodneg_small(m, f[-1], inverse, p, g[0])
     # The terminated remainder is zero, so its wires can carry clean scratch.
@@ -182,14 +272,22 @@ def mod_inv(m, x, out, p, ctrl=None, history="full"):
     for a, b in zip(inverse, out):
         m.ctx.cx(a, b)
     m.undo(corrections)
-    for a, b in zip(fv, inverse):
-        m.ctx.cx(a, b)
+    if history == "arithmetic":
+        m.emit_inverse(_copy_signed_residue, m, fv, inverse, p)
+    else:
+        for a, b in zip(fv, inverse):
+            m.ctx.cx(a, b)
     m.free(inverse)
     if shared:
         for index in range(rounds - 1, -1, -1):
             record = records[index]
-            codec.toggle(m, (*layout, record[0]), (shared[0][0], shared[1][0]),
-                         tables[index])
+            if history == "arithmetic":
+                arithmetic_codec.toggle(
+                    m, z, g, fv, gv, record[0][0], shared[0][0], shared[1][0],
+                    max_depth=max_depth)
+            else:
+                codec.toggle(m, (*layout, record[0]),
+                             (shared[0][0], shared[1][0]), tables[index])
             m.undo(bodies[index])
     else:
         m.undo(body)

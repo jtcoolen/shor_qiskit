@@ -17,13 +17,14 @@ PY=${PYTHON:-python3}
 
 FAST="qft_check test_qrom test_tempand test_fixup test_mbu test_unlookup
       test_essentials test_rc test_windowed test_nested test_coset_law
-      test_semiclassical test_resources test_runway test_win_inplace"
+      test_semiclassical test_resources test_yoked_storage test_runway test_win_inplace"
 E2E="test_rc_l4 test_win_l4 test_acc_mbu test_win_full test_nested_e2e test_win_e2e test_1c test_coset_order"
 SLOW="test_precision test_n21 test_win_n21 test_n33"
 
 # --- ECDLP (elliptic-curve discrete log) ------------------------------------
 EC="test_ec_classical test_ec_quantum test_ec_arith test_ec_kaliski
-    test_ec_divsteps_reference test_ec_divsteps test_ec_packed_euclid
+    test_ec_divsteps_reference test_ec_divsteps test_ec_divsteps_arith_codec
+    test_ec_divsteps_arithmetic test_ec_packed_euclid
     test_ec_pointadd test_ec_shor test_ec_opt106 test_ec_opt1128 test_ec_pbt
     test_ec_eea_register_sharing test_ec_pingpong test_ec_jump2 test_ec_karatsuba
     test_ec_pareto"

@@ -955,9 +955,24 @@ round-specific finite-state lookup compiled from every unit of each toy
 field and the disabled control state, rather than the paper's scalable
 valuation-window arithmetic. Conflicting lookup keys are rejected at
 construction time; full-history \code{divsteps} remains available.
+\code{divsteps-arithmetic} instead preserves signed integer coefficients in
+two's-complement registers and reconstructs decisions \emph{arithmetically}.
+The updated coefficient detects a swap via $f_v'\equiv2\pmod4$; after a
+negative/zero-counter nonswap, valuation $j=v_2(f_v')$ selects the bit
+$\operatorname{bit}_{j-1}(g_v'(f_v'/2^j)^{-1}\bmod2^j)$ from
+Appendix~A, Eq.~(A11). Reversible truncated integer products include carries
+when computing this odd inverse; the computation and its work qubits are
+uncomputed after toggling the branch bit. This is a circuit over signed
+registers, \emph{not} a lookup of toy states. The toy-only maximum step count,
+signed width and needed valuation depths are exhaustively bounded by the
+chosen field; the active/frozen bit remains stored once per round. The signed
+coefficient is reduced modulo $p$ only when copying out the inverse, before
+the same $2^{-t}$ correction and reverse cleanup. Thus this implements the
+arithmetic decoder, but does not reproduce the paper's packed layout,
+measurement-based erasure or 256-bit resource schedule.
 
 The following \emph{separate affine frontier} holds the complete ECDLP task
-fixed at $p=5$, order $3$, $k=2$, and two control bits per scalar. All four
+fixed at $p=5$, order $3$, $k=2$, and two control bits per scalar. All five
 affine oracles pass every one of their $16$ arithmetic basis-state checks.
 @@gu_sampling@@ $@@gu_shots@@$-shot full superposition/QFT/measurement
 run on $@@gu_width@@$
@@ -985,10 +1000,16 @@ affine inverse & qubits & Toffoli & depth & Aer sampling & frontier\\
 \end{tabular}
 \end{center}
 The p=5 affine task is not comparable with the p=7 windowed frontier above.
-The toy finite-state decoder does \emph{not} implement Gu's
-scalable arithmetic branch decoder, two-register packed layout, specialised
-packed-Euclidean circuit, fused coordinate arithmetic or bounded-error
-256-bit schedule; no cryptographic-size resource claim follows.
+The arithmetic decoder's extra signed registers and generic reversible
+integer products cost more on this toy task than the round-specific lookup;
+an exact arithmetic decoder alone is \emph{not} the paper's complete optimised
+divsteps implementation. The separate packed-Euclidean circuit, two-register
+layout, fused coordinate arithmetic and bounded-error 256-bit schedule remain
+unimplemented; no cryptographic-size resource claim follows. The $p=7$,
+two-bit signed-decoder complete oracle requires $64$ qubits, above this Aer
+CPU installation's $63$-qubit limit; its inverse, division and in-place point
+addition have basis-state validation but are not described as an Aer ECDLP
+result.
 @@gu_device_note@@
 Likewise, ECDSA.Fail's lane-lifetime refinements, general constant
 propagation and post-generation dead-code elimination are not represented

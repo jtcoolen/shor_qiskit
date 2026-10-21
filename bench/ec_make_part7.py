@@ -10,6 +10,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "bench"))
 D = json.loads((ROOT / "bench" / "ec_ablation.json").read_text())
+PARETO = json.loads((ROOT / "bench" / "ec_pareto.json").read_text())
 V = lambda s: D[s]["variants"]
 
 import ec_listings as L
@@ -186,6 +187,15 @@ def rows_window():
     return "\n".join(out)
 
 
+def rows_pareto():
+    winners = set(PARETO["frontier"])
+    return "\n".join(
+        f"{r['label']} & ${r['qubits']}$ & ${num(r['toffoli_paper'])}$ & "
+        f"${num(r['depth'])}$ & {'yes' if r['label'] in winners else 'no'}\\\\"
+        for r in PARETO["rows"]
+    )
+
+
 def rows_full():
     v = V("full_ecdlp")
     ar = v["arithmetic oracle, full control registers"]
@@ -286,7 +296,8 @@ if __name__ == "__main__":
     subs = {"DERIVCLEAN": rows_deriv_clean(), "DERIVREAL": rows_deriv_real(),
             "ADDERS": rows_adders(), "MODARITH": rows_modarith(), "MUL": rows_mul(),
             "INV": rows_inv(), "DIALOG": rows_dialog(), "PADD": rows_padd(),
-            "TEMPAND": rows_tempand(), "WINDOW": rows_window(), "FULL": rows_full(),
+            "TEMPAND": rows_tempand(), "WINDOW": rows_window(),
+            "PARETO": rows_pareto(), "FULL": rows_full(),
             "SPACE": rows_space()}
     for k, v in subs.items():
         tpl = tpl.replace(f"%%{k}%%", v)
@@ -296,4 +307,14 @@ if __name__ == "__main__":
     assert "%%" not in tpl.replace("%%%", ""), "unsubstituted table placeholder"
     assert "@@" not in tpl, "unsubstituted fact placeholder: " + \
         tpl[tpl.index("@@"):tpl.index("@@") + 40]
-    sys.stdout.write(tpl)
+    if sys.argv[1:] == ["--write"]:
+        doc = ROOT / "shor-complete.tex"
+        text = doc.read_text()
+        start = text.rindex("\\clearpage", 0, text.index("\\part*{Part VII"))
+        end = text.index("\\begin{thebibliography}", start)
+        doc.write_text(text[:start] + tpl.rstrip("\n") + "\n\n" + text[end:])
+        print(f"Regenerated Part VII in {doc}")
+    elif not sys.argv[1:]:
+        sys.stdout.write(tpl)
+    else:
+        sys.exit("usage: ec_make_part7.py [--write]")

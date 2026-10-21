@@ -862,7 +862,8 @@ be measured, so measure it first and make the control classical. Both scalar reg
 point arithmetic.
 
 The windowed addition itself, with the three lookups and the two in-place multiplications that
-replace \S\ref{ec:sec:padd}'s two divisions:
+replace \S\ref{ec:sec:padd}'s two divisions. The implementation also selects the
+Euclidean dialog and square-subtract backends before building this circuit:
 
 %%LST ec_window.windowed_point_add doc=1 elide=xs~=~[0..x3s~=~[0 tail=MA.cmodneg(m,~c[0],~x2,~p)%%
 
@@ -883,6 +884,62 @@ At $n=256$: $@@w256_none@@$ additions become $@@w256_16@@$, a $@@w256_ratio@@\ti
 and the registers holding projective garbage fall from $@@zz256_none@@$ to $@@zz256_16@@$. The two
 compose --- windowing cuts how many additions there are, zig-zag cuts how many of their outputs are
 live at once --- and together they take the garbage from $@@g256_none@@$ qubits to $@@g256_16@@$.
+
+\subsection{Implemented ECDSA.Fail backends and a measured toy frontier}\label{ec:sec:pareto}
+
+The windowed addition accepts four interchangeable in-place multiplication/division
+backends: the original Euclidean dialog (\code{dialog}), Jump-2 macro-steps
+(\code{jump2}), Jump-2 with base-5 transcript encoding
+(\code{jump2-codec}), and comparison-free ping-pong dialog
+(\code{pingpong}) \cite{ec:ecdsafail26}. Jump-2 groups binary-GCD updates
+without changing the algebra; its base-5 codec stores three five-symbol
+decisions in seven qubits instead of nine. Ping-pong is an \emph{alternative}
+walk, not a layer stacked on Jump-2. The controlled square-subtract at step 10
+selects the generic multiplication, a symmetric square, or a one-level
+Karatsuba decomposition (\code{reference}, \code{symmetric},
+\code{karatsuba}). Symmetry avoids computing both off-diagonal products;
+Karatsuba computes two half-squares and one sum-square. At small field widths
+ancilla and uncomputation costs can outweigh the saved products.
+
+The table compares \emph{full} arithmetic-oracle ECDLP circuits, including
+Hadamards, windowed point additions, inverse QFTs and measurements, on the same
+$p=7$ curve, order-five subgroup, $w=2$ and three control bits per scalar.
+Each row recovers the discrete log on Qiskit Aer and its histogram passes the
+exact-distribution total-variation-distance check with $4\,000$ shots.
+Resources count the circuit before Aer transpilation, using the paper's
+Toffoli convention; depth treats each inverse QFT as a single logical
+instruction, so it is a circuit-level comparison rather than a routed
+hardware depth. ``Frontier'' means no tested row is no worse in
+\emph{all three} of width, Toffolis and depth and strictly better in one:
+\begin{center}\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+dialog + square & qubits & Toffoli & depth & frontier\\
+\midrule
+%%PARETO%%
+\bottomrule
+\end{tabular}
+\end{center}
+
+The toy codec rows tie the corresponding unencoded Jump-2 rows: at this
+width, three symbols do not amortize a seven-wire packing circuit, so
+identical resource triples appear twice on the frontier. Neither this tie
+nor a win at $n=3$ predicts cryptographic-size ordering.
+
+The data and the measured Aer device/method are saved by
+\path{bench/ec_pareto.py} in \path{bench/ec_pareto.json}; the notebook draws
+the same three-axis frontier. These toy-circuit numbers are not the
+cryptographic resource estimates of either paper. Fig.~1 record packing and
+probabilistic register sharing remain separate opt-in techniques, not part of
+the measured windowed circuits. The full-circuit reference-affine oracle
+below is likewise \emph{not} a point on this windowed frontier.
+Gu et al.\ \cite{ec:gu26} propose a different, reversible divsteps
+prime-field inversion architecture for affine point addition. This repository
+does not implement that backend: none of these rows is a Gu divsteps result.
+Likewise, ECDSA.Fail's lane-lifetime refinements, general constant
+propagation and post-generation dead-code elimination are not represented
+by a selectable, end-to-end measured point-adder backend here. The separate
+probabilistic register-sharing experiment does not imply those refinements.
 
 \section{Everything at once}\label{ec:sec:cost}
 

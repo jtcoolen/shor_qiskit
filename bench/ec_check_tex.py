@@ -1,10 +1,10 @@
 """Confirm that Part VII of shor-complete.tex still says what the benchmark measured.
 
 Rather than scraping numbers out of the .tex and hoping to recognise them, this
-regenerates the whole part from `part7_template.tex` + `ec_ablation.json` and
-diffs it against what is actually in the document.  If they agree, then every
-number in Part VII came from a benchmark run, by construction -- there is no
-way for a hand-edit to drift.
+regenerates the whole part from `part7_template.tex`, `ec_ablation.json` and
+`ec_pareto.json`, then diffs it against what is actually in the document.
+If they agree, then every number in Part VII came from a benchmark run, by
+construction -- there is no way for a hand-edit to drift.
 
 Exit 0 on agreement, 1 otherwise, printing a unified diff.
 """
@@ -41,7 +41,7 @@ def main():
         nums = sum(c.isdigit() for c in have)
         print(f"OK: Part VII matches the generated version exactly "
               f"({len(have.splitlines())} lines, {nums} digits, all traceable to "
-              f"bench/ec_ablation.json)")
+              f"bench/ec_ablation.json and bench/ec_pareto.json)")
         return 0
 
     print("MISMATCH: Part VII has drifted from the benchmark output.\n")

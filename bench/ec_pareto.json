@@ -1,0 +1,146 @@
+{
+  "task": "CLASSIQ p=7, order=5, k=4, window_size=2, m_bits=3",
+  "shots": 4000,
+  "seed": 5,
+  "device": "CPU",
+  "available_devices": [
+    "CPU"
+  ],
+  "method": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+  "tvd_limit": 0.055204,
+  "metrics": [
+    "qubits",
+    "toffoli_paper",
+    "depth"
+  ],
+  "rows": [
+    {
+      "label": "dialog+reference",
+      "gcd": "dialog",
+      "square": "reference",
+      "qubits": 53,
+      "toffoli_paper": 6008,
+      "depth": 27433,
+      "t": 27188,
+      "tvd": 0.043888
+    },
+    {
+      "label": "dialog+symmetric",
+      "gcd": "dialog",
+      "square": "symmetric",
+      "qubits": 53,
+      "toffoli_paper": 5964,
+      "depth": 27785,
+      "t": 26928,
+      "tvd": 0.043888
+    },
+    {
+      "label": "dialog+karatsuba",
+      "gcd": "dialog",
+      "square": "karatsuba",
+      "qubits": 57,
+      "toffoli_paper": 6748,
+      "depth": 32961,
+      "t": 30064,
+      "tvd": 0.043888
+    },
+    {
+      "label": "pingpong+reference",
+      "gcd": "pingpong",
+      "square": "reference",
+      "qubits": 48,
+      "toffoli_paper": 2816,
+      "depth": 15833,
+      "t": 11828,
+      "tvd": 0.043888
+    },
+    {
+      "label": "pingpong+symmetric",
+      "gcd": "pingpong",
+      "square": "symmetric",
+      "qubits": 50,
+      "toffoli_paper": 2772,
+      "depth": 16149,
+      "t": 11568,
+      "tvd": 0.043888
+    },
+    {
+      "label": "pingpong+karatsuba",
+      "gcd": "pingpong",
+      "square": "karatsuba",
+      "qubits": 57,
+      "toffoli_paper": 3556,
+      "depth": 21309,
+      "t": 14704,
+      "tvd": 0.043888
+    },
+    {
+      "label": "jump2+reference",
+      "gcd": "jump2",
+      "square": "reference",
+      "qubits": 45,
+      "toffoli_paper": 2824,
+      "depth": 12311,
+      "t": 13348,
+      "tvd": 0.043888
+    },
+    {
+      "label": "jump2+symmetric",
+      "gcd": "jump2",
+      "square": "symmetric",
+      "qubits": 50,
+      "toffoli_paper": 2780,
+      "depth": 12663,
+      "t": 13088,
+      "tvd": 0.043888
+    },
+    {
+      "label": "jump2+karatsuba",
+      "gcd": "jump2",
+      "square": "karatsuba",
+      "qubits": 57,
+      "toffoli_paper": 3564,
+      "depth": 17859,
+      "t": 16224,
+      "tvd": 0.043888
+    },
+    {
+      "label": "jump2-codec+reference",
+      "gcd": "jump2-codec",
+      "square": "reference",
+      "qubits": 45,
+      "toffoli_paper": 2824,
+      "depth": 12311,
+      "t": 13348,
+      "tvd": 0.043888
+    },
+    {
+      "label": "jump2-codec+symmetric",
+      "gcd": "jump2-codec",
+      "square": "symmetric",
+      "qubits": 50,
+      "toffoli_paper": 2780,
+      "depth": 12663,
+      "t": 13088,
+      "tvd": 0.043888
+    },
+    {
+      "label": "jump2-codec+karatsuba",
+      "gcd": "jump2-codec",
+      "square": "karatsuba",
+      "qubits": 57,
+      "toffoli_paper": 3564,
+      "depth": 17859,
+      "t": 16224,
+      "tvd": 0.043888
+    }
+  ],
+  "frontier": [
+    "pingpong+reference",
+    "pingpong+symmetric",
+    "jump2+reference",
+    "jump2+symmetric",
+    "jump2-codec+reference",
+    "jump2-codec+symmetric"
+  ]
+}

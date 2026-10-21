@@ -3058,6 +3058,9 @@ fault-tolerance overhead priced in Part~III's bill.
 
 
 
+
+
+
 \clearpage
 \part*{Part VII --- The other Shor: elliptic-curve discrete logarithms}
 \addcontentsline{toc}{part}{Part VII --- The other Shor: elliptic-curve discrete logarithms}
@@ -4263,34 +4266,67 @@ be measured, so measure it first and make the control classical. Both scalar reg
 point arithmetic.
 
 The windowed addition itself, with the three lookups and the two in-place multiplications that
-replace \S\ref{ec:sec:padd}'s two divisions. The implementation is not hard-wired to a single
-Euclidean walk or a single square-subtract pattern:
+replace \S\ref{ec:sec:padd}'s two divisions. The implementation also selects the
+Euclidean dialog and square-subtract backends before building this circuit:
 
 \begin{lstlisting}
 def windowed_point_add(m, addr, x2, y2, points, p, iters=None, gcd="dialog",
-                     square="reference"):
+                       square="reference"):
+    """[1128] Algorithm 1.  `points[i]` is the window entry for address i.
+    ..."""
+    ctx, n = m.ctx, len(x2)
+    w = len(addr)
     if gcd == "dialog":
-        div, mul = E.inplace_div, E.inplace_mul
+        div = lambda: E.inplace_div(m, x2, y2, p, iters)
+        mul = lambda: E.inplace_mul(m, x2, y2, p, iters)
     elif gcd == "pingpong":
         import ec_pingpong as PP
-        div, mul = PP.pp_div, PP.pp_mul
+        div = lambda: PP.pp_div(m, x2, y2, p, iters)
+        mul = lambda: PP.pp_mul(m, x2, y2, p, iters)
     elif gcd in ("jump2", "jump2-codec"):
         import ec_jump2 as J2
-        div, mul = J2.j2_div, J2.j2_mul
+        codec = gcd == "jump2-codec"
+        div = lambda: J2.j2_div(m, x2, y2, p, iters, codec)
+        mul = lambda: J2.j2_mul(m, x2, y2, p, iters, codec)
+    else:
+        raise ValueError(f"unknown gcd backend {gcd!r}")
     if square == "reference":
         csq = _csub_square
-    elif square == "symmetric":
-        from ec_karatsuba import csub_square_symmetric as csq
-    elif square == "karatsuba":
-        from ec_karatsuba import csub_square_karatsuba as csq
+    elif square in ("symmetric", "karatsuba"):
+        import ec_karatsuba as K
+        csq = (K.csub_square_symmetric if square == "symmetric"
+               else K.csub_square_karatsuba)
+    else:
+        raise ValueError(f"unknown square backend {square!r}")
+    assert len(points) == 1 << w, "the window must be full"
+    assert points[0].inf, "entry 0 must be the point at infinity"
 
     ...
-    _lookup(m, one[0], addr, x1, xs)
+
+    one = m.anc(1, "one")
+    ctx.x(one[0])
+    c = m.anc(1, "c")
+    MA.is_nonzero(m, addr, c[0])                       # 1
+
+    x1, y1 = m.anc(n, "x1"), m.anc(n, "y1")
+    _lookup(m, one[0], addr, x1, xs)                   # 2
     _lookup(m, one[0], addr, y1, ys)
-    div(m, x2, y2, p, iters)                           # y2 <- y2 / x2
-    ...
-    csq(m, c[0], y2, x2, p)                           # if c: x2 -= y2^2
-    mul(m, x2, y2, p, iters)                           # y2 <- y2 * x2
+    MA.modsub(m, x1, x2, p)                            # 3
+    MA.modsub(m, y1, y2, p)                            # 4
+    _lookup(m, one[0], addr, x1, xs)                   # 5
+    _lookup(m, one[0], addr, y1, ys)
+
+    div()                                              # 6  y2 <- y2 / x2
+
+    xx = m.anc(n, "3x")
+    _lookup(m, one[0], addr, xx, x3s)                  # 7
+    MA.modadd(m, xx, x2, p)                            # 8
+    _lookup(m, one[0], addr, xx, x3s)                  # 9
+    m.free(xx)
+
+    csq(m, c[0], y2, x2, p)                            # 10 if c: x2 -= y2^2
+    mul()                                              # 11 y2 <- y2 * x2
+    MA.cmodneg(m, c[0], x2, p)                         # 12 if c: x2 <- -x2
     ...
 \end{lstlisting}
 
@@ -4315,31 +4351,72 @@ and the registers holding projective garbage fall from $32$ to $8$. The two
 compose --- windowing cuts how many additions there are, zig-zag cuts how many of their outputs are
 live at once --- and together they take the garbage from $24\,576$ qubits to $6\,144$.
 
-\subsection{Other implemented backends in the same stack}
+\subsection{Implemented ECDSA.Fail backends and a measured toy frontier}\label{ec:sec:pareto}
 
-The current implementation also exposes several alternative backends that are in the same arithmetic
-stack but are not all represented by the single table underneath the main reference build. They are
-measured by the test suite and wired into the same windowed point-addition path:
+The windowed addition accepts four interchangeable in-place multiplication/division
+backends: the original Euclidean dialog (\code{dialog}), Jump-2 macro-steps
+(\code{jump2}), Jump-2 with base-5 transcript encoding
+(\code{jump2-codec}), and comparison-free ping-pong dialog
+(\code{pingpong}) \cite{ec:ecdsafail26}. Jump-2 groups binary-GCD updates
+without changing the algebra; its base-5 codec stores three five-symbol
+decisions in seven qubits instead of nine. Ping-pong is an \emph{alternative}
+walk, not a layer stacked on Jump-2. The controlled square-subtract at step 10
+selects the generic multiplication, a symmetric square, or a one-level
+Karatsuba decomposition (\code{reference}, \code{symmetric},
+\code{karatsuba}). Symmetry avoids computing both off-diagonal products;
+Karatsuba computes two half-squares and one sum-square. At small field widths
+ancilla and uncomputation costs can outweigh the saved products.
 
-\begin{itemize}
-\item \emph{Comparison-free dialog:} \code{gcd="pingpong"} removes the per-step comparison and the
-      separate branch on \(u>v\) by folding the Euclidean walk into the update law itself, so the
-      same in-place multiply/divide circuit runs without the two explicit conditional swaps.
-\item \emph{Jump-2 macro-step dialog:} \code{gcd="jump2"} and \code{gcd="jump2-codec"}
-      process two binary-GCD rounds as one macro-step, leaving the arithmetic map unchanged while
-      reducing the number of round boundaries and recorded controls. The codec variant packs the
-      three-symbol transcript into a 5-bit record instead of a 9-wire one.
-\item \emph{Square-subtract variants:} \code{square="symmetric"} and \code{square="karatsuba"}
-      replace the generic controlled square in step 10 by factored square-subtract forms, reducing
-      off-diagonal product work in the point-addition window. They are the same circuit family as the
-      ECDSA.Fail paper's Sec.~5.3.4 optimisation, not a separate arithmetic law.
-\end{itemize}
+The table compares \emph{full} arithmetic-oracle ECDLP circuits, including
+Hadamards, windowed point additions, inverse QFTs and measurements, on the same
+$p=7$ curve, order-five subgroup, $w=2$ and three control bits per scalar.
+Each row recovers the discrete log on Qiskit Aer and its histogram passes the
+exact-distribution total-variation-distance check with $4\,000$ shots.
+Resources count the circuit before Aer transpilation, using the paper's
+Toffoli convention; depth treats each inverse QFT as a single logical
+instruction, so it is a circuit-level comparison rather than a routed
+hardware depth. ``Frontier'' means no tested row is no worse in
+\emph{all three} of width, Toffolis and depth and strictly better in one:
+\begin{center}\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+dialog + square & qubits & Toffoli & depth & frontier\\
+\midrule
+dialog+reference & $53$ & $6\,008$ & $27\,433$ & no\\
+dialog+symmetric & $53$ & $5\,964$ & $27\,785$ & no\\
+dialog+karatsuba & $57$ & $6\,748$ & $32\,961$ & no\\
+pingpong+reference & $48$ & $2\,816$ & $15\,833$ & yes\\
+pingpong+symmetric & $50$ & $2\,772$ & $16\,149$ & yes\\
+pingpong+karatsuba & $57$ & $3\,556$ & $21\,309$ & no\\
+jump2+reference & $45$ & $2\,824$ & $12\,311$ & yes\\
+jump2+symmetric & $50$ & $2\,780$ & $12\,663$ & yes\\
+jump2+karatsuba & $57$ & $3\,564$ & $17\,859$ & no\\
+jump2-codec+reference & $45$ & $2\,824$ & $12\,311$ & yes\\
+jump2-codec+symmetric & $50$ & $2\,780$ & $12\,663$ & yes\\
+jump2-codec+karatsuba & $57$ & $3\,564$ & $17\,859$ & no\\
+\bottomrule
+\end{tabular}
+\end{center}
 
-These are not redundant paper-only sketches: they are implemented in \code{ec\_pingpong.py},
-\code{ec\_jump2.py}, and \code{ec\_karatsuba.py}, and the end-to-end tests switch them in and out
-of the windowed oracle on toy curves. They therefore belong in the same optimisation story as the
-Level 3 and Level 5 changes, even though the final whole-circuit table keeps a single affine
-reference build for clarity.
+The toy codec rows tie the corresponding unencoded Jump-2 rows: at this
+width, three symbols do not amortize a seven-wire packing circuit, so
+identical resource triples appear twice on the frontier. Neither this tie
+nor a win at $n=3$ predicts cryptographic-size ordering.
+
+The data and the measured Aer device/method are saved by
+\path{bench/ec_pareto.py} in \path{bench/ec_pareto.json}; the notebook draws
+the same three-axis frontier. These toy-circuit numbers are not the
+cryptographic resource estimates of either paper. Fig.~1 record packing and
+probabilistic register sharing remain separate opt-in techniques, not part of
+the measured windowed circuits. The full-circuit reference-affine oracle
+below is likewise \emph{not} a point on this windowed frontier.
+Gu et al.\ \cite{ec:gu26} propose a different, reversible divsteps
+prime-field inversion architecture for affine point addition. This repository
+does not implement that backend: none of these rows is a Gu divsteps result.
+Likewise, ECDSA.Fail's lane-lifetime refinements, general constant
+propagation and post-generation dead-code elimination are not represented
+by a selectable, end-to-end measured point-adder backend here. The separate
+probabilistic register-sharing experiment does not imply those refinements.
 
 \section{Everything at once}\label{ec:sec:cost}
 
@@ -4812,6 +4889,18 @@ A.~Schrottenloher,
 \emph{Optimized point addition circuits for elliptic curve discrete logarithms},
 IACR ePrint 2026/1128.
 \url{https://eprint.iacr.org/2026/1128}.
+
+\bibitem{ec:ecdsafail26}
+J.~Long et al.,
+\emph{ECDSA.Fail: Open Autoresearch for Optimizing Elliptic-Curve Point Addition in Shor's Algorithm},
+arXiv:2609.09582, 2026.
+\url{https://arxiv.org/abs/2609.09582}.
+
+\bibitem{ec:gu26}
+A.~Gu, A.~H.~Kemeny, S.~F.~Yelin, and M.~D.~Lukin,
+\emph{Discovering state-of-the-art quantum circuits with large language models},
+arXiv:2610.22367, 2026.
+\url{https://arxiv.org/abs/2610.22367}.
 
 \bibitem{ec:babbush26}
 R.~Babbush, A.~Zalcman, C.~Gidney, M.~Broughton, T.~Khattar, H.~Neven, T.~Bergamaschi, J.~Drake,

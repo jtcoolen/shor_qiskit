@@ -1,0 +1,140 @@
+{
+  "task": "N=15, A=2, exponent_bits=3, order=4",
+  "shots": 512,
+  "rows": [
+    {
+      "label": "exact Fourier modular",
+      "qubits": 13,
+      "toffoli": 324,
+      "rotations": 4800,
+      "t": 5364,
+      "measure": 3,
+      "conditional": 0,
+      "counts": {
+        "000": 126,
+        "010": 117,
+        "100": 150,
+        "110": 119
+      },
+      "order": 4,
+      "backend": "Aer CPU/matrix_product_state"
+    },
+    {
+      "label": "truncated RNS high bits (rns_order)",
+      "qubits": 18,
+      "toffoli": 2654,
+      "rotations": 43983,
+      "t": 45412,
+      "measure": 3,
+      "conditional": 0,
+      "counts": {
+        "000": 135,
+        "010": 123,
+        "100": 141,
+        "110": 113
+      },
+      "order": 4,
+      "backend": "Aer CPU/matrix_product_state"
+    },
+    {
+      "label": "Gidney A.1 approx_modexp toy, mask_bits=0",
+      "qubits": 18,
+      "toffoli": 1816,
+      "rotations": 1739,
+      "t": 13733,
+      "measure": 21,
+      "conditional": 16,
+      "counts": {
+        "000": 198,
+        "010": 63,
+        "100": 191,
+        "110": 60
+      },
+      "order": 4,
+      "backend": "Aer CPU/statevector (dynamic circuit)",
+      "primes": [
+        17,
+        23
+      ],
+      "ell": 5,
+      "kept_bits": 2,
+      "window1": 2,
+      "truncated_modulus": 3,
+      "approximate": [
+        1,
+        0,
+        1,
+        2,
+        1,
+        0,
+        1,
+        2
+      ],
+      "max_deviation": 0.2,
+      "paper_tally": {
+        "additions": 28,
+        "conditional_additions": 6,
+        "lookups": 8,
+        "phaseups": 2,
+        "x_measurements": 16
+      },
+      "tv_vs_ideal_eq26": 0.0449
+    },
+    {
+      "label": "Gidney A.1 approx_modexp toy, mask_bits=1",
+      "qubits": 18,
+      "toffoli": 1816,
+      "rotations": 1739,
+      "t": 13733,
+      "measure": 21,
+      "conditional": 16,
+      "counts": {
+        "000": 369,
+        "010": 32,
+        "100": 83,
+        "110": 28
+      },
+      "order": 4,
+      "backend": "Aer CPU/statevector (dynamic circuit)",
+      "primes": [
+        17,
+        23
+      ],
+      "ell": 5,
+      "kept_bits": 2,
+      "window1": 2,
+      "truncated_modulus": 3,
+      "approximate": [
+        1,
+        0,
+        1,
+        2,
+        1,
+        0,
+        1,
+        2
+      ],
+      "max_deviation": 0.2,
+      "paper_tally": {
+        "additions": 28,
+        "conditional_additions": 6,
+        "lookups": 8,
+        "phaseups": 2,
+        "x_measurements": 16
+      },
+      "tv_vs_ideal_eq26": 0.0488
+    }
+  ],
+  "paper_tally_rule": "Gidney Sec. 3.1/Table 3: subtractions and comparisons count as additions; GHZ lookups free",
+  "deviations": [
+    "Shor-style g**e input (as Sec. 2 describes), not Ekera-Hastad",
+    "Zenodo ExecutionConfig unavailable: lookup1 (Eq. 52 dlog differences of window products) and lookup3c (pow(g_i, l, p_i)) rebuilt from equations/docstrings",
+    "only loop3 startup lookup (2*window3 >= ell); lookup3a/b body not reconstructed",
+    "window4 = 1, so lookup4 is the Eq. 21 constant C[i, k]",
+    "ancilla-free Fourier arithmetic and address-controlled phases instead of materialised unary-iteration lookups (no vents)",
+    "X-measured qubits reset by conditional X",
+    "toy widths far outside the paper's parameter grid"
+  ],
+  "not_implemented": "CFS ePrint 2024/222 low-bit algorithm: ePrint PDF HTTP 403, HAL hal-05436363 behind an anti-bot challenge; no details verified",
+  "note": "At N=15 the low-space circuits are wider and costlier than exact Fourier modular; the paper's advantage is asymptotic."
+}

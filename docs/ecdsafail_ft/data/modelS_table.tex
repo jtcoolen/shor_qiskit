@@ -1,0 +1,18 @@
+\begin{tabular}{@{}p{6.9cm}rrrrrr@{}}\toprule
+circuit (whole attack unless noted) & $Q$ & Toffolis & physical & time/run & $p_{\rm ok}$ & expected\\
+\midrule
+\ecdsafail{} \code{8e9c9a2} (26 Jul, $1{,}151\times1.30$\,M) $+16$ window qubits & 1,167 & $41.9$\,M & 1,748,136 & 17\,min & 0.999 & 17\,min\\
+\ecdsafail{} windowed \code{8e9c9a2} (Note F, lookups included) & 1,162 & $47.1$\,M & 1,741,376 & 20\,min & 0.998 & 20\,min\\
+\ecdsafail{} \code{a02c716} (7 Oct, Leapfrog, $1{,}244\times0.80$\,M) $+16$ & 1,260 & $27.8$\,M & 1,873,872 & 12\,min & 0.999 & 12\,min\\
+\ecdsafail{} \code{b6f2b0a} low-$Q$ ($825\times489$\,M) $+16$ & 841 & $13.70$\,B & 1,307,384 & 4.0\,d & 0.718 & 5.5\,d\\
+\ecdsafail{} \code{10177cd} low-$Q$ ($792\times657$\,M, 7 Oct) $+16$ & 808 & $18.39$\,B & 1,262,768 & 5.3\,d & 0.651 & 8.2\,d\\
+Google, Babbush et al.\ low-qubit variant \cite{babbush26} & 1,200 & $90.0$\,M & 1,792,752 & 38\,min & 0.997 & 38\,min\\
+Google, Babbush et al.\ low-gate variant \cite{babbush26} & 1,450 & $70.0$\,M & 2,130,752 & 29\,min & 0.997 & 29\,min\\
+IonQ, H\"aner et al.\ \cite{haener26} & 1,457 & $39.0$\,M & 2,140,216 & 16\,min & 0.998 & 16\,min\\
+Schrottenloher, space-optimised \cite{schrottenloher26} & 1,208 & $72.5$\,M & 1,803,568 & 30\,min & 0.998 & 30\,min\\
+Schrottenloher, gate-optimised \cite{schrottenloher26} & 1,462 & $57.7$\,M & 2,146,976 & 24\,min & 0.998 & 24\,min\\
+\code{shor/}: IonQ cells, signed windows, SELECT-SWAP (executed) & 1,457 & $36.8$\,M & 2,140,216 & 15\,min & 0.999 & 15\,min\\
+\code{shor/}: dialog GCD on the space cells & 1,246 & $79.1$\,M & 1,854,944 & 33\,min & 0.997 & 33\,min\\
+\code{shor/}: three field registers, Luo EEA & 851 & $2.39$\,B & 1,320,904 & 16.6\,h & 0.943 & 17.6\,h\\
+RSA-2048, Gidney 2025 inputs (for calibration) \cite{gidney25rsa} & 1,399 & $6.50$\,B & 2,061,800 & 45.1\,h & 0.781 & 2.4\,d\\
+\bottomrule\end{tabular}

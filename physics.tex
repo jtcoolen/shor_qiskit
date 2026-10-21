@@ -1,0 +1,1152 @@
+% ---------------------------------------------------------------------------
+% Part IX --- The physics beneath the circuits
+% Written from Ezratty, Understanding Quantum Technologies 2026 (UQT 2026),
+% chapters 3, 4.2, 4.4, 4.7, 5.1, 5.2, 6, 7.1, 7.2, 9.3, 10.5 and 12.1, and from
+% the primary papers cited below.  Every figure of merit quoted with a date is a
+% reported value, with its source; nothing here was measured by this repository.
+% ---------------------------------------------------------------------------
+\colorlet{cblue}{boxblue}
+\colorlet{cverm}{boxred}
+\definecolor{cpurple}{RGB}{104,46,130}
+\definecolor{cgreen}{RGB}{32,110,60}
+\definecolor{okfill}{RGB}{214,236,220}
+\definecolor{lkfill}{RGB}{250,232,214}
+
+\part*{Part IX --- The physics beneath the circuits}
+\addcontentsline{toc}{part}{Part IX --- The physics beneath the circuits}
+
+\begin{keybox}[title={What this part is for}]
+Parts I--VIII count logical qubits and Toffolis, and \S\ref{rsa:sec:phys} converts them into
+physical qubits and days with three numbers: a physical error rate $p=10^{-3}$, a $1\,\mu$s
+surface-code cycle and a $10\,\mu$s reaction time. This part explains where those numbers come
+from. It starts from the postulates and works down to the hardware: what a qubit is as a quantum
+system, why a gate is a rotation and what physically produces it, what an error is and why a code
+can discretise it, how transmons, ions, atoms, spins and photons each realise the two-level
+system, what their measured fidelities and times were in September 2026, and how all of this feeds
+the estimate. It ends with the record and the forecasts.
+
+\medskip
+The main source is Olivier Ezratty's \emph{Understanding Quantum Technologies 2026}
+\cite{ph:uqt26}, a 1,800-page survey updated to September 2026, with the primary papers it rests
+on cited where a number is quoted. The mathematics is worked out here rather than copied.
+\end{keybox}
+
+% ===========================================================================
+\section{Quantum mechanics, as the circuits need it}\label{ph:sec:qm}
+
+Everything in Parts I--VIII used four facts about quantum mechanics: states are vectors,
+operations are unitary matrices, measurement is a projection with Born-rule probabilities, and
+several systems compose by the tensor product. This section restates those facts with the care
+needed to understand noise and error correction, and adds the two that the circuits never showed:
+how a Hamiltonian turns into a gate, and what happens when the system is not isolated.
+
+\subsection{States, observables, and the Born rule}
+
+\paragraph{Pure states.} An isolated system is described by a unit vector $\ket\psi$ in a
+complex Hilbert space $\mathcal H$. A qubit is any system for which we use a two-dimensional
+subspace, $\ket\psi=\alpha\ket0+\beta\ket1$ with $|\alpha|^2+|\beta|^2=1$. A global phase is
+unobservable, so a qubit has two real parameters, usually written
+$\ket\psi=\cos\frac\theta2\ket0+e^{i\varphi}\sin\frac\theta2\ket1$: a point on the Bloch sphere,
+with $\ket0$ at the north pole, $\ket1$ at the south, and the equator holding the equal
+superpositions $\ket\pm=(\ket0\pm\ket1)/\sqrt2$ and $\ket{\pm i}=(\ket0\pm i\ket1)/\sqrt2$.
+
+\paragraph{Observables.} A measurable quantity is a Hermitian operator $A=A^\dagger$. By the
+spectral theorem $A=\sum_a a\,P_a$ with real eigenvalues $a$ and orthogonal projectors $P_a$
+($P_a^2=P_a$, $P_aP_b=0$ for $a\ne b$, $\sum_aP_a=I$). The Pauli matrices
+\[ X=\begin{pmatrix}0&1\\1&0\end{pmatrix},\quad
+   Y=\begin{pmatrix}0&-i\\i&0\end{pmatrix},\quad
+   Z=\begin{pmatrix}1&0\\0&-1\end{pmatrix} \]
+are both Hermitian and unitary, square to $I$, anticommute pairwise and satisfy $XY=iZ$ and
+cyclic permutations. Together with $I$ they span all $2\times2$ matrices: \emph{any}
+single-qubit operator, in particular any error, is $aI+bX+cY+dZ$. That linear-algebra fact
+is the whole reason quantum error correction is possible (\S\ref{ph:sec:open}).
+
+\paragraph{Born rule and projection.} Measuring $A$ on $\ket\psi$ yields $a$ with probability
+$p(a)=\bra\psi P_a\ket\psi=\|P_a\ket\psi\|^2$, after which the state is $P_a\ket\psi/\sqrt{p(a)}$.
+Measuring again immediately returns the same $a$. For a qubit measured in the computational
+basis, $p(0)=|\alpha|^2$ and $p(1)=|\beta|^2$; the expectation of $Z$ is $|\alpha|^2-|\beta|^2$.
+Measuring in another basis means rotating first: an ``$X$ measurement'' is $H$ followed by a
+$Z$ measurement, because $HZH=X$. This is what every stabiliser circuit in
+\S\ref{ph:sec:codes} does, and what the ancilla measurements of \S\ref{im:sec:mbu}
+did: an $X$-basis measurement is a Hadamard and a readout.
+
+\paragraph{Mixed states.} When the state is not known exactly, or when we look at part of an
+entangled system, the right object is the density operator $\rho=\sum_ip_i\ket{\psi_i}\bra{\psi_i}$:
+positive, Hermitian, trace one, with $\langle A\rangle=\operatorname{tr}(A\rho)$ and
+$p(a)=\operatorname{tr}(P_a\rho)$. A state is pure iff $\rho^2=\rho$, iff
+$\operatorname{tr}\rho^2=1$. For one qubit every density operator is
+\[ \rho=\tfrac12\big(I+r_xX+r_yY+r_zZ\big),\qquad |\vec r|\le1, \]
+so mixed states fill the Bloch \emph{ball}; the surface is the pure states and the centre
+$I/2$ is the maximally mixed state, which gives $50/50$ in every basis. Decoherence is the
+motion of $\vec r$ into the ball (\S\ref{ph:sec:open}). The off-diagonal entries of $\rho$ in the
+computational basis, $\rho_{01}=(r_x-ir_y)/2$, are the \emph{coherences}: they carry the relative
+phase $\varphi$, and they are what dephasing destroys.
+
+\subsection{Commutators, uncertainty, and why pulses must be slow}
+
+Two observables can be known simultaneously iff they commute. If $[A,B]=AB-BA\ne0$ they cannot,
+and the Robertson inequality quantifies it:
+\[ \Delta A\,\Delta B\ \ge\ \tfrac12\big|\langle[A,B]\rangle\big| , \]
+with $\Delta A^2=\langle A^2\rangle-\langle A\rangle^2$. For position and momentum $[x,p]=i\hbar$
+gives Heisenberg's $\Delta x\,\Delta p\ge\hbar/2$. For a qubit, $[X,Z]=-2iY$, so
+$\Delta X\,\Delta Z\ge|\langle Y\rangle|$: a state with a sharp $Z$ value has a random $X$ value,
+which is exactly why measuring $X$ after $Z$ gives a coin flip.
+
+The same mathematics governs control pulses, because a pulse of duration $\Delta t$ has a
+frequency spread $\Delta f\gtrsim1/(4\pi\Delta t)$ (for a Gaussian envelope,
+$\Delta t\cdot\Delta f\approx0.44$ in full widths). A $20$\,ns microwave pulse on a $5$\,GHz
+transmon has a bandwidth of about $22$\,MHz. Two consequences run through
+\S\ref{ph:sec:hw}: neighbouring qubits must be detuned from each other by more than that or the
+pulse drives both (\emph{frequency crowding}), and a transmon's next level $\ket2$, only
+$200$--$300$\,MHz away, is close enough that fast pulses leak into it (\emph{leakage}),
+which is what DRAG pulse shaping is for.
+
+\subsection{Unitary evolution: from Hamiltonian to gate}\label{ph:sec:unitary}
+
+A closed system evolves by the Schr\"odinger equation
+$i\hbar\,\partial_t\ket\psi=H\ket\psi$ with Hermitian Hamiltonian $H$. For time-independent
+$H$ the solution is $\ket{\psi(t)}=U(t)\ket{\psi(0)}$ with
+\[ U(t)=e^{-iHt/\hbar}, \]
+unitary because $H$ is Hermitian. Every gate is such a $U$ for some $H$ applied for some time.
+For a qubit, any Hamiltonian is $H=\tfrac{\hbar}{2}(\omega_0Z+\Omega\,\hat n\cdot\vec\sigma)$
+up to a constant, and
+\[ e^{-i\theta\,\hat n\cdot\vec\sigma/2}=\cos\tfrac\theta2\,I-i\sin\tfrac\theta2\,\hat n\cdot\vec\sigma \]
+is the rotation of the Bloch vector by angle $\theta$ about the axis $\hat n$. So $X=-iR_x(\pi)$,
+$H=-iR_y(\pi/2)R_x(\pi)$ up to phase, $S=R_z(\pi/2)$, $T=R_z(\pi/4)$: every single-qubit gate is a
+rotation, and a rotation is a Hamiltonian switched on for a time. The small QFT rotations
+$R_k=R_z(2\pi/2^k)$ of Part~I are physically the easiest gates of all --- a shorter pulse, or no
+pulse at all --- which is why their fault-tolerant cost of $\approx60$--$100$ $T$ gates each
+(Part~V) is so striking: the difficulty is not physics, it is that a code can protect only a
+discrete set of rotations.
+
+Two-qubit gates come from interaction Hamiltonians. Three examples cover the hardware:
+\begin{itemize}\setlength\itemsep{2pt}
+\item \textbf{$ZZ$ coupling.} $H=\tfrac{\hbar J}{4}Z\otimes Z$ for a time $t$ gives
+  $U=\operatorname{diag}(e^{-i\phi},e^{i\phi},e^{i\phi},e^{-i\phi})$ with $\phi=Jt/4$. At
+  $Jt=\pi$ this is $CZ$ up to single-qubit $Z$ rotations. Tunable-coupler transmons and
+  Rydberg atoms both produce a state-dependent energy shift of this form.
+\item \textbf{$XX$ coupling.} $H=\tfrac{\hbar\chi}{2}X\otimes X$ for $\chi t=\pi/2$ gives
+  $e^{-i\frac\pi4X\otimes X}$, which is a maximally entangling gate equivalent to CNOT up to
+  single-qubit rotations. This is the M\o lmer--S\o rensen gate of trapped ions.
+\item \textbf{Exchange.} $H=J\,\vec S_1\cdot\vec S_2$ between two spins swaps them:
+  $e^{-iHt/\hbar}$ at $Jt/\hbar=\pi$ is SWAP, at $\pi/2$ it is $\sqrt{\mathrm{SWAP}}$, and two
+  $\sqrt{\mathrm{SWAP}}$s with a $Z$ rotation between them make a CNOT. This is the gate of
+  silicon spin qubits.
+\end{itemize}
+In every case the entangling gate is slower and dirtier than single-qubit rotations because it
+needs an interaction between two separately isolated objects, and the interaction must be
+switched on and off cleanly. That is why two-qubit error rates dominate every error budget in
+\S\ref{ph:sec:hw}.
+
+\subsection{The driven two-level system}\label{ph:sec:rabi}
+
+How is $R_x(\theta)$ actually produced? Take a qubit with splitting $\hbar\omega_0$ and drive it
+with an oscillating field at frequency $\omega$, amplitude $\Omega$ and phase $\phi$:
+\[ H=\tfrac{\hbar\omega_0}{2}Z+\hbar\Omega\cos(\omega t+\phi)\,X . \]
+Go to the frame rotating with the drive, $\ket\psi\to e^{i\omega tZ/2}\ket\psi$, and drop the terms
+oscillating at $2\omega$ (the rotating-wave approximation, valid for $\Omega\ll\omega$):
+\[ H'=\tfrac{\hbar\Delta}{2}Z+\tfrac{\hbar\Omega}{2}\big(\cos\phi\,X+\sin\phi\,Y\big),
+   \qquad \Delta=\omega_0-\omega . \]
+On resonance ($\Delta=0$) the qubit rotates about an equatorial axis at angle $\phi$, at the Rabi
+frequency $\Omega$: the population of $\ket1$ oscillates as $\sin^2(\Omega t/2)$. A pulse of area
+$\Omega t=\pi$ is an $X$ gate, $\pi/2$ is a half-turn to the equator, and the \emph{phase} of
+the drive chooses the axis, so $Y$ rotations cost nothing extra. A $Z$ rotation needs no pulse
+at all: shifting the phase of all later pulses by $\theta$ is the same as $R_z(\theta)$, the
+\emph{virtual $Z$} that every control stack uses. Off resonance the effective axis tilts out of
+the equator and the oscillation amplitude drops to $\Omega^2/(\Omega^2+\Delta^2)$, which is how a
+drive addresses one qubit and not its neighbour at a different frequency.
+
+Numbers make this concrete. A transmon has $\omega_0/2\pi\approx5$\,GHz and
+$\Omega/2\pi\approx10$--$50$\,MHz, so a $\pi$ pulse takes $10$--$50$\,ns and contains $50$--$250$
+carrier oscillations. A hyperfine ion qubit has $\omega_0/2\pi\approx3$--$13$\,GHz driven by
+microwaves or Raman lasers with $\Omega/2\pi\approx10$--$100$\,kHz, so a $\pi$ pulse takes
+$5$--$50\,\mu$s. The gate time is set by the drive strength the hardware tolerates, not by the
+qubit frequency: faster drives need more bandwidth (previous subsection), more power, and leak.
+
+\subsection{Composite systems, entanglement, and two theorems}\label{ph:sec:ent}
+
+Two systems have state space $\mathcal H_A\otimes\mathcal H_B$. A product state
+$\ket a\otimes\ket b$ describes two independent objects; a state that cannot be written as a
+product is \emph{entangled}. The Bell state $\ket{\Phi^+}=(\ket{00}+\ket{11})/\sqrt2$ is the
+standard example: its reduced state $\rho_A=\operatorname{tr}_B\ket{\Phi^+}\bra{\Phi^+}=I/2$ is
+maximally mixed, so each half alone is a fair coin while the two halves are perfectly correlated
+in \emph{every} basis ($\ket{\Phi^+}=(\ket{++}+\ket{--})/\sqrt2$ too). The bilinearity of
+$\otimes$ used in Part~I to explain phase kickback is the same structure: $(\alpha\ket0+\beta\ket1)\otimes\ket\phi$
+is a sum of two product terms, and a controlled gate acts on each term separately.
+
+\paragraph{CHSH.} That these correlations are not classical is a theorem with a two-line
+calculation. Let Alice measure $A_0$ or $A_1$ and Bob $B_0$ or $B_1$, each with outcomes $\pm1$.
+If outcomes were fixed in advance (realism) and independent of the other side's choice
+(locality), then for every run $A_0B_0+A_0B_1+A_1B_0-A_1B_1=A_0(B_0+B_1)+A_1(B_0-B_1)=\pm2$, so
+\[ S=\langle A_0B_0\rangle+\langle A_0B_1\rangle+\langle A_1B_0\rangle-\langle A_1B_1\rangle\le2 . \]
+For $\ket{\Phi^+}$ and spin measurements along directions $\hat a,\hat b$ in the $x$--$z$ plane,
+$\langle(\hat a\cdot\vec\sigma)\otimes(\hat b\cdot\vec\sigma)\rangle=\cos(a-b)$. Choosing
+$a_0=0$, $a_1=90^\circ$, $b_0=45^\circ$, $b_1=135^\circ$ gives
+$S=3\cos45^\circ-\cos135^\circ=2\sqrt2\approx2.83$, Tsirelson's bound. Experiments since 1982
+find $S>2$; the loophole-free ones of 2015 (NV centres at Delft, photons at Vienna and NIST)
+closed the detection and locality loopholes at once \cite{ph:uqt26}. The $2\sqrt2$ is the
+maximum any quantum state can give, so a measured $S$ is also a diagnostic: it is the figure of
+merit for two-qubit entanglement on a new processor.
+
+\paragraph{No-cloning.} Suppose a unitary $U$ copies unknown states:
+$U\ket\psi\ket0=\ket\psi\ket\psi$ and $U\ket\phi\ket0=\ket\phi\ket\phi$. Unitaries preserve inner
+products, so $\langle\phi|\psi\rangle=\langle\phi|\psi\rangle^2$, which forces
+$\langle\phi|\psi\rangle\in\{0,1\}$: only orthogonal states can be copied. Equivalently, by
+linearity, $U(\alpha\ket0+\beta\ket1)\ket0=\alpha\ket{00}+\beta\ket{11}$, an entangled state, not
+$(\alpha\ket0+\beta\ket1)^{\otimes2}$, which has cross terms. Three consequences shape the
+rest of this part: a code cannot protect a qubit by keeping copies and voting, so it must
+spread the state over many qubits and measure only \emph{parities} (\S\ref{ph:sec:codes}); a
+magic state cannot be duplicated, so every $T$ gate consumes a freshly made one
+(\S\ref{ph:sec:ft}); and the only way to move a state is to \emph{teleport} it, which is
+precisely how a $T$ gate is applied to a logical qubit.
+
+\subsection{Open systems: what an error is}\label{ph:sec:open}
+
+A qubit is never isolated. Coupling to an environment that we do not track turns the pure-state
+dynamics into dynamics of $\rho$. When the environment has no memory on the time scale of the
+qubit (Markovian noise) the evolution is the Lindblad equation
+\[ \frac{d\rho}{dt}=-\frac i\hbar[H,\rho]+\sum_k\Big(L_k\rho L_k^\dagger-\tfrac12\{L_k^\dagger L_k,\rho\}\Big), \]
+whose jump operators $L_k$ encode the noise channels. Two of them describe nearly everything
+measured on a qubit:
+\begin{itemize}\setlength\itemsep{2pt}
+\item \textbf{Energy relaxation}, $L=\sqrt{\gamma_1}\,\sigma_-$ with $\sigma_-=\ket0\bra1$: the
+  excited population decays as $e^{-t/T_1}$, $T_1=1/\gamma_1$. It is a loss of energy to the
+  environment (a photon into a lossy dielectric, a spontaneously emitted photon, a quasiparticle).
+  It is \emph{not} a bit flip: it is non-unital, it pushes every state towards $\ket0$, and it
+  also damps the coherence at rate $\gamma_1/2$.
+\item \textbf{Pure dephasing}, $L=\sqrt{\gamma_\varphi/2}\,Z$: the populations are untouched and
+  the coherences decay as $e^{-t/T_\varphi}$. Physically the qubit frequency fluctuates, so the
+  phase $\varphi$ accumulated in a superposition becomes random.
+\end{itemize}
+Together, the coherence decays as $e^{-t/T_2}$ with
+\[ \frac1{T_2}=\frac1{2T_1}+\frac1{T_\varphi},\qquad\text{so}\qquad T_2\le2T_1 . \]
+$T_1$ is measured by preparing $\ket1$ and watching it decay; $T_2^*$ by a Ramsey sequence
+($\pi/2$ pulse, wait $t$, $\pi/2$ pulse, read out: the fringes decay), and $T_2$ by a Hahn echo
+that inserts a $\pi$ pulse at $t/2$ to refocus slow frequency drifts, so $T_2^*\le T_2$. All three
+are fitted envelope constants, not the lifetime of ``the superposition''.
+
+\paragraph{Channels and Kraus operators.} Integrated over a gate time, a noise process is a
+completely positive trace-preserving map $\rho\mapsto\sum_kE_k\rho E_k^\dagger$ with
+$\sum_kE_k^\dagger E_k=I$. Amplitude damping with decay probability $\gamma$ has
+\[ E_0=\begin{pmatrix}1&0\\0&\sqrt{1-\gamma}\end{pmatrix},\qquad
+   E_1=\begin{pmatrix}0&\sqrt\gamma\\0&0\end{pmatrix}; \]
+pure dephasing is $\rho\mapsto(1-p)\rho+pZ\rho Z$; the depolarising channel is
+$\rho\mapsto(1-p)\rho+\tfrac p3(X\rho X+Y\rho Y+Z\rho Z)$, which contracts the Bloch vector
+uniformly towards the origin. A \emph{coherent} error is different in kind: it is a small unitary
+over-rotation $e^{-i\epsilon\hat n\cdot\vec\sigma/2}$ from a miscalibrated pulse, and it adds in
+amplitude over repeated gates (error $\propto\epsilon^2m^2$ after $m$ gates) where stochastic
+errors add in probability ($\propto pm$). Error correction and randomised benchmarking both tend
+to convert coherent errors into stochastic ones, which is one reason the two are budgeted
+differently.
+
+\paragraph{Why a code can correct a continuum of errors.} An arbitrary single-qubit error is
+$E=aI+bX+cY+dZ$ with complex coefficients, a continuum. A stabiliser code measures operators
+that commute or anticommute with each Pauli, so after the syndrome measurement the state is
+\emph{projected} onto one of the four branches: no error, $X$, $Y$ or $Z$, with probabilities
+$|a|^2,|b|^2,|c|^2,|d|^2$. The measurement discretises the error, and the correction undoes a
+Pauli. A small over-rotation $e^{-i\epsilon X/2}=\cos\frac\epsilon2I-i\sin\frac\epsilon2X$
+therefore becomes ``no error'' with probability $\cos^2\frac\epsilon2$ and a clean $X$ flip with
+probability $\sin^2\frac\epsilon2$. This is the content of the Knill--Laflamme conditions: it is
+enough to correct $X$, $Y=iXZ$ and $Z$ on every qubit. It is also why leakage out of the
+$\{\ket0,\ket1\}$ subspace is a different and nastier beast: it is not spanned by the Paulis.
+
+\subsection{Measurement, fidelity, and the error budget}\label{ph:sec:fid}
+
+\paragraph{Projective and dispersive readout.} Textbook measurement projects onto $\ket0$ or
+$\ket1$ and leaves the qubit there. Real readout couples the qubit to a meter --- a resonator, a
+fluorescence cycle, a charge sensor --- and reads the meter. A readout is \emph{quantum
+non-demolition} (QND) if it leaves the eigenstate it reports in place, so it can be repeated;
+error correction needs this for the ancillas, which are read every cycle. The readout error
+(``assignment error'') is the probability of reporting the wrong basis state; combined with
+preparation errors it is quoted as SPAM.
+
+\paragraph{Fidelity and randomised benchmarking.} The fidelity of a gate is the overlap between
+what it does and what it should do, averaged over inputs; the \emph{error} is $1-F$. Fidelities
+are measured by randomised benchmarking: run random sequences of $m$ Clifford gates followed by
+their inverse, measure the survival probability of $\ket0$, and fit $A\,p^m+B$. Random Cliffords
+twirl any noise into a depolarising channel, so the decay constant gives the average error per
+Clifford
+\[ r=(1-p)\,\frac{d-1}{d},\qquad r=\tfrac12(1-p)\ \text{for one qubit},\quad r=\tfrac34(1-p)\ \text{for two}. \]
+Interleaving a specific gate between the random ones isolates that gate's error. Cross-entropy
+benchmarking (XEB) does the same for whole random circuits and was the metric of the 2019
+supremacy experiment. All of these report \emph{average} errors; the tails, crosstalk and
+leakage that matter for a code are only partly visible in them.
+
+\paragraph{The budget.} A circuit with $N$ qubits and depth $D$ has about $ND$ locations at which
+an error can occur. With independent errors of probability $\epsilon$ per location, the expected
+number of faults is $ND\epsilon$, and the circuit has a fair chance of running cleanly only if
+\[ N\,D\,\epsilon\lesssim1 . \]
+This is the heuristic behind every number in \S\ref{rsa:sec:phys}. The Shor circuits of Parts
+IV--VIII have $N\approx10^3$ logical qubits and $D\approx10^9$--$10^{10}$ logical cycles, so they
+need $\epsilon\approx10^{-13}$--$10^{-15}$ \emph{per logical qubit per cycle}. The best physical
+two-qubit gates are at $10^{-3}$--$10^{-4}$. The twelve orders of magnitude in between are what
+error correction has to buy, and what \S\ref{ph:sec:codes} is about.
+
+\begin{keybox}[title={What a circuit asks of the physics}]
+DiVincenzo's checklist, in the form the arithmetic needs it: (1) well-defined two-level systems
+that can be made in quantity; (2) reset to $\ket0$; (3) single-qubit rotations about two axes
+(a drive with a controllable phase); (4) one entangling two-qubit gate; (5) QND readout, fast
+enough to be used mid-circuit; and (6) coherence times long compared with the gate time, since
+the ratio $T_2/t_{\rm gate}$ bounds how many gates fit before the state is lost. The estimate of
+\S\ref{rsa:sec:phys} then consumes three derived numbers: the error per operation $p$, the
+duration of one round of parity checks (the \emph{cycle}), and the time from a measurement to
+the next conditional operation (the \emph{reaction time}).
+\end{keybox}
+
+% ===========================================================================
+\section{How the qubits are built}\label{ph:sec:hw}
+
+Every platform below realises the same abstract object --- a two-level system with a Hamiltonian
+we can switch --- in a different physical degree of freedom. The choice fixes the gate time, the
+coherence time, the readout, the connectivity and the dominant noise, and through them the three
+numbers of the estimate.
+
+\subsection{Superconducting circuits}\label{ph:sec:sc}
+
+\paragraph{Superconductivity.} Below a critical temperature $T_c$ (aluminium $1.2$\,K, niobium
+$9.3$\,K, NbTi about $10$\,K) some metals lose all resistance. The BCS theory of 1957 explains
+it: the exchange of lattice vibrations (phonons) gives electrons near the Fermi surface a weak
+attraction that overcomes their Coulomb repulsion and binds them in \emph{Cooper pairs} of
+opposite momentum and spin. A pair is a boson, so the pairs condense into a single macroscopic
+quantum state with a well-defined phase $\varphi$. Breaking a pair costs an energy $2\Delta$ with
+the gap $\Delta\approx1.76\,k_BT_c$; for aluminium $\Delta/h\approx44$\,GHz, so a $5$\,GHz photon
+cannot break a pair and the condensate is protected from the qubit's own control signals. The
+condensate expels magnetic fields (the Meissner effect) except within the London penetration depth
+of $20$--$100$\,nm; type II superconductors such as NbTi tolerate strong fields by letting flux in
+as quantised vortices, which is why NbTi is used for the readout cabling and MRI magnets, while the
+qubits themselves use aluminium and niobium, whose isotropic ($s$-wave) pairing gives clean,
+reproducible junctions \cite{ph:uqt26}.
+
+\paragraph{The Josephson junction.} Two superconductors separated by a $\sim1$\,nm oxide barrier
+exchange Cooper pairs by tunnelling. Josephson's relations (1962) are
+\[ I=I_c\sin\varphi,\qquad V=\frac{\hbar}{2e}\frac{d\varphi}{dt}, \]
+with $\varphi$ the phase difference across the barrier and $I_c$ the critical current. Combining
+them, the junction behaves as a nonlinear inductor,
+$L_J(\varphi)=\Phi_0/(2\pi I_c\cos\varphi)$ with $\Phi_0=h/2e$ the flux quantum, storing energy
+$-E_J\cos\varphi$ with $E_J=\Phi_0I_c/2\pi$. This single nonlinear element is the whole trick: a
+plain $LC$ circuit is a harmonic oscillator whose levels are equally spaced, so a drive at the
+$0\to1$ frequency also drives $1\to2$ and nothing singles out two levels; the cosine potential
+makes the spacing uneven and turns the circuit into an \emph{artificial atom}.
+
+\paragraph{The transmon.} A junction shunted by a large capacitor $C$ has the Hamiltonian
+\[ H=4E_C\,(\hat n-n_g)^2-E_J\cos\hat\varphi,\qquad E_C=\frac{e^2}{2C}, \]
+where $\hat n$ counts Cooper pairs on the island and $[\hat\varphi,\hat n]=i$, the same
+commutator as $x$ and $p$. In the transmon regime $E_J/E_C\approx50$--$100$ the phase is
+well localised near $0$, so expand the cosine:
+$-E_J\cos\hat\varphi=-E_J+\tfrac12E_J\hat\varphi^2-\tfrac1{24}E_J\hat\varphi^4+\dots$ The
+quadratic term with $4E_C\hat n^2$ is a harmonic oscillator of plasma frequency
+$\hbar\omega_p=\sqrt{8E_JE_C}$ (the $LC$ frequency with $L_J=\Phi_0^2/4\pi^2E_J$), and the
+quartic term, treated in first-order perturbation theory with
+$\hat\varphi=(2E_C/E_J)^{1/4}(a+a^\dagger)$, lowers each level $m$ by
+$\tfrac{E_C}2(m^2+m)$. Hence
+\[ \hbar\omega_{01}\approx\sqrt{8E_JE_C}-E_C,\qquad
+   \alpha\equiv\omega_{12}-\omega_{01}\approx-E_C/\hbar , \]
+and in the qubit subspace $H\approx-\tfrac{\hbar\omega_{01}}2Z$: the abstract qubit of
+\S\ref{ph:sec:unitary}, with the drive term $\hbar\Omega\cos(\omega t)X$ supplied by a microwave
+voltage capacitively coupled to the island, which couples to $\hat n\propto(a-a^\dagger)$, i.e.\ to
+$Y$ or $X$ depending on its phase.
+Typical values: $E_J/h\approx15$\,GHz, $E_C/h\approx250$\,MHz, so $\omega_{01}/2\pi\approx5$\,GHz
+and the anharmonicity $\alpha/2\pi\approx-250$\,MHz. The large $E_J/E_C$ exponentially suppresses
+the sensitivity to the offset charge $n_g$ (charge noise), which is what made the transmon
+(2007) usable where the earlier charge qubit (1999) was not. The price is the small anharmonicity:
+a $20$\,ns pulse has a $22$\,MHz bandwidth, an order of magnitude below $|\alpha|$, so leakage
+to $\ket2$ is suppressed but not absent, and pulse shaping (DRAG, which adds a derivative
+component to the envelope) brings it to the $10^{-4}$ level \cite{ph:uqt26}. Fluxonium replaces
+the shunt capacitor by a large inductance, gains a much larger anharmonicity and $T_1>1$\,ms, at
+the cost of a sub-GHz qubit frequency and more complex control; Google acquired a fluxonium
+company in 2025.
+
+\paragraph{Why 5\,GHz and why 15\,mK.} A qubit at $5$\,GHz has $hf/k_B\approx0.24$\,K. At the
+$15$\,mK of a dilution refrigerator the thermal population of $\ket1$ is $e^{-hf/k_BT}\approx
+e^{-16}\approx10^{-7}$, so the qubit initialises itself by waiting; at $100$\,mK it would be
+$10^{-5}$ and at $1$\,K, $9\%$. Lower frequencies would need colder stages; higher ones run into
+dielectric and quasiparticle losses and the $4$--$8$\,GHz band of available microwave components.
+The refrigerator is a $^3$He--$^4$He dilution unit: below $0.87$\,K the mixture separates into a
+$^3$He-rich phase and a dilute phase, and $^3$He crossing the boundary absorbs heat, a process
+that keeps working to the millikelvin range because the solubility of $^3$He in superfluid $^4$He
+stays finite ($6.6\%$) as $T\to0$. The cooling power at the mixing chamber scales as
+$\dot Q\approx84\,\dot n_3T^2$ and is only $10$--$30\,\mu$W at $20$\,mK, against $1$--$2$\,W at the
+$4$\,K stage; a single $15$\,mK cryostat draws about $16$\,kW from the wall. Every microwave line
+into it is attenuated by $60$\,dB in stages so that only a few hundred thermal photons' worth of
+noise reaches the chip, and every readout line leaves through a quantum-limited parametric
+amplifier (JPA or TWPA) at the base stage, a HEMT at $4$\,K and a room-temperature amplifier
+\cite{ph:uqt26}. This wiring, one to two lines per qubit, is the scaling constraint that
+multiplexing and cryo-CMOS are trying to lift.
+
+\paragraph{Gates.} Single-qubit gates are the Rabi drive of \S\ref{ph:sec:rabi}: an arbitrary
+waveform generator shapes an envelope, a mixer puts it on a $4$--$8$\,GHz local oscillator with
+in-phase and quadrature components that set the rotation axis, and the pulse lasts $10$--$40$\,ns.
+Two-qubit gates use a coupling element between neighbours. With a \emph{tunable coupler} (Google
+since Sycamore, IBM since Heron in 2023) a flux pulse briefly switches on a $ZZ$ interaction
+or brings the qubits into resonance for an iSWAP; the gate lasts $20$--$200$\,ns. The older
+cross-resonance gate drives the control qubit at the target's frequency and lasts longer. Readout
+is \emph{dispersive}: a readout resonator at $\omega_r$ coupled to the qubit with strength $g$ at
+detuning $\Delta=\omega_{01}-\omega_r$ has its frequency shifted by $\pm\chi$ with
+$\chi\approx g^2/\Delta$ depending on the qubit state (the Jaynes--Cummings Hamiltonian
+$H=\hbar\omega_ra^\dagger a+\tfrac{\hbar\omega_{01}}2Z+\hbar g(a^\dagger\sigma_-+a\sigma_+)$ in the
+dispersive limit $g\ll\Delta$). A microwave tone reflected off the resonator picks up a
+state-dependent phase, and the measurement is QND because it only touches $Z$. It takes
+$50$--$500$\,ns including the resonator ring-down; a Purcell filter stops the qubit from decaying
+through the readout line \cite{ph:uqt26}.
+
+\paragraph{Noise.} Energy relaxation is dominated by two-level-system (TLS) defects in the
+amorphous oxides and interfaces, by quasiparticles, and by the Purcell channel; dephasing by $1/f$
+flux and charge noise; and the hardest problem for a code is \emph{correlated} errors: a cosmic
+ray or a radioactive decay in the substrate creates a burst of phonons that breaks Cooper pairs
+across a millimetre of chip and flips many qubits at once, a few times a minute. Gap engineering
+(making the junction electrodes' gaps unequal so quasiparticles are trapped away from the
+junction), phonon traps and shielding have brought the rate down but not to zero
+\cite{ph:uqt26}.
+
+\paragraph{Where it stood in 2026.} $T_1$ of $100$--$400\,\mu$s for transmons, above $1$\,ms for
+fluxonium and $1.67$\,ms for a tantalum-on-silicon transmon at Princeton; single-qubit errors
+$\approx10^{-4}$; two-qubit errors: $99.85\%$ median CZ on IBM's 156-qubit Heron r3 and $99.67\%$
+on Google's 105-qubit Willow, with the best pairs below $10^{-3}$; readout $99.4\%$ in $2.4\,\mu$s
+on Heron-class devices; chips of $105$--$156$ qubits with four nearest neighbours (Google since
+2019, IBM's 120-qubit Nighthawk since 2025) and IBM's Loon test chip adding two long-range
+couplers per qubit for the qLDPC codes of \S\ref{ph:sec:codes}. The surface-code cycle ---
+four layers of CZ gates, a readout and a reset --- is about $1\,\mu$s on Willow, which is the
+cycle time of \S\ref{rsa:sec:phys} \cite{ph:uqt26,ph:willow24}.
+
+\subsection{Trapped ions}\label{ph:sec:ions}
+
+\paragraph{The trap.} An ion is a charged atom, so an electric field holds it. A static field
+cannot confine a charge in all three directions (Earnshaw's theorem), so a Paul trap uses a
+radio-frequency quadrupole field at $\Omega_{\rm rf}/2\pi\approx20$--$50$\,MHz whose time average
+is a harmonic pseudo-potential with secular frequencies $\nu/2\pi\approx1$--$5$\,MHz. Modern traps
+are microfabricated surface-electrode chips with the ions $50$--$100\,\mu$m above the surface,
+segmented so that DC voltages can split, move and merge ion chains between zones: the QCCD
+architecture used by Quantinuum, Oxford Ionics (IonQ since 2025) and Universal Quantum. Ions in a
+chain repel each other and sit $2$--$5\,\mu$m apart; their motion is a set of collective normal
+modes, each a quantum harmonic oscillator with phonon number $n$, and that shared motion is the
+bus for two-qubit gates \cite{ph:uqt26}.
+
+\paragraph{The qubit.} Two long-lived internal states of the ion. Hyperfine qubits use the
+$F=0$ and $F=1$, $m_F=0$ ground states of an odd isotope with nuclear spin, split by
+$12.64$\,GHz in $^{171}$Yb$^+$ and $3.2$\,GHz in $^{43}$Ca$^+$; at a magnetic field where
+$d\nu/dB=0$ (a \emph{clock} transition) they are first-order insensitive to field noise and
+coherence times of $T_2\approx70$\,s have been measured, a coherence-to-gate ratio above $10^6$.
+Optical qubits (AQT) use a metastable $D$ level $\approx400$\,THz above the ground state.
+Because ions of one isotope are identical, there is no fabrication spread of qubit frequencies;
+the variability sits in the control fields.
+
+\paragraph{Cooling and the Lamb--Dicke regime.} Gates need the motion cold. Doppler cooling
+illuminates the ion with light tuned just below a cycling transition of linewidth $\Gamma$: an ion
+moving towards the beam sees the light Doppler-shifted into resonance, absorbs a photon and its
+momentum $\hbar k$ against its motion, and re-emits in a random direction, so on average it slows.
+The limit $T_D=\hbar\Gamma/2k_B$ is about $0.5$\,mK for Yb$^+$ ($145\,\mu$K for the Rb atoms of
+\S\ref{ph:sec:atoms}). Resolved-sideband cooling then removes phonons one at a time by driving the
+$\ket{g,n}\to\ket{e,n-1}$ transition. The gates work in the Lamb--Dicke regime
+$\eta\sqrt{2\bar n+1}\ll1$, $\eta=k\sqrt{\hbar/2m\nu}\approx0.05$--$0.1$, where the ion's
+excursion is small compared with the laser wavelength and carrier and sideband transitions are
+cleanly resolved.
+
+\paragraph{Gates.} Single-qubit rotations are microwave or Raman $\pi$ pulses of $1$--$50\,\mu$s.
+The M\o lmer--S\o rensen gate is worth deriving, because it is the cleanest example of an
+entangling Hamiltonian that is not simply ``switched on''. A laser on ion $j$ couples its spin to
+the shared mode through the Lamb--Dicke factor: in the interaction picture
+$H_j=\hbar\Omega\,\sigma_x^{(j)}\cos\big(\omega_Lt-\eta(ae^{-i\nu t}+a^\dagger e^{i\nu t})\big)$,
+and to first order in $\eta$ a bichromatic drive at $\omega_0\pm(\nu+\delta)$ leaves, after the
+rotating-wave approximation,
+\[ H_{\rm MS}=\hbar\eta\Omega\,\big(\sigma_x^{(1)}+\sigma_x^{(2)}\big)\big(a\,e^{i\delta t}+a^\dagger e^{-i\delta t}\big) . \]
+This is a force on the oscillator whose sign depends on the collective spin $S_x=\sigma_x^{(1)}+\sigma_x^{(2)}$.
+Its exact propagator is a displacement $D(\alpha(t)S_x)$ with
+$\alpha(t)=(\eta\Omega/\delta)(1-e^{-i\delta t})$, a circle in phase space, times a phase
+$e^{i\Phi(t)S_x^2}$ with $\Phi(t)=(\eta\Omega/\delta)^2(\delta t-\sin\delta t)$. At
+$t=2\pi/\delta$ the circle closes, the displacement vanishes whatever the initial phonon number,
+and what remains is $e^{i\Phi S_x^2}$ with $\Phi=2\pi(\eta\Omega/\delta)^2$; since
+$S_x^2=2I+2\sigma_x^{(1)}\sigma_x^{(2)}$, choosing $\eta\Omega/\delta=1/\sqrt8$ gives
+$\Phi=\pi/4$ and the gate $e^{i\frac\pi4X\otimes X}$ of \S\ref{ph:sec:unitary}, up to a global
+phase. The entanglement is a \emph{geometric} phase, the area enclosed by the loop; the motion is
+only borrowed. Residual spin--motion entanglement from an unclosed loop, mode-frequency drift
+and laser phase noise are the gate's error sources. Any pair in a chain can be gated this way --- effective all-to-all connectivity --- but
+the gate takes $10$--$100\,\mu$s (longer for larger chains, up to a millisecond on IonQ's Forte),
+and shuttling between zones adds milliseconds \cite{ph:uqt26}. Readout is state-dependent
+fluorescence: one qubit state scatters photons on a cycling transition, the other is dark;
+collecting enough photons takes $100\,\mu$s to a few ms on cameras, $11\,\mu$s at $99.93\%$ with a
+trap-integrated superconducting nanowire detector.
+
+\paragraph{Where it stood in 2026.} The best fidelities of any platform: single-qubit error
+$1.5\times10^{-7}$ on a $^{43}$Ca$^+$ clock qubit (Oxford--Osaka, 2025), two-qubit $99.92\%$
+averaged over all pairs of Quantinuum's 98-qubit Helios (November 2025), $>99.99\%$ on a two-ion
+Oxford Ionics chip, SPAM error $9\times10^{-5}$ in $^{137}$Ba$^+$. Helios is the largest
+gate-based ion processor; $512$-ion crystals are controlled for analog simulation
+\cite{ph:uqt26,ph:helios}. The limitation is the clock: with gates of tens of microseconds and
+readout of hundreds, one round of parity checks takes of the order of a millisecond rather than a
+microsecond, so the same logical algorithm runs a thousand times longer unless connectivity and
+transversal gates recover part of it (\S\ref{ph:sec:feeds}).
+
+\subsection{Neutral atoms}\label{ph:sec:atoms}
+
+\paragraph{Traps and arrays.} A neutral atom has no charge to hold, so it is held by light. A
+far-detuned laser induces a dipole, and the AC Stark shift $U=-\tfrac12\alpha|E|^2$ with
+polarisability $\alpha>0$ for red detuning pulls the atom to the focus: an \emph{optical
+tweezer}. A spatial light modulator imprints a hologram that makes hundreds to thousands of
+tweezers at once, a magneto-optical trap loads them from a vapour at random (about $50\%$
+occupancy), and acousto-optic deflectors move atoms to fill a defect-free array, in $2$D or $3$D,
+$3$--$5\,\mu$m apart. The atoms are laser-cooled to a few $\mu$K; the chamber can be at room
+temperature, and the record arrays --- $6,100$ caesium atoms in $12,000$ tweezers at Caltech in
+2024, with $12.6$\,s hyperfine coherence and $99.98\%$ single-qubit gates --- were
+\cite{ph:uqt26,ph:caltech6100}.
+
+\paragraph{The qubit and the Rydberg blockade.} The qubit is a pair of hyperfine ground states
+($^{87}$Rb, $^{133}$Cs) or nuclear-spin states ($^{171}$Yb, $^{87}$Sr), coherent for seconds.
+The interaction is borrowed temporarily: a laser excites an atom to a \emph{Rydberg state} of
+principal quantum number $n\approx50$--$100$, whose orbital radius grows as $n^2a_0$ (about
+$0.5\,\mu$m at $n=100$), whose lifetime grows as $n^3$ (tens to hundreds of $\mu$s), and whose
+van der Waals interaction with another Rydberg atom at distance $r$ is $V=C_6/r^6$ with
+$C_6\propto n^{11}$. When $V$ exceeds the laser's Rabi frequency $\hbar\Omega$, two atoms within
+the blockade radius
+\[ R_b=\big(C_6/\hbar\Omega\big)^{1/6}\approx5\text{--}10\,\mu\text{m} \]
+cannot both be excited: the doubly excited state is shifted out of resonance. In the basis $\{\ket0,\ket1,\ket r\}$ per atom, with the laser coupling only
+$\ket1\leftrightarrow\ket r$,
+\[ H=\frac{\hbar\Omega}2\sum_{j=1,2}\big(\ket1\bra r_j+\ket r\bra1_j\big)+V\ket{rr}\bra{rr},\qquad V\gg\hbar\Omega . \]
+Start in $\ket{00}$: nothing couples, no phase. In $\ket{01}$ or $\ket{10}$ one atom Rabi-cycles
+$\ket1\to\ket r\to\ket1$ in a $2\pi$ pulse and picks up the phase $-1$ of a full spin rotation.
+In $\ket{11}$ the laser couples $\ket{11}$ only to the symmetric state
+$(\ket{1r}+\ket{r1})/\sqrt2$ with enhanced Rabi frequency $\sqrt2\Omega$, because $\ket{rr}$ is
+blocked by $V$; the Levine--Pichler protocol (2019) uses two pulses with a phase jump between
+them so that both the singly excited and the doubly blocked branches return home with phases
+that differ by exactly $\pi$: the result is $\operatorname{diag}(1,e^{i\phi},e^{i\phi},e^{i(2\phi+\pi)})$,
+a $CZ$ after single-qubit $Z$ rotations. The blockade is the $ZZ$ energy shift of
+\S\ref{ph:sec:unitary} in disguise, and it needs no individual addressing: a global beam gates
+every pair placed within $R_b$ in parallel, which is how 60 pairs were gated at once in 2023. The pulse lasts $0.2$--$2\,\mu$s; the fidelity reached $99.5\%$ on 60
+atoms in parallel in 2023 and $99.85\%$ (raw) in a 2026 zoned architecture \cite{ph:uqt26,ph:evered23}.
+
+\paragraph{Architecture.} The decisive advantage is that the atoms move. The Harvard--MIT--QuEra
+experiment of December 2023 kept data atoms in a storage zone, carried them with tweezers into an
+entangling zone, and read ancillas in a separate zone: $280$ atoms, up to $48$ logical qubits,
+transversal logical CNOTs by moving whole code blocks next to each other
+\cite{ph:bluvstein23}. Movement gives any connectivity at all, so codes that need long-range
+checks (qLDPC, \S\ref{ph:sec:codes}) are natural here, and the cost is time: coherent transport,
+cooling and camera imaging take milliseconds even though the gate pulse is sub-microsecond, so a
+logical cycle is again of order a millisecond. Alkaline-earth atoms add a second gift: decay out of
+the qubit manifold can be detected (\emph{erasure conversion}), and an error whose location is
+known is far cheaper to correct than one whose location must be inferred. Atom loss is the other
+specific error, replenished from a reservoir in the newer architectures.
+
+\subsection{Spins in silicon}\label{ph:sec:spins}
+
+An electron (or hole) confined in a gate-defined quantum dot, $\sim50$\,nm across, has a spin
+$\tfrac12$ whose degeneracy a static field $B$ lifts by the Zeeman energy
+$E_Z=g\mu_BB$: at $B=1$\,T with $g\approx2$, $E_Z=116\,\mu$eV, a $28$\,GHz qubit. This is
+larger than $k_BT$ at $1$\,K ($86\,\mu$eV), so spin qubits can run at $0.5$--$1.5$\,K where the
+cryostat has milliwatts of cooling power instead of microwatts, enough for control electronics next
+to the qubits. Single-qubit gates are electron spin resonance (an oscillating magnetic field) or
+electric-dipole spin resonance (an oscillating gate voltage converted to a magnetic drive by
+spin--orbit coupling or a micromagnet gradient); two-qubit gates lower the tunnel barrier between
+two dots so that the exchange interaction $J\vec S_1\cdot\vec S_2$ of \S\ref{ph:sec:unitary} acts
+for $\sim75$\,ns --- $J$ is not a magnetic force but a consequence of the Pauli principle: with
+tunnelling $t$ between the dots and charging energy $U$ for two electrons on one dot, second-order
+perturbation theory of the Hubbard model gives $J\approx4t^2/U$, non-zero only for the spin
+singlet, whose antisymmetric spin part allows the symmetric orbital part that tunnels, so a
+voltage on the barrier gate tunes $t$ and switches $J$ on and off by orders of magnitude; readout converts spin to charge (Pauli spin blockade: a second electron can
+tunnel onto the dot only if the two spins form a singlet) and senses the charge with a
+single-electron transistor or gate reflectometry. Isotopically purified $^{28}$Si removes the
+nuclear spins that dephase the electron, and the dominant noise is then charge noise in the oxide.
+Fidelities of $99.5\%$ for two-qubit and $99.8$--$99.9\%$ for single-qubit gates have been reached
+on two-qubit devices, and $>99\%$ on unit cells from a $300$\,mm foundry; the largest arrays are
+$18$ qubits (HRL exchange-only, TU Delft, 2026). The appeal is density --- gate pitches below
+$100$\,nm and CMOS manufacturing --- and the open problems are variability, wiring and
+demonstrated entanglement beyond a handful of qubits \cite{ph:uqt26}.
+
+\subsection{Photons}\label{ph:sec:photons}
+
+A photon carries a qubit in its polarisation, its path, its arrival time bin, or its frequency,
+and flies at $c$ through waveguides, so it decoheres only by being lost. Single-qubit gates are
+free: a half-wave plate or a Mach--Zehnder interferometer with a phase shifter is an arbitrary
+rotation. The difficulty is the opposite of the matter platforms': photons do not interact, so a
+two-qubit gate cannot be a Hamiltonian switched on. Linear optics with measurement (KLM, 2001)
+makes probabilistic entangling gates, and the practical architectures sidestep gates altogether:
+\emph{measurement-based} computing prepares a large entangled cluster state and computes by
+measuring it in chosen bases, and PsiQuantum's \emph{fusion-based} variant builds the cluster from
+small resource states fused by Bell measurements, each of which succeeds with probability $1/2$
+unless boosted. Everything then depends on components: single-photon sources (quantum dots at
+$4$\,K with $>99\%$ indistinguishability and $57$--$70\%$ end-to-end efficiency; parametric
+down-conversion pairs at room temperature but probabilistic) and detectors (superconducting
+nanowires at $1$--$3$\,K, $>95\%$ efficiency, sub-nanosecond timing). A photon lost is an
+\emph{erasure}, located by the detector that did not fire, and the fault-tolerance thresholds
+for loss are a few percent per component. The continuous-variable branch (Xanadu) encodes
+qubits in field quadratures as GKP states and needs $>10$\,dB of squeezing, against a record of
+$15$\,dB measured. The largest demonstrations in 2026 were $12$-mode processors and
+$99.22\%$ fusions on PsiQuantum's test chips; the largest fault-tolerant plans are helium-cooled
+data-centre buildings, not chandeliers \cite{ph:uqt26}.
+
+\subsection{Three others}
+
+\paragraph{Bosonic cat qubits.} A microwave cavity holds a superposition of two coherent states
+$\ket{\pm\alpha}$ stabilised by two-photon dissipation. Bit flips between $\ket\alpha$ and
+$\ket{-\alpha}$ are exponentially suppressed in the photon number ($T_1$ for bit flips of
+$22$\,s reported), while phase flips grow only linearly, so the noise is \emph{biased} by
+$\eta=p_Z/p_X>10^5$. A one-dimensional repetition code then suffices for the phase flips, and
+the Alice \& Bob group's estimates are $349,133$ cat qubits for RSA-2048 in four days (2019) and
+$126,133$ for a 256-bit elliptic curve in nine hours (2023) \cite{ph:cats19,ph:cats23}.
+
+\paragraph{NV centres.} A nitrogen-vacancy defect in diamond is a spin-1 electron system
+readable optically at room temperature, with nearby $^{13}$C and $^{14}$N nuclear spins as
+long-lived register qubits. It is the platform of the 2015 loophole-free Bell test and of quantum
+sensing; as a processor it has stayed below ten qubits for years.
+
+\paragraph{Majorana (topological) qubits.} Zero-energy modes at the ends of a one-dimensional
+topological superconductor would store a qubit non-locally in the fermion parity of a pair, and
+braiding them would implement Clifford gates with topological protection. Microsoft's 2025--2026
+devices measure parities in gate-defined InAs--Al nanowires, but as of September 2026 no operational
+qubit metrics (coherence, gate fidelities) had been published, earlier Majorana claims had been
+retracted, and the $T$ gate is not protected even in principle, so a code is still needed
+\cite{ph:uqt26}.
+
+\subsection{The platforms side by side, and what they feed into the estimate}\label{ph:sec:feeds}
+
+\begin{center}\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}p{2.4cm}p{2.5cm}p{2.5cm}p{2.5cm}p{2.5cm}p{2.3cm}@{}}
+\toprule
+ & superconducting & trapped ions & neutral atoms & silicon spins & photons\\
+\midrule
+qubit & two levels of a nonlinear $LC$ circuit & hyperfine or optical states of an ion & hyperfine or nuclear states of an atom & electron/hole spin in a quantum dot & polarisation, path or time bin\\
+entangling gate & tunable coupler $ZZ$/iSWAP & M\o lmer--S\o rensen via phonons & Rydberg blockade $CZ$ & exchange $\sqrt{\rm SWAP}$/CZ & fusion (probabilistic)\\
+2-qubit time & $20$--$200$\,ns & $10$--$1000\,\mu$s & $0.2$--$2\,\mu$s (+ms transport) & $40$--$75$\,ns & ns (circuit traversal)\\
+best 2-qubit fidelity, commercial & $99.85\%$ (IBM Heron r3), $99.67\%$ (Willow) & $99.92\%$ (Helios, 98 q.) & $99.5$--$99.85\%$ & $99.5\%$ (2 q.) & $99.22\%$ fusion\\
+$T_1$ / coherence & $0.1$--$1.7$\,ms & seconds to hours & $10$\,s--$1$\,h trap; $12.6$\,s $T_2$ & $>1$\,s; ms $T_2$ & loss-limited\\
+readout & $0.1$--$2.4\,\mu$s dispersive & $11\,\mu$s--ms fluorescence & ms imaging ($2.4\,\mu$s record) & $0.2$--few $\mu$s reflectometry & $<1$\,ns detector\\
+operating $T$ & $15$\,mK & ions $<1$\,mK, trap RT--$4$\,K & atoms $\mu$K, chamber RT & $0.1$--$1.5$\,K & RT circuits, $2$--$4$\,K sources/detectors\\
+connectivity & 4 neighbours (+2 long range on Loon) & all-to-all in a zone & any, by moving atoms & neighbours (+shuttling) & any, by routing\\
+largest system, 2026 & 156 (IBM), 105 (Google) & 98 (Quantinuum) & 256 gated; $6,100$ trapped & 18 & 12 modes\\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent Figures as reported by vendors and papers to September 2026, compiled in
+\cite{ph:uqt26} (Tables 17--18, 26); laboratory records on two qubits are better in every column.
+
+The estimate of \S\ref{rsa:sec:phys} reads this table through three numbers:
+\begin{itemize}\setlength\itemsep{2pt}
+\item \textbf{$p$} is the error per \emph{location} of the syndrome circuit --- gates, idles,
+  measurements and resets alike --- at scale, with crosstalk, not the best pair in a lab. The
+  model's $p=10^{-3}$ sits at the median two-qubit error of the 2026 superconducting chips and
+  somewhat above the ion and atom figures. Halving $p$ to $5\times10^{-4}$ drops the distance from
+  $25$ to $21$ and the qubits per logical qubit from $1,352$ to $968$ (\S\ref{rsa:sec:phys}); at
+  $10^{-4}$ it is $392$. The sensitivity is exponential in the exponent and only polynomial in
+  the prefactor.
+\item \textbf{The cycle} is one round of parity checks: four entangling layers, a readout and a
+  reset. Superconducting chips do it in $\approx1\,\mu$s; ions and atoms, with microsecond gates
+  but $10^2$--$10^3\,\mu$s readouts and transport, in about a millisecond. Runtime is linear in
+  the cycle, so the $15$ minutes for ECDLP-256 and $5$ days for RSA-2048 become ten days and
+  thirteen years at a $1$\,ms cycle, unless the architecture compensates. That is why the slow
+  platforms lean on all-to-all connectivity, transversal gates and higher-rate codes: IonQ's
+  2026 estimate of $26$ days for a 256-bit curve on $20,000$ ions \cite{ec:ionq26} buys its time
+  back with those, and still reports a $63\%$ success probability.
+\item \textbf{The reaction time} is decoder latency plus control: the $10\,\mu$s of the model is
+  the time between an ancilla measurement and the next operation that depends on it, which
+  matters because every $T$ gate ends in a measurement whose outcome decides a Clifford
+  correction (\S\ref{ph:sec:ft}). It is the only one of the three numbers set by classical
+  electronics rather than physics.
+\end{itemize}
+Connectivity enters through the code family and the routing overhead rather than through a
+number, and leakage, loss and correlated errors enter through whatever the chosen code does not
+model: the estimates assume independent Pauli errors, and the hardware does not quite deliver
+them.
+
+\subsection{The challenges, platform by platform}
+
+What stands between each platform and the thousand $d=25$ patches of the estimate, in the
+order the field itself lists them \cite{ph:uqt26} (Table 17):
+\begin{itemize}\setlength\itemsep{2pt}
+\item \textbf{Superconducting.} Fidelity uniformity across a chip (the median, not the best
+  pair, sets $p$); crosstalk and frequency crowding growing with qubit count; correlated errors
+  from radiation; leakage; the wiring, cooling budget and energy of $10^6$ control lines ---
+  hence cryo-CMOS, superconducting (SFQ) logic, multiplexed readout and chip-to-chip microwave
+  links; and two-qubit errors improving more slowly than single-qubit ones. The breakthroughs
+  were the transmon (2007), tunable couplers (2019), the Willow below-threshold memory (2024) and
+  gap engineering against quasiparticles (2024).
+\item \textbf{Trapped ions.} Gate and readout speed; control of many motional modes as chains
+  grow; anomalous heating of the motion from the trap surface; laser power, phase noise and
+  beam-pointing stability; shuttling overhead. The breakthroughs were the QCCD architecture,
+  microwave-driven gates (no lasers), $10^{-7}$ single-qubit errors (2025) and the 98-ion Helios
+  with all-pairs $99.92\%$ (2025).
+\item \textbf{Neutral atoms.} Loading, rearrangement and imaging times that dominate the duty
+  cycle; atom loss and leakage; optical power and uniformity across thousands of tweezers;
+  QND mid-circuit readout without disturbing neighbours. The breakthroughs were parallel
+  high-fidelity Rydberg gates (2023), zoned logical processing (2023), erasure conversion in
+  ytterbium (2023--2025) and $6,100$-atom arrays (2024).
+\item \textbf{Silicon spins.} Charge noise and device-to-device variability, which forces
+  per-qubit calibration; valley splitting in silicon; demonstrated entanglement only on a
+  handful of dots; fabrication cycles of months. The breakthroughs were $>99\%$ two-qubit gates
+  (2022), operation above $1$\,K (2020) and foundry-made $300$\,mm unit cells (2025).
+\item \textbf{Photons.} Source efficiency and indistinguishability; loss in every component;
+  probabilistic entanglement that multiplies the resource states needed; large cluster states;
+  cryogenic detector integration. The breakthroughs were bright quantum-dot sources, fusion-based
+  architectures and $>99\%$ fusion on test chips (2025--2026).
+\end{itemize}
+Common to all: no platform had, by September 2026, run a logical circuit with real-time decoding
+and without post-selection at a distance above $7$, and every resource estimate assumes a noise
+model (independent, Pauli, uniform at $10^{-3}$) that the hardware does not yet deliver.
+
+% ===========================================================================
+\section{Errors, codes, and the price of a logical qubit}\label{ph:sec:codes}
+
+\S\ref{rsa:sec:phys} used the surface code as a black box with one formula. This section opens
+it: how parity checks locate errors without touching the data, why the logical error falls
+exponentially with the distance below a threshold, what the decoder must do in real time, and
+how logical gates --- above all the $T$ gate --- are performed. The last subsection returns the
+favour by deriving the ``one CCZ every $25\,\mu$s'' that drives every runtime in Part~VIII.
+
+\subsection{Stabilisers: measuring parity, not data}
+
+A stabiliser code on $n$ qubits is defined by $n-k$ commuting Pauli operators $S_j$; the code
+space is their joint $+1$ eigenspace and holds $k$ logical qubits. Each $S_j$ is measured by an
+ancilla: for $S=Z_1Z_2$, two CNOTs from the data qubits onto an ancilla in $\ket0$ and a readout
+give the parity of the two bits without revealing either bit, since $\ket{00}$ and $\ket{11}$ both
+leave the ancilla at $0$. A Pauli error $E$ that anticommutes with $S_j$ flips its outcome; the
+pattern of flipped outcomes is the \emph{syndrome}. Because the measurement projects
+(\S\ref{ph:sec:open}), a continuum of errors becomes a Pauli with a syndrome.
+
+The rotated surface code of distance $d$ places $d^2$ data qubits on a grid with $d^2-1$ ancillas
+in the faces: each face measures the parity of its four corners, in the $Z$ basis on half the
+faces (catching $X$ errors) and the $X$ basis on the other half (catching $Z$ errors), with
+weight-two checks along the edges. It is $[[d^2,1,d]]$ with $2d^2-1$ physical qubits.
+
+\begin{center}
+\begin{tikzpicture}[x=11mm,y=11mm]
+  \fill[cblue!14,draw=cblue!55] (0,-1) rectangle (1,0);
+  \fill[cblue!14,draw=cblue!55] (1,-2) rectangle (2,-1);
+  \fill[cverm!12,draw=cverm!50] (1,-1) rectangle (2,0);
+  \fill[cverm!12,draw=cverm!50] (0,-2) rectangle (1,-1);
+  \fill[cverm!12,draw=cverm!50] (0,0) arc (180:0:0.5) -- cycle;
+  \fill[cverm!12,draw=cverm!50] (1,-2) arc (180:360:0.5) -- cycle;
+  \fill[cblue!14,draw=cblue!55] (0,-1) arc (90:270:0.5) -- cycle;
+  \fill[cblue!14,draw=cblue!55] (2,0) arc (90:-90:0.5) -- cycle;
+  \node[font=\scriptsize,color=cblue] at (0.5,-0.5) {$z_1$};
+  \node[font=\scriptsize,color=cblue] at (1.5,-1.5) {$z_2$};
+  \node[font=\scriptsize,color=cblue] at (-0.3,-1.5) {$z_3$};
+  \node[font=\scriptsize,color=cblue] at (2.3,-0.5) {$z_4$};
+  \foreach \c/\r/\q in {0/0/1,1/0/2,2/0/3,0/1/4,1/1/5,2/1/6,0/2/7,1/2/8,2/2/9}
+    \node[circle,fill=white,draw=black,inner sep=0.8pt,minimum size=4.2mm,font=\scriptsize] at (\c,-\r) {\q};
+\end{tikzpicture}
+\hspace{1.2cm}
+\begin{tikzpicture}[x=7.6mm,y=7.6mm,baseline=(current bounding box.center)]
+  \foreach \i/\j in {0/0,0/2,1/1,1/3,2/0,2/2,3/1,3/3} \fill[cblue!12,draw=cblue!45] (\i,\j) rectangle ++(1,1);
+  \foreach \i/\j in {0/1,0/3,1/0,1/2,2/1,2/3,3/0,3/2} \fill[cverm!12,draw=cverm!45] (\i,\j) rectangle ++(1,1);
+  \foreach \i/\j in {1/1,2/2} \draw[cblue,line width=1.6pt,fill=cblue!35] (\i,\j) rectangle ++(1,1);
+  \draw[cpurple,line width=2.2pt] (-0.15,0) -- (4.15,0);
+  \foreach \i in {0,...,4} \foreach \j in {0,...,4} \fill[black] (\i,\j) circle (1.6pt);
+  \node[draw=cverm,fill=white,circle,inner sep=0.6pt,font=\scriptsize\bfseries,text=cverm] at (2,2) {$X$};
+  \node[font=\scriptsize,color=cpurple,anchor=north] at (2,-0.12) {logical $\bar X$};
+\end{tikzpicture}
+\end{center}
+{\small\noindent Left: $d=3$, nine data qubits; \textcolor{cblue}{blue} $Z$-checks catch $X$
+errors, \textcolor{cverm}{red} $X$-checks catch $Z$ errors. Right: $d=5$ (data qubits at the
+vertices, checks on the faces): one $X$ error lights the two $Z$-faces beside it; the logical
+$\bar X$ is a string of $d$ Paulis across the patch.}
+
+\medskip
+Written as a parity-check matrix for the $d=3$ patch, the $Z$-checks are
+\[ H_Z=\begin{array}{r|ccccccccc}
+    & 1&2&3&4&5&6&7&8&9\\ \hline
+  z_1 & 1&1&0&1&1&0&0&0&0\\
+  z_2 & 0&0&0&0&1&1&0&1&1\\
+  z_3 & 0&0&0&1&0&0&1&0&0\\
+  z_4 & 0&0&1&0&0&1&0&0&0\end{array}\qquad s=H_Z\,e\pmod2 . \]
+An $X$ error on qubit 5 lights $z_1$ and $z_2$, and qubit 5 is the only one in both; an error on
+qubit 7 lights $z_3$ alone. Errors on qubits 1 and 2 give the same syndrome, but $X_1X_2$
+commutes with every check and acts trivially on the code space --- the two corrections are
+equivalent modulo a stabiliser (\emph{degeneracy}), so either works. An undetectable error must
+commute with all checks and act non-trivially: the shortest is a string of $d$ Paulis across the
+patch, which is the logical operator itself. Hence the distance $d$, and the code corrects any
+$\lfloor(d-1)/2\rfloor$ errors.
+
+\subsection{The stabiliser formalism, with the mathematics}\label{ph:sec:stabmath}
+
+\paragraph{The group.} The Pauli group on $n$ qubits, $\mathcal P_n$, is the set of tensor
+products of $I,X,Y,Z$ with phases $\pm1,\pm i$. Two of its elements either commute or
+anticommute, and the commutation is computed by a symplectic inner product: write
+$P=X^{\mathbf a}Z^{\mathbf b}$ with bit vectors $\mathbf a,\mathbf b\in\mathbb F_2^n$; then
+$P$ and $P'=X^{\mathbf a'}Z^{\mathbf b'}$ commute iff
+$\mathbf a\cdot\mathbf b'+\mathbf b\cdot\mathbf a'=0\pmod2$. This turns every question about a
+code into linear algebra over $\mathbb F_2$, which is why the parity-check matrix $H_Z$ above
+told the whole story.
+
+\paragraph{The code.} A stabiliser group $\mathcal S=\langle S_1,\dots,S_{n-k}\rangle$ is an
+abelian subgroup of $\mathcal P_n$ not containing $-I$. The code space
+$\mathcal C=\{\ket\psi:S\ket\psi=\ket\psi\ \forall S\in\mathcal S\}$ has dimension $2^k$: each
+independent generator halves the space. The logical operators are the Paulis that commute with
+all of $\mathcal S$ but are not in it, the \emph{normaliser} $N(\mathcal S)\setminus\mathcal S$;
+they come in $k$ anticommuting pairs $(\bar X_i,\bar Z_i)$, and the distance $d$ is the minimum
+weight among them. For the $d=3$ patch of the figure, $\bar Z=Z_1Z_2Z_3$ (a row) and
+$\bar X=X_1X_4X_7$ (a column) commute with every check, anticommute with each other, and have
+weight $3$; multiplying $\bar Z$ by the check $z_1=Z_1Z_2Z_4Z_5$ gives $Z_3Z_4Z_5$, another
+representative of the same logical operator, which is the degeneracy seen earlier from the other
+side.
+
+\paragraph{Why errors are detected without disturbing the data.} Let $E\in\mathcal P_n$. For
+$\ket\psi\in\mathcal C$, $S_j(E\ket\psi)=\pm E S_j\ket\psi=\pm E\ket\psi$, with the sign
+$-1$ iff $E$ anticommutes with $S_j$. So $E\ket\psi$ is still a joint eigenvector of all the
+checks, with a sign pattern (the syndrome) that depends on $E$ and not on $\ket\psi$. Measuring
+the checks therefore learns $E$'s syndrome and nothing about the encoded state: the data is
+untouched because the code space is a common eigenspace and the measurement commutes with every
+logical operator. This is the precise content of ``measure parities, never the data''.
+
+\paragraph{Knill--Laflamme.} A set of errors $\{E_a\}$ is correctable iff, with $P$ the
+projector onto $\mathcal C$,
+\[ P\,E_a^\dagger E_b\,P=c_{ab}\,P\qquad\text{for all }a,b , \]
+for some matrix of scalars $c_{ab}$: no error product may map one codeword onto a different
+codeword, nor distinguish codewords. For a stabiliser code this holds iff every product
+$E_a^\dagger E_b$ is either in $\mathcal S$ (then $c_{ab}=\pm1$, the errors are degenerate) or
+outside the normaliser (then it anticommutes with some check and $c_{ab}=0$). All Paulis of weight
+$\le t$ satisfy it iff $2t<d$, and by linearity so does every operator in their span, which is
+how the continuum of \S\ref{ph:sec:open} is covered.
+
+\paragraph{The extraction circuit.} One weight-four $Z$-check and one $X$-check of the surface
+code, as actually run every cycle:
+\begin{center}
+\begin{quantikz}[row sep=0.18cm,column sep=0.3cm]
+   \lstick{$d_1$} & \ctrl{4} & \qw & \qw & \qw & \qw \\
+   \lstick{$d_2$} & \qw & \ctrl{3} & \qw & \qw & \qw \\
+   \lstick{$d_3$} & \qw & \qw & \ctrl{2} & \qw & \qw \\
+   \lstick{$d_4$} & \qw & \qw & \qw & \ctrl{1} & \qw \\
+   \lstick{$\ket0$} & \targ{} & \targ{} & \targ{} & \targ{} & \meter{}\rstick{$Z_1Z_2Z_3Z_4$}
+   \end{quantikz}\qquad
+   \begin{quantikz}[row sep=0.18cm,column sep=0.3cm]
+   \lstick{$d_1$} & \targ{} & \qw & \qw & \qw & \qw \\
+   \lstick{$d_2$} & \qw & \targ{} & \qw & \qw & \qw \\
+   \lstick{$d_3$} & \qw & \qw & \targ{} & \qw & \qw \\
+   \lstick{$d_4$} & \qw & \qw & \qw & \targ{} & \qw \\
+   \lstick{$\ket+$} & \ctrl{-4} & \ctrl{-3} & \ctrl{-2} & \ctrl{-1} & \meter{}\rstick{$X_1X_2X_3X_4$}
+   \end{quantikz}
+\end{center}
+The left ancilla ends in $\ket{s}$ with $s$ the parity of the four data bits; the right one, read
+in the $X$ basis, gives the parity of their $X$ values. The order of the four CNOTs is not
+arbitrary: a CNOT propagates $X$ from control to target and $Z$ from target to control, so an
+ancilla error in the middle of the sequence lands on two data qubits (a \emph{hook} error), and
+the schedule is chosen so that such pairs lie along the direction in which the code is tolerant.
+One cycle is these four layers of CNOTs on every face at once, one measurement and one reset:
+on Willow, $\approx1\,\mu$s. Because the ancilla measurement itself errs with probability
+$\sim p$, the syndrome is accepted only after it has been seen consistently over $d$ rounds, which
+is where the ``$d$ rounds per logical operation'' of \S\ref{ph:sec:ft} comes from.
+
+\subsection{Threshold and the exponential}\label{ph:sec:threshold}
+
+A chain of errors is corrected unless the decoder pairs its ends the wrong way, which it does
+only when the chain is at least $d/2$ long. With independent errors at rate $p$, a specific chain
+of length $\ell$ has probability $\sim p^\ell$, and the number of chains grows like $A^\ell$ for a
+constant $A$ set by the lattice, so the logical error per round is
+\[ P_L\ \sim\ \sum_{\ell\ge(d+1)/2}(Ap)^\ell\ \approx\ C\Big(\frac p{p_{\rm th}}\Big)^{(d+1)/2},
+   \qquad p_{\rm th}\sim1/A . \]
+Below threshold every two steps of $d$ divide $P_L$ by $p_{\rm th}/p$; at threshold the distance
+buys nothing and the physical overhead diverges; above it, larger codes are worse. Under
+circuit-level depolarising noise with a matching decoder the surface-code threshold is about
+$1\%$; the model of \S\ref{rsa:sec:phys} uses $C=0.1$ and $p_{\rm th}=1.22\%$, so that $d=25$ is
+the first distance below $10^{-15}$ at $p=10^{-3}$ \cite{ec:gidney25rsa}; the older Fowler fit is
+$C=0.03$ with the same exponent \cite{ph:fowler12}. This is also the origin of the engineering
+rule that $p$ must be about ten times below threshold: at $p/p_{\rm th}=1/10$ a factor $10$ per
+step gives $d\approx27$ for $10^{-15}$; at $1/3$ it would need $d\approx61$ and $7,700$ qubits
+per logical qubit; at $1/2$, $d\approx97$. The qubit count is quadratic in $d$ and $d$ is
+logarithmic in the target, so the prize is in $p$.
+
+\paragraph{Threshold theorem.} That an arbitrarily long computation can be made reliable at all
+is the threshold theorem (Aharonov--Ben-Or, Kitaev, Knill--Laflamme--Zurek, 1996--1999): if the
+error per location is below a constant $p_{\rm th}$, with noise that is local and not too
+strongly correlated, the logical error can be driven to any target with overhead polylogarithmic
+in the circuit size. Early proofs with concatenated codes gave $p_{\rm th}\sim10^{-6}$; the
+surface code raised it to $\sim10^{-2}$, which is what made superconducting qubits viable. The
+assumptions matter: a cosmic-ray burst or a leaked qubit is neither local nor Pauli, which is why
+\S\ref{ph:sec:sc} spent a paragraph on them.
+
+\paragraph{Measured.} Google's Willow experiment (December 2024) ran surface-code memories of
+$d=3,5,7$ on 101 qubits and found the logical error per cycle halving at each step
+($\Lambda=P_L(d)/P_L(d+2)\approx2.1$), reaching $0.14\%$ per cycle at $d=7$ with a logical
+lifetime longer than the best physical qubit's: the first demonstration \emph{below threshold}
+\cite{ph:willow24}. A ratio of $2.1$ is far from the $12$ the model assumes at
+$p=10^{-3}$; it corresponds to $p/p_{\rm th}\approx1/2$ in the fit above, which is a measure of
+how far 2024 hardware was from the hypothesis of the estimates.
+
+\subsection{Decoding, in real time}
+
+The syndrome is measured every cycle because the measurements themselves err, so the decoder sees
+a three-dimensional history (two space dimensions, one time) of flipped checks and must pair
+them up: minimum-weight perfect matching finds the most probable pairing in time polynomial in
+$d$ (empirically $O(d^3)$--$O(d^5)$ per round), union-find does it faster with a small loss in
+accuracy, and belief propagation with post-processing serves the qLDPC codes. The result is not
+applied as physical gates: it updates a classical \emph{Pauli frame}, and the frame is folded
+into the interpretation of later measurements. Two constraints follow. Throughput: the decoder
+must consume syndromes at least as fast as the $1\,\mu$s cycle produces them for $\sim10^3$
+patches, or a backlog grows without bound. Latency: the frame must be resolved before any
+operation whose basis depends on it, which happens at every non-Clifford gate. Google's Willow
+decoding ran at $63\,\mu$s latency; FPGA decoders reached sub-microsecond per round on
+$d\le12$ codes in 2025--2026; DeepMind's AlphaQubit~2 decodes faster than $1\,\mu$s per cycle
+up to $d=11$ and is projected to fail beyond $d\approx23$ \cite{ph:uqt26}. The $10\,\mu$s reaction
+time of the model is in this range; the open problem is real-time decoding at $d=25$ for a
+thousand patches at once, not decoding as such.
+
+\subsection{Logical gates, and the one that costs}\label{ph:sec:ft}
+
+A code protects a memory. Computing on it requires logical gates that do not spread errors:
+a single fault anywhere in the gadget must cause at most one error per code block, so that the
+next round of correction removes it. Three constructions do this.
+
+\paragraph{Transversal gates.} Apply the same physical gate to every qubit of the block (or
+qubit-by-qubit between two blocks). A fault then touches one qubit per block by construction.
+For any CSS code --- a code whose checks are pure $X$ or pure $Z$, like the surface code ---
+the transversal CNOT is a logical CNOT: $n$ physical CNOTs between blocks $A$ and $B$ map
+$X_A^{\mathbf a}\mapsto X_A^{\mathbf a}X_B^{\mathbf a}$ and $Z_B^{\mathbf b}\mapsto Z_A^{\mathbf b}Z_B^{\mathbf b}$,
+so each $X$-check of $A$ becomes itself times the \emph{same} $X$-check of $B$, which is in the
+stabiliser; the code space is preserved, and $\bar X_A\mapsto\bar X_A\bar X_B$,
+$\bar Z_B\mapsto\bar Z_A\bar Z_B$ is exactly the action of CNOT on logical Paulis. The same
+calculation shows why the surface code's transversal $H$ is \emph{not} a logical $H$ (it swaps
+$X$- and $Z$-checks, whose layouts differ by a rotation, hence the patch-rotation trick) and why
+$T^{\otimes n}$ is never logical for it. The \textbf{Eastin--Knill theorem} (2009) makes this
+general: no code that corrects at least one error has a universal set of transversal gates,
+because a continuous group of transversal unitaries would commute with the error-detection
+projector and let an undetectable error rotate the logical state continuously. Transversal gates
+need every qubit of one block to meet its partner in the other, which ions and movable atoms
+provide and a fixed chip does not.
+
+\paragraph{Lattice surgery.} On a planar chip the logical CNOT is built from joint
+measurements. Two patches side by side have $Z$-type boundaries facing each other. Measuring the
+weight-four $Z$-checks that straddle the seam \emph{merges} them into one longer patch; the
+product of those new checks is $\bar Z_A\bar Z_B$, so the merge measures the logical operator
+$Z_AZ_B$ with outcome $\pm1$ while learning nothing else, since every seam check commutes with
+every logical operator of the merged code except that product. Stopping the seam checks
+\emph{splits} the patches again. Each merge and split is repeated for $d$ rounds so that
+measurement errors on the new checks are corrected, hence the $O(d)$ time per operation and the
+$O(d^3)$ space-time volume. A CNOT between control $C$ and target $T$ then uses an ancilla patch
+$A$ prepared in $\ket+_L$:
+\[ \text{measure }Z_CZ_A\ (m_1),\qquad \text{measure }X_AX_T\ (m_2),\qquad
+   \text{measure }Z_A\ (m_3), \]
+and apply $X_T^{\,m_1\oplus m_3}$ and $Z_C^{\,m_2}$ as Pauli-frame updates --- a direct calculation on
+$\ket\psi_C\ket+_A\ket\phi_T$ (checked numerically for all eight outcome patterns) shows the result
+is CNOT$_{C\to T}\ket\psi\ket\phi$. Three joint
+measurements of $d$ rounds each, so a logical CNOT costs about $3d$ cycles, $75\,\mu$s at $d=25$,
+and needs the ancilla patch plus routing space between $C$ and $T$: that routing is the ``bus''
+and the reason the compute region of \S\ref{rsa:sec:phys} reserves patches it never stores
+data in. The \textbf{Pauli frame} is the other half of the trick: $X_L$ and $Z_L$ corrections
+are never applied physically, only recorded and folded into the interpretation of later
+measurements, so Clifford gates ($H$, $S$, CNOT) can even be commuted to the end of the circuit and
+absorbed into the measurement bases, leaving the non-Clifford gates as the only operations that
+cost time.
+
+\paragraph{What is left.} The surface code thus has cheap Paulis (free), CNOT ($3d$ rounds),
+$H$ and $S$ (patch deformation and a cheap injected $\ket{+i}$ state). What it lacks is $T$.
+
+\paragraph{Magic states.} The way round is gate teleportation. Prepare the \emph{magic state}
+$\ket T=T\ket+=(\ket0+e^{i\pi/4}\ket1)/\sqrt2$, then
+\begin{center}
+\begin{quantikz}[row sep=0.35cm,column sep=0.4cm]
+   \lstick{$\ket\psi$} & \ctrl{1} & \qw & \gate{S^{m}}\vcw{1} & \qw\rstick{$T\ket\psi$}\\
+   \lstick{$\ket T$} & \targ{} & \meter{} & \cw & \cw\rstick{$m$}
+   \end{quantikz}
+\end{center}
+applies $T$ to $\ket\psi$ using only a CNOT, a measurement and an $S$ gate conditioned on the
+outcome $m$ --- all Clifford, all cheap --- consuming one $\ket T$. (If $m=1$ the output is $S\,T^\dagger\ket\psi$ up to phase, and $S$ fixes it; the
+correction depends on a measurement, so the decoder must have resolved the frame first --- this
+is the reaction-time dependence of \S\ref{ph:sec:feeds}.) The difficulty is moved into making
+$\ket T$ clean. A noisy $\ket T$, prepared by a physical $T$ gate on one qubit and injected into a
+patch, has error $\epsilon\sim p$. \emph{Distillation} (Bravyi--Kitaev 2005) uses a code with a
+transversal $T$: the $[[15,1,3]]$ quantum Reed--Muller code has $T^{\otimes15}=\bar T^\dagger$ up
+to a Clifford. Encode $\ket+_L$ in it, apply $T$ on all fifteen qubits using fifteen noisy
+$\ket T$ states by the teleportation circuit above, measure the code's checks and keep the output
+only if no error was detected. A single error among the fifteen is always caught; the output is
+wrong only if three or more errors conspire into a logical operator, and counting the
+$\binom{15}{3}$ patterns that do gives
+\[ \epsilon_{\rm out}\approx35\,\epsilon^3 ,\qquad\text{so}\qquad
+   10^{-3}\ \to\ 3.5\times10^{-8}\ \to\ 1.5\times10^{-21}, \]
+at the cost of fifteen inputs per output and a success probability $\approx1-15\epsilon$ per
+round. Two rounds therefore reach any target the estimates need, and a factory is a few
+$[[15,1,3]]$ blocks laid out as surface-code patches, which is where the $O(d^2\log1/\epsilon)$
+footprint of magic-state factories comes from. Gidney, Shutty and Jones's \emph{cultivation} (2024)
+instead grows a $\ket T$ in a $d=3$ colour code, checks it, grows to $d=5$, checks again, and
+converts it to a surface-code patch, post-selecting on every check: about $30,000$ qubit-rounds
+per $\ket T$ at $10^{-7}$ error, an order of magnitude cheaper than distillation, which is the
+figure \texttt{physical.py} uses \cite{ph:cultivation24}. Cultivation's acceptance rate falls
+with the distance of the check, so beyond about $10^9$ $T$ states per run it is used to seed
+distillation rather than replace it \cite{ph:uqt26}.
+
+\paragraph{The 25 microseconds.} A Toffoli is a CCZ between Hadamards, and a CCZ is made from
+four $\ket T$ states with the temporary-AND construction of Part~V (\S\ref{sec:tempand}), or
+eight in the direct form the factory uses. The model's factory is a block of $3\times4$ patches
+of distance $25$, $12\times1,352=16,224$ qubits. Cultivating eight $\ket T$ states costs
+$8\times30,000=240,000$ qubit-rounds, that is $240,000/16,224\approx15$ rounds of the whole
+factory; assembling them into a CCZ state takes six layers of lattice surgery of $2d/3$ rounds
+each, $100$ rounds; the total $115$ is padded to $150$ for slack. Six factories in parallel
+therefore deliver one CCZ every $150/6=25$ rounds, and a round is the $1\,\mu$s cycle: one
+Toffoli every $25\,\mu$s, which is \S\ref{rsa:sec:phys}'s ``counting time'' and the origin of
+every runtime in Part~VIII. The compute region of $7\times18$ patches, $170,352$ qubits, holds
+the six factories and the lattice-surgery workspace that consumes their output. Since $25$ rounds
+is also one logical cycle at $d=25$, the machine is factory-bound and logic-bound in equal
+measure; a seventh factory would not help without more workspace.
+
+\subsection{Beyond the surface code}
+
+The surface code pays $2d^2$ qubits per logical qubit because every check is local on a plane:
+the Bravyi--Poulin--Terhal bound $kd^2=O(n)$ makes that the best any two-dimensional local code
+can do. Quantum LDPC codes keep the checks sparse but let them reach across the chip, and then
+$k$ and $d$ can both grow linearly with $n$ (Panteleev--Kalachev, 2021). IBM's \emph{gross} code
+$[[144,12,12]]$ stores twelve logical qubits in $144$ data qubits with weight-6 checks, needing
+degree-6 connectivity, which is what the Loon couplers provide; Iceberg Quantum's Pinnacle
+architecture (2026) stacks such codes into an RSA-2048 machine of under $10^5$ physical qubits
+at the price of a month's runtime and degree-8 to 10 connectivity, which Google argued is not
+feasible on superconducting chips \cite{ph:pinnacle26,ph:uqt26}. Google's answer stays planar:
+\emph{yoked} surface codes (2023) halve the qubits per logical qubit by adding a few parity
+checks across patches, used for RSA's idle exponent register in \S\ref{rsa:sec:phys} at
+$430$ qubits per logical qubit, and a ``denser planar surface code'' (May 2026) claims a further
+factor $4.5$ \cite{ph:uqt26}. On atoms and ions, where qubits move, the connectivity is free
+and the qLDPC codes are the natural choice, which is why the 2026 atom-based estimates
+(\S\ref{ph:sec:landscape}) use far fewer qubits and far more time.
+
+\begin{center}
+\begin{tikzpicture}[x=112mm,y=38mm]
+  \fill[okfill] (0.0005,1) plot[domain=0.0005:0.1893,samples=60] (\x,{1-\x*ln(3)/ln(2)+\x*ln(\x)/ln(2)+(1-\x)*ln(1-\x)/ln(2)}) -- (0,0) -- cycle;
+  \fill[lkfill] (0.0005,1) plot[domain=0.0005:0.1893,samples=60] (\x,{1-\x*ln(3)/ln(2)+\x*ln(\x)/ln(2)+(1-\x)*ln(1-\x)/ln(2)}) -- (0.3786,0) plot[domain=0.3786:0.0005,samples=60] (\x,{1-(\x/2)*ln(3)/ln(2)+(\x/2)*ln(\x/2)/ln(2)+(1-\x/2)*ln(1-\x/2)/ln(2)}) -- cycle;
+  \draw[->] (0,0) -- (0.53,0); \node[font=\scriptsize] at (0.27,-0.14) {relative distance $\delta=d/n$};
+  \draw[->] (0,0) -- (0,1.08) node[above right,font=\scriptsize] {rate $k/n$};
+  \foreach \t in {0.1,0.2,0.3,0.4,0.5} \draw (\t,0) -- (\t,-0.02) node[below,font=\tiny] {\t};
+  \foreach \t in {0.5,1} \draw (0,\t) -- (-0.01,\t) node[left,font=\tiny] {\t};
+  \draw[cverm,thick] (0,1) -- (0.5,0);
+  \draw[cpurple,thick,domain=0.0005:0.3786,samples=70] plot (\x,{1-(\x/2)*ln(3)/ln(2)+(\x/2)*ln(\x/2)/ln(2)+(1-\x/2)*ln(1-\x/2)/ln(2)});
+  \draw[cblue,thick,domain=0.0005:0.1893,samples=70] plot (\x,{1-\x*ln(3)/ln(2)+\x*ln(\x)/ln(2)+(1-\x)*ln(1-\x)/ln(2)});
+  \draw[cblue,thick,dashed,domain=0.0005:0.1100,samples=50] plot (\x,{1+2*\x*ln(\x)/ln(2)+2*(1-\x)*ln(1-\x)/ln(2)});
+  \node[font=\scriptsize,color=cverm,anchor=west] at (0.37,0.33) {Singleton};
+  \node[font=\scriptsize,color=cpurple,anchor=west] at (0.215,0.42) {Hamming};
+  \node[font=\scriptsize,color=cblue,anchor=west] at (0.13,0.29) {GV};
+  \node[font=\scriptsize,color=cblue,anchor=west] at (0.108,0.06) {CSS};
+  \fill[black] (0.004,0.004) circle (1.2pt) node[above right,font=\tiny,xshift=1pt] {surface};
+\end{tikzpicture}
+\end{center}
+{\small\noindent Which large codes can exist, in rate $k/n$ against relative distance $\delta=d/n$.
+Gilbert--Varshamov: codes exist with $k/n\ge1-\delta\log_23-H_2(\delta)$ (green), CSS codes with
+$1-2H_2(\delta)$ (dashed). Singleton: $k/n\le1-2\delta$ for every code. Hamming:
+$k/n\le1-\frac\delta2\log_23-H_2(\frac\delta2)$ is proven for non-degenerate codes and for
+$\delta\le0.235$ or $d=3$ in general; whether degenerate codes can beat it elsewhere is open, so
+the peach band is ``unknown'' above GV and ``impossible'' only above Singleton. The surface code
+sits at the origin: vanishing rate and vanishing relative distance, the price of local checks.}
+
+\subsection{Logical qubits, as demonstrated}
+
+\begin{center}\footnotesize
+\renewcommand{\arraystretch}{1.12}
+\begin{tabular}{@{}llp{2.8cm}lp{5.2cm}@{}}
+\toprule
+when & who & code & physical / logical & what was shown\\
+\midrule
+2021 & Maryland & Bacon--Shor-13, ions & 15 / 1 & first fault-tolerant logical qubit; logical fidelity $99.7\%$\\
+2022 & Quantinuum & Steane colour, ions & 10 / 1 & logical SPAM better than physical (break-even)\\
+2022 & Google & surface $d=5$, SC & 49 / 1 & logical error \emph{not} better than $d=3$: above threshold\\
+Dec 2023 & Harvard--QuEra & colour + qLDPC, atoms & 280 / 48 & logical processor, transversal gates, CCZ; post-selected\\
+Dec 2024 & Google & surface $d=7$, SC & 101 / 1 & \textbf{below threshold}: $\Lambda\approx2.1$, $0.14\%$ per cycle\\
+2024 & Quantinuum--Microsoft & tesseract / Steane, ions & 56 / 12 & 12-qubit logical GHZ states, post-selected\\
+2025 & QuEra & colour + qLDPC, atoms & 200 of 448 & logical CZ by surgery and teleportation, CCZ, rotations; atom-loss post-selection\\
+2026 & Quantinuum & Steane, Helios ions & 98 / 48 & $H$, CZ, $T$ on 48 logical qubits; teleported $T$ states; small QAOA and HHL\\
+2026 & China (Hefei et al.) & surface $d=7$, SC & 125 / 2 & two $d=7$ patches, transversal teleportation\\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent From \cite{ph:uqt26} (Tables 9--10). None is a full fault-tolerant stack: as of
+September 2026 no experiment had run a distilled or cultivated $T$ state through a below-threshold
+memory with real-time decoding and no post-selection, and the largest code distance on hardware
+was $7$ against the $25$ the estimates need.
+
+% ===========================================================================
+\section{Where things stand}\label{ph:sec:landscape}
+
+\subsection{Milestones}
+
+\begin{center}\small
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}lp{12.4cm}@{}}
+\toprule
+1994 & Shor's factoring and discrete-logarithm algorithms. \\
+1995 & Cirac--Zoller trapped-ion gate proposal; first BEC. \\
+1996--97 & Shor and Steane codes; Gottesman's stabiliser formalism; Kitaev's toric code; threshold theorem. \\
+1999 & Nakamura: first coherent superconducting (charge) qubit, $\sim1$\,ns coherence. \\
+2001 & Shor's algorithm factors 15 on a 7-qubit NMR machine (compiled). KLM linear optics. \\
+2007 & The transmon. \\
+2010 & First Rydberg-blockade CNOT between neutral atoms. \\
+2012 & Fowler et al.: surface-code architecture with $\sim1\%$ threshold; 21 factored photonically (compiled). \\
+2016 & Monz et al.: scalable Shor circuit factors 15 with trapped ions. \\
+2015 & Loophole-free Bell tests (NV centres at Delft; photons at Vienna and NIST). \\
+2019 & Sycamore random-circuit sampling (``supremacy''); Gidney--Eker\aa: RSA-2048 in 8 hours with 20 million qubits. \\
+2021 & Maryland: first fault-tolerant logical qubit (ions); Gouzien--Sangouard memory-based estimate; good qLDPC codes (Panteleev--Kalachev). \\
+2023 & Harvard--QuEra 48 logical qubits; Evered: $99.5\%$ Rydberg CZ on 60 atoms; Litinski: ECDLP-256 in 50 million Toffolis. \\
+2024 & Google Willow below threshold; Caltech $6,100$-atom array; Gidney--Shutty--Jones cultivation; IBM gross code. \\
+2025 & Gidney: RSA-2048 under a million qubits in under a week; Quantinuum Helios 98 ions at $99.92\%$; Oxford $1.5\times10^{-7}$ single-qubit error; QuEra fault-tolerant architecture paper. \\
+2026 & Pinnacle: RSA-2048 under $10^5$ qubits (qLDPC); IonQ: ECDLP-256 in 26 days on $20,000$ ions; Quantinuum 48 logical qubits with $T$; Nighthawk and Loon; the ECDLP circuits of Part~VII. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{What has actually been factored}
+
+Every Shor demonstration to date has been compiled for its answer. The 2001 NMR and 2016 ion
+experiments factored $15$; the 2012 photonic experiment factored $21$ with qubit recycling; and
+$21$ is still the largest integer factored by a Shor-type circuit on hardware in 2026. The reason
+is in Part~V: a circuit for $15$ collapses to $21$ entangling gates because $a^x\bmod15$ has a
+trivial structure, while a general circuit for $21$ needs $2,405$ entangling gates
+(Gidney, 2025), beyond what any uncorrected processor runs coherently
+\cite{ph:uqt26}. Larger ``factorings'' --- $35$ on IBM hardware, $56,153$, $1,099,551,473,989$
+with variational methods, $2048$-bit integers with specially close factors on an annealer, the
+2026 ``Q-Day prize'' for a 15-bit elliptic-curve key whose $98,000$-gate circuit on 65 qubits
+succeeded with probability $10^{-215}$ and was filtered by a classical checker --- are not Shor's
+algorithm and do not scale; the $2022$ claim of RSA-2048 with $372$ qubits (Schnorr's lattice
+method plus QAOA) was shown not to scale past $70$ bits even with perfect qubits. Classically,
+the record is RSA-250, $829$ bits, with the number field sieve in 2020 at about $2,700$
+core-years; a $862$-bit RSA-260 was claimed in September 2026 without an audited computation
+\cite{ph:uqt26}.
+
+\subsection{The resource-estimate landscape}
+
+\begin{center}\footnotesize
+\renewcommand{\arraystretch}{1.12}
+\begin{tabular}{@{}p{3.1cm}p{2.1cm}p{2.5cm}p{1.7cm}p{5.0cm}@{}}
+\toprule
+estimate & target & physical qubits & time & assumptions and caveats\\
+\midrule
+Gidney--Eker\aa\ 2019 \cite{gidney-ekera} & RSA-2048 & $20$\,M & 8 h & surface code, $p=10^{-3}$, $1\,\mu$s cycle\\
+Gouzien--Sangouard 2021 & RSA-2048 & $13,436$ + memory & 177 d & $2$ logical qubits plus a $28$-million-mode quantum memory\\
+Alice \& Bob 2019 / 2023 \cite{ph:cats19,ph:cats23} & RSA-2048 / ECC-256 & $349$\,k / $126$\,k cat qubits & 4 d / 9 h & repetition code on biased-noise cats\\
+Gidney 2025 \cite{ec:gidney25rsa} & RSA-2048 & $<1$\,M & $<1$ week & residue arithmetic, yoked codes, cultivation; the model of Part VIII\\
+Pinnacle 2026 \cite{ph:pinnacle26} & RSA-2048 & $94$\,k / $135$\,k / $381$\,k & 1 mo / 1 wk / 1 d & qLDPC, degree-8 to 10 connectivity, SC\\
+IonQ 2026 \cite{ec:ionq26} & ECC-256 & $20,000$ & 26 d & walking-cat codes, $99.99\%$ gates, $63\%$ success\\
+Oratomic 2026 & RSA-2048 / ECC-256 & $10^4$--$10^5$ & months--years & qLDPC on atoms; slow cycle\\
+Chicago 2026 (distributed) & RSA-2048 & $\sim$M & $\sim1$ yr & modular SC with interconnects\\
+this tutorial, Part VIII & ECC-256 / RSA-2048 & $2.14$\,M / $898$\,k & 15 min / 5 d & Gidney 2025's model; circuits of Parts VII--VIII\\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent Compiled from \cite{ph:uqt26} (Figures 285--286) and the papers cited; Google's 2026
+elliptic-curve estimate \cite{ec:babbush26}, the surface-code reference for ECC-256, is compared
+with Part~VII's circuits there rather than here. All assume
+$99.9\%$ fidelities ($99.99\%$ for IonQ) uniformly at scale, independent Pauli noise, and a
+monolithic processor unless stated. The trend from $20$ million qubits to under $10^5$ in seven
+years came from arithmetic (Parts V--VIII), from codes (yoked, qLDPC), from magic states
+(cultivation) and from trading time for space; it did not come from hardware, which in the same
+period went from no logical qubit to one below-threshold memory at $d=7$.
+
+\subsection{Forecasts}
+
+Mosca's inequality frames the question for a defender: data must stay secret for $D$ years,
+migration to post-quantum cryptography takes $T$ years, and a cryptographically relevant
+quantum computer arrives in $G_c$ years; if $D+T>G_c$ the migration is already late. $D$ and $T$
+are knowable; $G_c$ is not. A 2020 statistical study of expert forecasts gave a $90\%$ interval of
+2039--2058 with a median of 2050 for a Shor attack on RSA-2048, and 2026--2033 for a
+proof-of-concept fault-tolerant machine; the yearly evolutionQ expert surveys give similar
+spreads; Shor's own guess was ``between 20 and 40 years'' with the possibility of never. Vendor
+roadmaps are more aggressive --- IBM's Starling (200 logical qubits, $10^8$ gates) for 2029 and
+Blue Jay ($2,000$ logical qubits, $10^9$ gates) for 2033, Quantinuum's universal fault-tolerant
+Apollo for 2029, Microsoft's fault-tolerant machine for 2029 --- and past NISQ roadmaps slipped
+by one to three years \cite{ph:uqt26}. Against the numbers of this tutorial: ECDLP-256 needs
+about $1,600$ logical qubits running $3.7\times10^7$ Toffolis with a $10^{-15}$ error per cycle,
+which is a Blue Jay-class machine with a hundredfold lower logical error than Starling's target
+and a $25\,\mu$s Toffoli; none of the 2026 demonstrations is within four orders of magnitude of it
+in any single dimension.
+
+\begin{keybox}[title={The physics, in one line each}]
+A qubit is a two-level system with a Hamiltonian we can switch; a gate is a rotation, produced by
+a resonant drive whose phase picks the axis and whose area picks the angle; an entangling gate is
+an interaction switched on for a time, and it is the slowest and dirtiest operation on every
+platform. An error is a channel on the density operator, and a stabiliser measurement projects
+its continuum onto Paulis with a syndrome, which is why a code can correct it. Below a threshold
+near $1\%$ the surface code's logical error falls as $(p/p_{\rm th})^{(d+1)/2}$, so the physical
+error rate is the one number that matters exponentially. A $T$ gate is teleported from a magic
+state that a factory makes in $\sim150$ rounds, and six factories give one Toffoli per
+$25\,\mu$s on a $1\,\mu$s-cycle machine. In 2026 the hardware had one below-threshold memory at
+$d=7$ and $98$ ions at $99.92\%$; the estimates need $d=25$ on a thousand patches.
+\end{keybox}

@@ -1,0 +1,51 @@
+\section{The \code{shor/} implementation against the \ecdsafail{} catalogue}\label{sec:shor-impl}
+
+The Qiskit package in \code{shor/shor\_qiskit/} ($44$ modules, $\approx16{,}700$ lines, plus $\approx4{,}400$ lines of benchmarks in \code{bench/}) builds the same object the challenge scores---one windowed secp256k1 point addition---from exhaustively tested toy-size primitives, and counts its $256$-bit instantiation hierarchically (\code{hier.tracing()}: build each sub-circuit once per \emph{shape}, append it as an opaque gate carrying its counts; at toy size the hierarchical count equals the flat one on every field and the tree exports to Qualtran bloqs whose \code{QECGatesCost} agrees). This section records which of the \ecdsafail{} levers it already contains, what it measures for them, and what it does not have. The numbers are the package's own, from \code{bench/*.json} and \code{shor-complete.tex} Part~VII.
+
+\subsection{Coverage}
+
+\begin{table}[H]
+\centering\footnotesize
+\begin{tabular}{@{}p{4.0cm}p{5.2cm}p{6.3cm}@{}}
+\toprule
+\ecdsafail{} lever (section) & in \code{shor/} & measured (\code{secp256k1}, $w=16$)\\
+\midrule
+Kaliski almost-inverse, HJNRS form (\cref{sec:inversions}) & \code{ec\_kaliski}, \code{ec\_kaliski\_opt} (unconditional rounds, postponed reduction, Montgomery form) & $29\%$ fewer Toffolis and $41\%$ less depth than HJNRS at $n=12$\\
+dialog GCD, record/replay (\cref{sec:dialog}) & \code{ec\_eea} (as printed), \code{ec\_gcd.Dialog} (fused 77-bit compare, width schedule, PM cells) & in-place multiply $1{,}955{,}276\to865{,}588$ Toffolis\\
+IonQ's conditionally-inverted walk, Fig.\,1 record packing ($3$ pairs in $5$ qubits) & \code{ec\_gcd.CondInv}, \code{fig1\_compress} & $720{,}565$ per in-place multiply; record $669$ qubits\\
+Jump-2 (\cref{sec:jump2}) & \code{ec\_gcd.Jump2}, \code{Jump2Packed} ($261$ steps) & $1{,}161{,}099$ per multiply from this package's generic cells (no fused cells, no base-5 codec)\\
+ping-pong (\cref{sec:pingpong}) & \code{ec\_gcd.PingPong} ($704$ rounds) & $917{,}565$ per multiply; walk $257$/round, replay $785$/step; $2{,}117{,}534$ per addition on $2{,}155$ qubits\\
+register-shared EEA, three field registers (\cref{sec:regshare}) & \code{ec\_luo}, \code{ec\_luo3} (ghosting via \code{ec\_mbu.vent}/\code{zfix}) & division $835$ qubits / $42{,}103{,}470$ T; windowed addition $851$ / $85{,}204{,}396$; attack $2.386\times10^9$\\
+Gidney classical--quantum constant adder & \code{ec\_cqadd} & $2.98n$ (dirty) / $3.96n$ (3 clean) Toffolis; mod add $11.0n$, doubling $6.0n$ (Luo's $11n$, $6n$)\\
+temporary-AND adder, measured uncompute (\cref{sec:adders,sec:mbu}) & \code{ec\_gates.and\_/and\_dg}, \code{ec\_adders} & $2.50\times$ fewer $T$ over an inversion; CDKM vs Gidney $2n$ vs $n-1$\\
+pseudo-Mersenne folds, truncated compares (\cref{sec:fold,sec:truncation}) & \code{ec\_approx} (Alg.\,5--11 of \cite{schrottenloher26}), \code{PMPhase} (IonQ's phase-approximate adder, $\kappa=65$, $\delta=32$, 37 careful steps) & cell $712\to352$ Toffolis ($336$ executed); failure rates measured at toy primes\\
+dedicated squarer with fold (stage 4) & \code{ec\_square} (IonQ's signed-row squarer) & $1{,}050{,}623\to79{,}160$ Toffolis per square-subtract\\
+QROM lookups, MBU unlookup, merged phase repair, SELECT-SWAP & \code{ec\_window}, \code{ec\_mbu}, \code{select\_swap\_lookup} & $1{,}310{,}700\to197{,}364$ per addition; SELECT-SWAP on the $3x$ load $-16{,}128$ at no qubit cost\\
+signed windows & \code{ec\_signedwin} & $2^{15}$-entry tables, $-2.7$\,M over $28$ additions\\
+exact peepholes, fire census (\cref{sec:postpasses}) & \code{ec\_opt.peephole}, \code{ec\_opt.census}/\code{strip\_unfired} & census at $q=61$: exact when it covers all inputs ($1{,}680\to991$); $2.8\%$ of fresh inputs wrong at $300$ samples\\
+lean (space) cells, register sharing beside the walk & \code{ec\_space} (\code{PMSpace}), \code{CondInv(share=True)} & $1{,}246$ qubits at $2{,}821{,}091$ T; $1{,}457$ at $1{,}310{,}693$ executed\\
+carry-lookahead adders & \code{ec\_cla} & $7\times$ Toffolis for $\log n$ depth; addition depth $1{,}503{,}533\to394{,}281$\\
+physical model (\cref{sec:physical}) & \code{physical.py} (Gidney-2025 surface-code model) & reproduces $897{,}864$ qubits / $4.96$ days for RSA-2048\\
+\bottomrule
+\end{tabular}
+\caption{What the package already implements of the \ecdsafail{} catalogue, with its own measurements (\code{bench/ec\_project\_256.json}, \code{ec\_toffoli\_256.json}, \code{ec\_space\_256.json}, \code{ec\_luo3\_256.json}, \code{ec\_catalogue.json}, \code{estimates.json}).}
+\label{tab:coverage}
+\end{table}
+
+Three of its results sit directly on the plane of \cref{fig:pareto}: the IonQ-style addition with signed windows and SELECT-SWAP on the $3x$ lookup, $1{,}457$ qubits and $1{,}310{,}693$ executed Toffolis ($5.9\%$ below IonQ's $1{,}392{,}608$ at IonQ's own width), the space variant at $1{,}246$ qubits, and the three-register Luo circuit at $851$ qubits---the top of \ecdsafail{}'s published low-$Q$ range. The package also makes a point that the challenge metric hides: every ripple-based construction has a Toffoli \emph{depth} of $0.8$--$0.95\times$ its Toffoli count, so the fast machine of \cref{sec:physical} is throughput-bound, not reaction-bound, until carry-lookahead adders (\code{ec\_cla}, $\approx7\times$ the Toffolis for $\log n$ depth) are used, after which the unary-iteration lookups set a floor of $3\cdot2^{16}=196{,}608$ steps per addition.
+
+\subsection{What the package does not have, and what it would take}
+
+\begin{enumerate}[leftmargin=*]
+\item \textbf{The post-August walks.} \code{ec\_gcd} has Kaliski, the dialog, CondInv, Jump-2 and ping-pong as backends on one \code{backend.mul(m,x,y,q)} interface, which is exactly the right place for \emph{Skywalk} (\cref{sec:skywalk}) and \emph{Leapfrog} (\cref{sec:leapfrog}). Leapfrog is the natural next backend: its rails are two odd two's-complement registers, its tick is three add-halves and a barrel, its letter is five raw qubits (no codec), and its payload cell is ping-pong's \code{replay\_add\_halve} run at the proxy round of the rail width---all of which the package has or can compose from \code{PMPhase}. The parts that need new code are the choice rule (\emph{sign2} plus the $K$-bit window compare), the barrel ($\mathrm{rot4}$ from three controlled reflections, and the payload's $\times2^{-e}\bmod p$ via $P-m(f-1)$), and the width-envelope fit. The package's own round-budget caveat applies: it found ping-pong's $704$ rounds not to be a worst case ($n=16$ needs $3.9n$ exhaustively), so a Leapfrog port should re-measure the parking depth rather than inherit $139$.
+\item \textbf{The base-5 codec and the live-width schedule of stage 2.} \code{Jump2Packed} packs symbols but not as base-5 digits; the $609$-versus-$783$ tape, and the Note-D objective of making the shrinking $2w_i$ absorb the growing $|\tau_i|$ (\cref{eq:livewidth}), are what take a Jump-2 circuit from this package's $2{,}217$ qubits to the challenge's $1{,}151$. The package's \code{CondInv(share=True)} already does the equivalent for IonQ's walk (the record grows into the lanes the width schedule frees); the same mechanism applied to \code{Jump2Packed} with the codec is a contained change.
+\item \textbf{Fused replay cells.} The challenge's replay step costs $\approx785$ Toffolis in the package's generic cells but far less in the fused \code{signed\_mod\_add\_pm\_halve\_fused}/\code{replay\_add\_halve} cell (chunked add with measured boundary carries, selected fold by $\{-f,0,+f,+2f\}$, measured flag). The package's \code{PMPhase.signadd} is the same idea for IonQ's adder; the remaining gap is the fused halving-with-fold and the per-round chunk/flag/fold \emph{shapes}.
+\item \textbf{$\lambda$-priced truncation and nonce hunting.} The package measures failure rates of each approximate cell at toy primes and composes them; it does not do what every frontier submission does, which is to fit width schedules against a $\lambda$ budget on the actual $256$-bit distribution and to hunt an island. That machinery is not needed for an honest resource estimate (the package's circuits are either exact or carry a measured rate), but it is needed to \emph{reproduce} a frontier score, because the frontier scores are island-conditioned. A classical pre-filter replaying the walk's failure predicate (as \code{dialog\_gcd\_classical\_filter.rs} and the CUDA kernels do) would be the first step.
+\item \textbf{Zero-Toffoli known-output receivers and the exact simplifier chain.} \code{add\_known} and \code{known\_stream} (\cref{sec:mbu}) and the \code{product}, \code{affine}, \code{quadratic}, \code{truth} passes are generic and would apply to the package's reverse passes; the SAT-proven CCX$\to$CX rows are stream-specific and not worth porting.
+\item \textbf{Window compatibility is already there.} Because the package builds the windowed addition with coherent lookups (unlike the challenge interface), its numbers are the ``full-attack'' numbers directly; the conversion of \cref{eq:full-attack} is not needed for them. The identity row and the $R\in\{\pm A\}$ exceptions are handled as in Note~F, with signed windows removing $\mathcal O$ from the tables altogether.
+\item \textbf{Physical model.} \code{physical.py} is a surface-code model; \cref{sec:physical} adds the trapped-ion (IonQ Q102), gross-code (IBM) and neutral-atom data points and explains why they are not modelled the same way.
+\end{enumerate}
+
+\begin{keybox}[title={The one-line comparison}]
+On the challenge's own axis the package's best windowed addition is $1{,}457\times1{,}310{,}693=1.91$\,B---above \ecdsafail{}'s $1.50$\,B (classical addend) and $1.96$\,B (windowed) and above IonQ's $2.03$\,B---while being exact wherever it is not explicitly approximate, and verified end to end at toy sizes. The frontier's remaining advantage is almost entirely in the walk (Leapfrog's $139$ fat ticks against $401$ CondInv rounds) and in the fused replay cell; the frontier's disadvantage is that its best numbers are island-conditioned.
+\end{keybox}

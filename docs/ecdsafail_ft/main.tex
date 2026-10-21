@@ -1,0 +1,165 @@
+% =====================================================================
+%  Breaking ECDSA on a fault-tolerant quantum computer
+%  The ECDSA.fail optimisations, the Pareto frontier, and the cost of
+%  error correction --- written for the shor/ project
+%  Build:  pdflatex main && bibtex main && pdflatex main && pdflatex main
+%  (or:    latexmk -pdf main)
+% =====================================================================
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{mathpazo}          % Palatino (URW Type 1, scalable) for text and maths
+\usepackage[scaled=0.92]{helvet}
+\usepackage{courier}
+\usepackage[expansion=false]{microtype}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{booktabs,multirow,array,longtable}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{siunitx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc,positioning,decorations.pathreplacing,fit,shapes.geometric,backgrounds,patterns,matrix,quantikz2}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\pgfplotsset{discard if not/.style 2 args={x filter/.append code={\edef\tempa{\thisrow{#1}}\edef\tempb{#2}\ifx\tempa\tempb\else\def\pgfmathresult{inf}\fi}}}
+\usepackage{pgfplotstable}
+\usepackage{caption,subcaption}
+\usepackage{float}
+\usepackage{placeins}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{listings}
+\usepackage[most]{tcolorbox}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{xurl}
+\usepackage[colorlinks,linkcolor=blue!55!black,citecolor=blue!55!black,urlcolor=blue!55!black]{hyperref}
+\usepackage[capitalise,noabbrev]{cleveref}
+
+% ---------------------------------------------------------------- macros
+\renewcommand{\ket}[1]{\lvert #1 \rangle}
+\renewcommand{\bra}[1]{\langle #1 \rvert}
+\providecommand{\braket}[2]{\langle #1 \vert #2 \rangle}
+\newcommand{\F}{\mathbb{F}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\id}{\mathbb{1}}
+\newcommand{\Tof}{\mathrm{Tof}}
+\newcommand{\code}[1]{\texttt{#1}}
+\emergencystretch=2.5em
+\newcommand{\ecdsafail}{ECDSA.fail}
+\newcommand{\QT}{Q\times T}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\MAJ}{\mathrm{MAJ}}
+\newcommand{\UMA}{\mathrm{UMA}}
+\newcommand{\Hmr}{\mathrm{Hmr}}
+\newcommand{\bits}[3]{[\![#1,#2,#3]\!]}
+\DeclareMathOperator{\wt}{wt}
+\DeclareMathOperator{\rank}{rank}
+\DeclareMathOperator{\bitlen}{bitlen}
+\DeclareMathOperator{\rot}{rot}
+\DeclareMathOperator{\gcdop}{gcd}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+\definecolor{boxblue}{RGB}{22,63,110}
+\definecolor{boxred}{RGB}{140,38,28}
+\definecolor{boxgreen}{RGB}{30,95,60}
+\definecolor{gateblue}{RGB}{242,246,251}
+\definecolor{lookorange}{RGB}{255,245,231}
+\definecolor{addviolet}{RGB}{244,242,251}
+\definecolor{outgreen}{RGB}{239,248,242}
+\definecolor{cX}{RGB}{214,96,77}
+\definecolor{cZ}{RGB}{67,147,195}
+\definecolor{cY}{RGB}{120,120,120}
+\definecolor{cdata}{RGB}{40,40,40}
+\newtcolorbox{keybox}[1][]{colback=boxblue!4,colframe=boxblue,coltitle=white,
+  fonttitle=\bfseries,boxrule=0.7pt,left=6pt,right=6pt,top=5pt,bottom=5pt,#1}
+\newtcolorbox{warnbox}[1][]{colback=boxred!4,colframe=boxred,coltitle=white,
+  fonttitle=\bfseries,boxrule=0.7pt,left=6pt,right=6pt,top=5pt,bottom=5pt,#1}
+\newtcolorbox{srcbox}[1][]{colback=boxgreen!4,colframe=boxgreen,coltitle=white,
+  fonttitle=\bfseries,boxrule=0.7pt,left=6pt,right=6pt,top=5pt,bottom=5pt,#1}
+
+\definecolor{codebg}{RGB}{248,248,251}
+\lstdefinestyle{py}{language=Python,basicstyle=\small\ttfamily,keywordstyle=\color{blue!60!black}\bfseries,
+  commentstyle=\color{green!40!black}\itshape,stringstyle=\color{red!60!black},showstringspaces=false,
+  backgroundcolor=\color{codebg},frame=single,framerule=0.3pt,rulecolor=\color{black!25},
+  columns=fullflexible,keepspaces=true,breaklines=true,tabsize=4,aboveskip=6pt,belowskip=4pt}
+\lstdefinestyle{plain}{basicstyle=\small\ttfamily,backgroundcolor=\color{codebg},frame=single,
+  framerule=0.3pt,rulecolor=\color{black!25},columns=fullflexible,keepspaces=true,breaklines=true,aboveskip=6pt,belowskip=4pt}
+\lstset{style=py}
+
+\tikzset{
+  wire/.style={black,line width=0.8pt},
+  flow/.style={-{Latex[length=2mm,width=1.3mm]},line width=0.7pt},
+  blk/.style={draw=black!70,line width=0.7pt,fill=gateblue,rounded corners=1.5pt,inner sep=4pt,align=center,font=\small},
+  blkv/.style={blk,fill=addviolet},
+  blko/.style={blk,fill=lookorange},
+  blkg/.style={blk,fill=outgreen},
+  stage/.style={draw=black!70,line width=0.7pt,fill=gateblue,rounded corners=1.5pt,inner sep=4pt,align=center,font=\footnotesize,text width=28mm,minimum height=22mm},
+  note/.style={font=\footnotesize,text=black!70,align=center},
+  dq/.style={circle,draw=cdata,fill=white,inner sep=0pt,minimum size=5pt},
+  xface/.style={fill=cX!35,draw=black!60,line width=0.4pt},
+  zface/.style={fill=cZ!35,draw=black!60,line width=0.4pt},
+}
+
+\sisetup{group-separator={,},group-minimum-digits=4}
+
+\title{\bfseries Breaking ECDSA on a fault-tolerant quantum computer\\[4pt]
+\large The \ecdsafail{} optimisations, the Pareto frontier, and the cost of quantum error correction}
+\author{A companion to the \texttt{shor/} project\\[4pt]
+\parbox{0.85\textwidth}{\centering\small Sources: arXiv, IACR ePrint, GitHub (the \ecdsafail{} challenge and its supplemental materials), and the published material of Google Quantum AI, IBM Quantum, IonQ, Quantinuum, PsiQuantum, QuEra and Alice\,\&\,Bob.}}
+\date{12 October 2026}
+
+\begin{document}
+\maketitle
+\vspace{-1.5em}
+
+\begin{abstract}
+\noindent
+Shor's algorithm breaks the elliptic-curve digital signature algorithm by computing a discrete logarithm on secp256k1, and the cost of doing so is dominated by one reversible circuit: the in-place addition of a classically known point to a quantum accumulator. The \ecdsafail{} open-autoresearch challenge (May--October 2026) cut the width\,$\times$\,work product of that circuit from $2{,}715\times 3{,}960{,}753$ to $1{,}151\times 1{,}299{,}453$ by the paper's data cutoff and to $1{,}244\times 797{,}905$ on the 7~October leaderboard, while a separate low-width track reached $792$ logical qubits. Part~I of this document explains every optimisation family that produced that movement---the six inversion architectures (Kaliski, dialog GCD, Jump-2 with the base-5 codec, ping-pong, Skywalk, Leapfrog), the arithmetic levers (temporary-AND adders, chunked adders with measured carry erasure, truncated comparators, pseudo-Mersenne folds, Karatsuba squaring), the qubit levers (peak owners, budgets, venting, wire loans, register-shared Euclid, ghosting), measurement-based uncomputation, the post-passes, and the nonce-hunting economics that make approximate circuits pass a finite validator---with the circuit diagrams of the supplemental notes redrawn, and it gives the Pareto frontier in both the challenge's $(Q,T)$ plane and the leaderboard's time axis, placed next to the external operating points of Google, Schrottenloher, TrailMix, Luo et al.\ and IonQ, and next to the circuits built in \texttt{shor/}. Part~II is about what it costs to run such a circuit on noisy hardware: the threshold theorem and the overhead of error correction, the stabiliser formalism with encoding and decoding algorithms spelled out in full for the small codes, the surface and toric codes (lattice, syndrome extraction, matching, union-find and neural decoders, lattice surgery), colour codes, and quantum LDPC codes (hypergraph products, bivariate bicycle codes such as IBM's gross code, belief propagation with ordered-statistics post-processing, IBM's bicycle architecture and IonQ's walking-cat architecture), the bounds of coding theory with the codes placed on the rate--distance plane, fault-tolerant Clifford gates (transversality, Eastin--Knill, lattice surgery, automorphisms, Pauli frames), fault-tolerant $T$ gates (magic-state injection, distillation, cultivation, code switching), and finally the physical-qubit estimates for a Clifford$+T$ computation, worked out for the \ecdsafail{} circuits and compared with the published superconducting, trapped-ion, neutral-atom and cat-qubit estimates. Every encoding circuit and the surface-code threshold plot were checked by simulation (Stim and PyMatching); the scripts are in the appendix.
+\end{abstract}
+
+\begin{keybox}[title={How to read this document}]
+\textbf{Part I} (\cref{sec:target}--\cref{sec:shor-impl}) is about the \emph{logical} circuit: what \ecdsafail{} optimised, how each optimisation works, what it costs in the $\QT$ metric, and where the frontier stands. \textbf{Part II} (\cref{sec:qec-why}--\cref{sec:physical}) is about turning a logical circuit into a physical machine: codes, decoders, fault-tolerant gates, and the resulting physical-qubit and runtime estimates.
+
+Notation. $p=2^{256}-2^{32}-977$ is the secp256k1 field prime, $r$ the (prime) group order, $n=256$. $Q$ is the peak number of live logical qubits of a circuit and $T$ its average number of \emph{executed} Toffoli gates (CCX/CCZ/AND) on the challenge's validation distribution; the challenge score is $S=\QT$. A $\bits{n}{k}{d}$ code uses $n$ physical qubits to encode $k$ logical qubits with distance $d$; $p$ also denotes a physical error rate where no confusion is possible, and $p_L$ a logical error rate. Numbers taken from a source are cited at the point of use; numbers computed for this document are marked as such and come from the scripts in \cref{app:scripts}.
+\end{keybox}
+
+{\small\setlength{\parskip}{0pt}\tableofcontents}
+\clearpage
+
+\part{The logical circuit: \ecdsafail{}}
+\input{sections/01-target}
+\input{sections/02-optimisations}
+\input{sections/03-pareto}
+\input{sections/04-implementation}
+
+\clearpage
+\part{Fault tolerance: from logical to physical qubits}
+\input{sections/05-qec-foundations}
+\input{sections/06-codes}
+\input{sections/06b-qldpc}
+\input{sections/07-ft-gates}
+\input{sections/08-physical}
+\input{sections/09-conclusion}
+
+\clearpage
+\appendix
+\input{sections/A-sources}
+\input{sections/B-scripts}
+
+\clearpage
+\bibliographystyle{plainnat}
+\bibliography{refs}
+\end{document}

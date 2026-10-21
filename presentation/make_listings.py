@@ -244,3 +244,282 @@ executed("qft_readout.py", """
     print(sim.run(transpile(qc, sim), shots=1000).result().get_counts())
 """, "{'010': 1000}")
 print("listings done")
+
+# --- Act XI: the 2026 optimisations ------------------------------------------------
+whole("ci_add.py", ("ec_adders.py", "ci_add"))
+abridged("ci_round.py", SRC / "ec_gcd.py", """
+    def _round(self, m, U, VT, rec, w):
+        ctx = m.ctx
+        a, mm = rec
+        u, vt = Reg(U[:w + 1]), Reg(VT[:w + 1])
+        ctx.cx(vt[1], a[0])
+        ctx.cx(u[1], a[0])                               # a = v~[1] ^ u[1]
+        ...
+        A.ci_add(ctx, a[0], u, vt, anc)                  # v~ += (-1)^a u
+        ...
+        for i in range(len(vt) - 1):                     # v~ /= 2 (even)
+            ctx.swap(vt[i], vt[i + 1])
+        ...
+        A.gt_top(ctx, u, vt, mm[0], sc, k, ctrl=a[0])    # m = a AND [u > v~]
+        ...
+        for i in range(len(u)):
+            ctx.cswap(mm[0], u[i], vt[i])
+""")
+abridged("sqr_int.py", SRC / "ec_square.py", """
+    for i in range(n):
+        ctx.cx(z[n + i], z[n + i + 1])              # sign-extend by one bit
+        h = list(x[i + 1:])
+        for q in h + [pad[0]]:
+            ctx.cx(x[i], q)                         # x_i ? NOT(0||h) : (0||h)
+        operand = Reg(h + [pad[0], x[i]], "op")     # signed, sign = x_i
+        window = Reg(z[2 * i + 1:n + i + 2], "win")
+        ...
+        A.sub(ctx, operand, window, anc)            # z -= signed operand
+        ...
+        for q in h + [pad[0]]:
+            ctx.cx(x[i], q)
+""")
+abridged("select_swap.py", SRC / "ec_mbu.py", """
+    lam = 1 << k
+    lo, hi = list(addr[:k]), list(addr[k:])
+    ...
+    lookup(m, hi, [q for blk in blocks for q in blk], wide)
+    for i in reversed(range(k)):                  # block 0 <- word a_lo
+        s = 1 << i
+        for j in range(s):
+            for qa, qb in zip(blocks[j], blocks[j + s]):
+                m.ctx.cswap(lo[i], qa, qb)
+    ...
+    unlookup(m, addr, junk, G, group=group)
+""")
+abridged("vented_add.py", SRC / "ec_cqadd.py", """
+    for k in range(n):
+        ...
+            nxt = m.anc(1, "cq")[0]               # c_{k+1} = maj(x_k, d_k, c_k)
+            ...
+                ctx.cx(xs[k], cur)                # cur = x ^ c
+                _flip(ctx, xs[k], _bit(d, k), ctrl)
+                ctx.and_(xs[k], cur, nxt)         # (x ^ d)(x ^ c)
+                _flip(ctx, xs[k], _bit(d, k), ctrl)
+                ctx.cx(xs[k], nxt)                # maj = x ^ (x ^ d)(x ^ c)
+                ctx.cx(xs[k], cur)                # cur = c again
+        ...
+            ctx.cx(cur, xs[k])
+        _flip(ctx, xs[k], _bit(d, k), ctrl)
+        if cur is not None and cur is not cin:    # vent c_k (k >= 1)
+            ...
+            m.free(Reg([cur]))
+        cur = nxt
+""")
+abridged("vent.py", SRC / "ec_mbu.py", """
+def vent(m, data, reg, f, key):
+    g = VentGate([len(d) for d in data], len(reg), f, key)
+    m.qc.append(g, [q for d in data for q in d] + list(reg))
+
+
+def zfix(m, reg, key):
+    m.qc.append(ZFixGate(len(reg), key), list(reg))
+""")
+
+
+# --- Acts VII, VIII and XII: every optimisation of shor-complete.tex ---------------
+whole("rc_majuma.py", ("rc_adder.py", "_maj"), ("rc_adder.py", "_uma"))
+whole("rc_c_add_mod.py", ("rc_adder.py", "rc_add_const"), ("rc_adder.py", "rc_c_add_mod"))
+whole("lookup_ui.py", ("qrom.py", "_walk"), ("qrom.py", "lookup_ui"))
+whole("phase_fixup.py", ("qrom.py", "phase_fixup"))
+whole("add_quantum_mod.py", ("windowed.py", "add_quantum_mod"))
+whole("coset_add.py", ("coset.py", "add"))
+whole("cadd.py", ("ec_adders.py", "cadd"))
+abridged("moddbl_pm.py", SRC / "ec_approx.py", """
+def moddbl_pm(m, x, q, lsbs=None):
+    ...
+    u, f = pm
+    ctx, n = m.ctx, len(x)
+    ...
+    z = m.anc(1, "z")
+    xe = A.shift_up(x, z[0])                      # n+1 bits; xe[n] is the overflow
+    cp, sc = m.anc(lsbs, "cp"), m.anc(lsbs, "sc")
+    A.cadd_const(ctx, xe[n], Reg(list(xe[:lsbs])), f, cp, sc)
+    m.free(cp, sc)
+    ctx.cx(xe[0], xe[n])                          # clears the bit == subtracts 2^u
+    for i in range(n - 1, -1, -1):
+        ctx.swap(xe[i], xe[i + 1])
+""")
+whole("csa.py", ("ec_qcsa.py", "csa_compress"))
+abridged("kaliski_opt.py", SRC / "ec_kaliski_opt.py", """
+    cp, sc = m.anc(n, "cp"), m.anc(n, "sc")
+    A.csub(ctx, b[0], u, v, cp, sc)               # v -= u
+    m.free(cp, sc)
+    cp, sc = m.anc(W, "cp"), m.anc(W, "sc")
+    A.cadd(ctx, b[0], r, s, cp, sc)               # s += r   (plain, not mod p)
+    m.free(cp, sc)
+    _rot_down(ctx, v)                             # v /= 2
+    _rot_up(ctx, r)                               # r *= 2   (free: no reduction)
+""")
+whole("dialog_round.py", ("ec_eea.py", "dialog_round"))
+whole("bezout_replay.py", ("ec_eea.py", "bezout_replay"))
+abridged("jacobian.py", SRC / "ec_proj.py", """
+    Z1sq = A(n, "Z1sq"); _, b1 = m.step(sqr, Z1, Z1sq)                    # 1
+    U2 = A(n, "U2");     _, b2 = m.step(MU.modmul_const, m, Z1sq, x2, U2, p)   # 2
+    Z1cu = A(n, "Z1cu"); _, b3 = m.step(mul, Z1sq, Z1, Z1cu)              # 3
+    H = A(n, "H");       _, b4 = m.step(sub_into, U2, X1, H)              # 4
+    ...
+    T0 = A(n, "T0");     _, b12 = m.step(sub_into, Rsq, Hcu, T0)          # 12
+    _, b13 = m.step(sub_into, T0, twoV, X3)                        # 13  OUTPUT
+    T1 = A(n, "T1");     _, b14 = m.step(sub_into, V, X3, T1)             # 14
+    T2 = A(n, "T2");     _, b15 = m.step(mul, R, T1, T2)                  # 15
+    T3 = A(n, "T3");     _, b16 = m.step(mul, Y1, Hcu, T3)                # 16
+    _, b17 = m.step(sub_into, T2, T3, Y3)                          # 17  OUTPUT
+    _, b18 = m.step(mul, Z1, H, Z3)                                # 18  OUTPUT
+
+    # unwind everything but the three outputs.  Note T0 goes back via step 12,
+    # not step 13 -- step 13 wrote X3, which stays.
+    for body in (b16, b15, b14, b12, b11, b10, b9, b8, b7, b6, b5, b4, b3, b2, b1):
+        m.undo(body)
+""")
+abridged("windowed_padd.py", SRC / "ec_window.py", """
+    MA.is_nonzero(m, addr, c[0])                       # 1
+    _lookup(m, one[0], addr, x1, xs)                   # 2
+    _lookup(m, one[0], addr, y1, ys)
+    MA.modsub(m, x1, x2, p)                            # 3
+    MA.modsub(m, y1, y2, p)                            # 4
+    _lookup(m, one[0], addr, x1, xs)                   # 5
+    _lookup(m, one[0], addr, y1, ys)
+    E.inplace_div(m, x2, y2, p, iters)                 # 6  y2 <- y2 / x2
+    _lookup(m, one[0], addr, xx, x3s)                  # 7
+    MA.modadd(m, xx, x2, p)                            # 8
+    _lookup(m, one[0], addr, xx, x3s)                  # 9
+    _csub_square(m, c[0], y2, x2, p)                   # 10 if c: x2 -= y2^2
+    E.inplace_mul(m, x2, y2, p, iters)                 # 11 y2 <- y2 * x2
+    MA.cmodneg(m, c[0], x2, p)                         # 12 if c: x2 <- -x2
+    ...                                                # 13-17: add P back, unload
+""")
+abridged("modadd_pm_phase.py", SRC / "ec_approx.py", """
+    ax, ay = m.anc(1, "ax"), m.anc(1, "ay")
+    sc = m.anc(n, "sc")
+    A.add(ctx, x + ax, y + ay, sc)                   # ay = carry-out
+    m.free(sc)
+    cp, sc2 = m.anc(kappa, "cp"), m.anc(kappa, "sc2")
+    A.cadd_const(ctx, ay[0], Reg(list(y[:kappa])), f, cp, sc2)   # 2^u -> f
+    m.free(cp, sc2)
+    ...
+    def phase(qc, qs):
+        ...
+        qc.h(out)                                    # |->: the CNOT kicks back
+        A.lt_uint(Ctx(qc, "and"), top_bits(yy, delta), top_bits(xx, delta), out,
+                  anc[:delta])
+        ...
+    MB.mbu_flag(m, ay[0], list(x) + list(y), recompute, phase, nanc=delta + 1)
+""")
+abridged("signed.py", SRC / "ec_signedwin.py", """
+    for addr, table in zip(addrs, tables):
+        w = len(addr)
+        s, low = addr[w - 1], Reg(list(addr[:w - 1]), "l")
+        ctx.x(s)                                    # s <- [d < 0]
+        for q in low:
+            ctx.cx(s, q)                            # low <- l~, the |d| index
+        if prev is None:
+            neg(m, s, y2, p)                        # R <- -R when d < 0
+        else:
+            ps, plow = prev                         # close the last window and
+            ctx.cx(ps, s)                           # open this one: one negation,
+            neg(m, s, y2, p)                        # controlled by the XOR
+            ctx.cx(ps, s)
+            ...
+        W.windowed_point_add_cfg(m, low, x2, y2, table, p, cfg)
+        prev = (s, low)
+""")
+whole("cdkm_cadd.py", ("ec_space.py", "_cuma"), ("ec_space.py", "cdkm_cadd"))
+abridged("inc_borrowed.py", SRC / "ec_space.py", """
+def inc_borrowed(m, w, g):
+    ctx, k = m.ctx, len(w)
+    ...
+    cy = m.anc(1, "icy")
+    A.sub(ctx, Reg(g), Reg(list(w)), cy)
+    for q in g:
+        ctx.x(q)
+    A.sub(ctx, Reg(g), Reg(list(w)), cy)
+    for q in g:
+        ctx.x(q)
+    m.free(cy)
+""")
+whole("div3.py", ("ec_luo3.py", "div3"))
+abridged("carry_xor.py", SRC / "ec_cqadd.py", """
+    for k in range(K):                            # y_k in place, k < K
+        _flip(ctx, xs[k], _bit(d, k), ctrl)
+    for k in range(K - 1, 0, -1):                 # Q^{-1}: g_{k+1} ^= y_k g_k
+        ctx.ccx(xs[k], g[k - 1], g[k])
+    # P, k = 0: g_1 ^= d_0 ^ x_1 ^ y_0 (c_0 ^ d_0)
+    ...
+    for k in range(1, K):                         # P: g_{k+1} ^= x_k ^ x_{k+1} ^ y_k g_k
+        orig(k, g[k])
+        orig(k + 1, g[k])
+        ctx.ccx(xs[k], g[k - 1], g[k])
+    for k in range(1, K + 1):                     # w -> c: g_k ^= x_k
+        orig(k, g[k - 1])
+    for k in range(K):
+        _flip(ctx, xs[k], _bit(d, k), ctrl)
+""")
+abridged("census.py", SRC / "ec_opt.py", """
+    fired = set()
+    for inp in samples:
+        ...
+        for pos, (name, w) in enumerate(prog):
+            ...
+            elif name in ("ccx", "ecand"):
+                if bits[w[0]] & bits[w[1]]:
+                    fired.add(pos)
+                    bits[w[2]] ^= 1
+            ...
+    return fired
+""")
+abridged("boundary.py", SRC / "hier.py", """
+    def wrapper(*args, **kwargs):
+        ...
+        (ea, ek), qubits = sh
+        key = (label, ea, ek)
+        node = _CACHE.get(key)
+        if node is None:
+            node = _build(fn, label, key, args, kwargs, qubits, m)
+            ...
+            _CACHE[key] = node
+        anc = m.anc(node.n_anc, "h") if node.n_anc else []
+        m.qc.append(NodeGate(node), list(qubits) + list(anc))
+""")
+abridged("ladder.py", SRC / "shor_essentials.py", """
+    for i in range(t):                       # the ladder: t rungs
+        c_ua(qc, ctr[i], pow(A, 2**i, N), tgt, anc, sf[0], sf[1], N)
+""")
+whole("and_compute.py", ("qrom.py", "and_compute"))
+whole("and_uncompute.py", ("qrom.py", "and_uncompute"))
+abridged("nested.py", SRC / "nested.py", """
+    for i in range(0, len(e), we):
+        ei = list(e[i:i + we])
+        ne = len(ei)
+        kes = [pow(k, (2**i) * v, N) for v in range(2**ne)]
+        ...
+        for j in range(0, n, wm):
+            mi = A[j:j + wm]
+            addr = ei + list(mi)
+            table = [((kes[ad & ((1 << ne) - 1)] * (ad >> ne)) << j) % N
+                     for ad in range(1 << len(addr))]
+            lookup_ui(qc, one, addr, tmp[:n], table, anc[:len(addr)])
+            qc.append(madd, tmp[:n] + B + [sign, flag])
+            lookup_ui(qc, one, addr, tmp[:n], table, anc[:len(addr)])
+        ...                                       # A -= B * k_e^-1, the same way
+        A, B = B, A                               # relabelling swap -- free
+""")
+abridged("inplace_mul_short.py", SRC / "ec_eea.py", """
+    recs, u, v = dialog(m, x, q, iters)                  # 1: x -> dialog
+    clear_dialog_end(m, u, v)
+
+    s = m.anc(n, "bz")                                   # 2: replay onto (y, 0)
+    bezout_replay(m, y, s, recs, q, dbl, cadd)
+    for a, b in zip(y, s):                               # r is 0, s is the answer
+        m.ctx.swap(a, b)
+    m.free(s)
+    ...                                                  # 3: dialog -> x
+    for rec in reversed(recs):
+        m.emit_inverse(dialog_round, m, u2, v2, rec)
+    A.encode_const(m.ctx, u2, q)                         # and starts at u = q
+""")

@@ -1,0 +1,11 @@
+def and_compute(qc, a, b, t):
+    qc.h(t)
+    qc.t(t)
+    qc.cx(b, t)
+    qc.tdg(t)
+    qc.cx(a, t)
+    qc.t(t)
+    qc.cx(b, t)
+    qc.tdg(t)
+    qc.h(t)
+    qc.sdg(t)

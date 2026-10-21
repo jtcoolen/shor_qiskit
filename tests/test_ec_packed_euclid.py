@@ -5,11 +5,50 @@ from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 
 from _ec_util import ok, section
-from ec_packed_euclid import binary_divmod, rotate_word_if, shift_work2, swap_at
+from ec_packed_euclid import (binary_divmod, rotate_word_if, shift_work2,
+                              swap_at, xor_at)
 from ec_sim import Machine, run
 
 
 def main():
+    section("coherent indexed packed-word read")
+    for width in (2, 3, 4):
+        m = Machine("toffoli")
+        word = m.alloc(width, "word")
+        index = m.alloc((width - 1).bit_length(), "index")
+        output = m.alloc(1, "output")
+        xor_at(m, word, index, output[0])
+        for value in range(1 << width):
+            for address in range(1 << len(index)):
+                for initial in (0, 1):
+                    result = run(m, {word: value, index: address,
+                                     output: initial})
+                    expected = initial ^ ((value >> address) & 1
+                                          if address < width else 0)
+                    assert (result(word), result(index),
+                            result(output)) == (value, address, expected)
+        ok(f"width={width}: indexed read exact with out-of-range address")
+    m = Machine("and")
+    read_word, read_index = m.alloc(3, "word"), m.alloc(2, "index")
+    read_target = m.alloc(1, "target")
+    xor_at(m, read_word, read_index, read_target[0])
+    read_qc = QuantumCircuit(*m.qc.qregs)
+    read_qc.x(read_word[1])
+    for wire in read_index:
+        read_qc.h(wire)
+    read_qc.compose(m.qc, inplace=True)
+    amplitudes = np.asarray(Statevector.from_instruction(read_qc))
+    expected = np.zeros_like(amplitudes)
+    for address in range(4):
+        assignments = ((read_word, 2), (read_index, address),
+                       (read_target, int(address == 1)))
+        basis = sum(((number >> bit) & 1) << read_qc.find_bit(reg[bit]).index
+                    for reg, number in assignments for bit in range(len(reg)))
+        expected[basis] = 0.5
+    assert abs(np.vdot(amplitudes, expected)) > 1 - 1e-9
+    assert np.max(np.abs(amplitudes[expected == 0])) < 1e-9
+    ok("coherent indexed read preserves phase and clears selection scratch")
+
     section("coherent Work2 shifts with moving position counter")
     for direction, steps in (("left", 1), ("right", 1),
                              ("left", 2), ("right", 2)):

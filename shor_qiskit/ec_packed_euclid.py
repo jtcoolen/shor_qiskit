@@ -36,6 +36,27 @@ def swap_at(m, word, index, flag):
     m.free(selected)
 
 
+def xor_at(m, word, index, target):
+    """XOR an addressed packed-word bit into a separate target qubit.
+
+    Unlike ``swap_at`` this does not change the work word, so it can
+    temporarily select operands for a location-controlled comparison.
+    The caller must reverse the selection before modifying its source.
+    """
+    if (not word or not index or 1 << len(index) < len(word)
+            or len(set(word + index + [target]))
+            != len(word) + len(index) + 1):
+        raise ValueError("packed read needs distinct wires and a covering index")
+    for position, bit in enumerate(word):
+        for shift, address_bit in enumerate(index):
+            if not (position >> shift) & 1:
+                m.ctx.x(address_bit)
+        m.ctx.mcx((*index, bit), target)
+        for shift, address_bit in enumerate(index):
+            if not (position >> shift) & 1:
+                m.ctx.x(address_bit)
+
+
 def rotate_word_if(m, word, control, direction):
     """Conditionally rotate a packed work word by one physical wire.
 

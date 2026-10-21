@@ -1,0 +1,77 @@
+{
+  "rows": [
+    {
+      "p": 5,
+      "rounds": 4,
+      "exact_rounds": 5,
+      "units_tested": 4,
+      "failures": 3,
+      "failure_rate": 0.75,
+      "qubits": 50,
+      "toffoli_paper": 1691,
+      "depth": 3752,
+      "scope": "controlled inversion component with explicit failure wire"
+    },
+    {
+      "p": 5,
+      "rounds": 5,
+      "exact_rounds": 5,
+      "units_tested": 4,
+      "failures": 0,
+      "failure_rate": 0.0,
+      "qubits": 53,
+      "toffoli_paper": 2174,
+      "depth": 4720,
+      "scope": "controlled inversion component with explicit failure wire"
+    },
+    {
+      "p": 7,
+      "rounds": 5,
+      "exact_rounds": 6,
+      "units_tested": 6,
+      "failures": 2,
+      "failure_rate": 0.3333333333333333,
+      "qubits": 53,
+      "toffoli_paper": 2174,
+      "depth": 4733,
+      "scope": "controlled inversion component with explicit failure wire"
+    },
+    {
+      "p": 7,
+      "rounds": 6,
+      "exact_rounds": 6,
+      "units_tested": 6,
+      "failures": 0,
+      "failure_rate": 0.0,
+      "qubits": 54,
+      "toffoli_paper": 2563,
+      "depth": 5421,
+      "scope": "controlled inversion component with explicit failure wire"
+    },
+    {
+      "p": 11,
+      "rounds": 7,
+      "exact_rounds": 8,
+      "units_tested": 10,
+      "failures": 2,
+      "failure_rate": 0.2,
+      "qubits": 66,
+      "toffoli_paper": 5757,
+      "depth": 10597,
+      "scope": "controlled inversion component with explicit failure wire"
+    },
+    {
+      "p": 11,
+      "rounds": 8,
+      "exact_rounds": 8,
+      "units_tested": 10,
+      "failures": 0,
+      "failure_rate": 0.0,
+      "qubits": 67,
+      "toffoli_paper": 6530,
+      "depth": 11815,
+      "scope": "controlled inversion component with explicit failure wire"
+    }
+  ],
+  "note": "No truncated schedule is enabled in the affine oracle; component metrics are excluded from the full-oracle frontier."
+}

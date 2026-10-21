@@ -970,6 +970,19 @@ coefficient is reduced modulo $p$ only when copying out the inverse, before
 the same $2^{-t}$ correction and reverse cleanup. Thus this implements the
 arithmetic decoder, but does not reproduce the paper's packed layout,
 measurement-based erasure or 256-bit resource schedule.
+An optional \code{ec\_divsteps.mod\_inv(round\_limit=, failure=)} limits the
+signed arithmetic walk while retaining coherent, clean failure signaling.
+It emits a zero inverse and a separate failure flag for an unfinished step
+or an invalid field input (including zero and out-of-range values); the
+disabled control branch is still the identity. The schedule is \emph{not}
+selectable in the affine point adder, which would need an explicit failure
+contract for both divisions. Exhaustive toy-unit traces in
+\path{bench/ec_gu_schedule.json} count $3/4$, $2/6$, and $2/10$ failures at
+one step short of the exact $p=5,7,11$ schedules, respectively; the exact
+ceilings have zero toy-unit failures. These are \emph{controlled-inversion
+component} measurements and are excluded from the complete-oracle
+Pareto frontier. Fitted comparison windows, test-free quotient positions,
+truncated carries and a complete-oracle bounded-error run remain unbuilt.
 
 The following \emph{separate affine frontier} holds the complete ECDLP task
 fixed at $p=5$, order $3$, $k=2$, and two control bits per scalar. All five

@@ -124,18 +124,23 @@ def _round(m, z, f, g, fv, gv, p, record):
     ctx.cx(g[-2], g[-1])
 
 
-def _signed_width(p):
-    """Bound every intermediate signed coefficient on the exact toy domain."""
+def _signed_width(p, *, include_noncanonical=False, max_rounds=None):
+    """Bound signed intermediates over units or the bounded input domain."""
     largest = 1
-    for w in range(1, p):
+    stop = 1 << p.bit_length() if include_noncanonical else p
+    for w in range(1, stop):
         state = State(0, p, w, 0, 1)
+        count = 0
         while state.g:
+            if max_rounds is not None and count >= max_rounds:
+                break
             fv, gv = state.fv, state.gv
             if state.g & 1 and state.z >= 0:
                 fv, gv = gv, -fv
             largest = max(largest, abs(fv), abs(gv),
                           abs(gv + (state.g & 1) * fv), abs(2 * fv))
             state, _ = step(state)
+            count += 1
     return largest.bit_length() + 2
 
 
@@ -198,11 +203,14 @@ def _copy_signed_residue(m, signed, residue, p):
         MA.cmodadd_const(m, control, residue, weight, p)
 
 
-def mod_inv(m, x, out, p, ctrl=None, history="full"):
+def mod_inv(m, x, out, p, ctrl=None, history="full", *,
+            round_limit=None, failure=None):
     """XOR the exact inverse of nonzero x into out; clean every ancilla.
 
     Limited to toy primes: the fixed schedule is exhaustively determined at
     construction time, not inferred from a 256-bit paper failure budget.
+    A shorter arithmetic schedule requires a separate clean failure output:
+    unsuccessful branches produce out=0, failure=1 rather than a false inverse.
     """
     n = len(x)
     if (n != p.bit_length() or p < 3 or p > 127 or
@@ -211,11 +219,21 @@ def mod_inv(m, x, out, p, ctrl=None, history="full"):
     if history not in ("full", "decoded", "arithmetic"):
         raise ValueError(f"unknown divsteps history mode {history!r}")
     rounds = max(walk(w, p)[1] for w in range(1, p))
+    if round_limit is not None:
+        if (history != "arithmetic" or type(round_limit) is not int
+                or not 1 <= round_limit <= rounds
+                or failure is None or failure in x or failure in out
+                or failure == ctrl):
+            raise ValueError("bounded schedule requires arithmetic decoding, "
+                             "a clean distinct failure wire and 1..exact rounds")
+        rounds = round_limit
     width = n + 1
     z_width = (rounds + 1).bit_length() + 1
     z = m.anc(z_width, "z")
     f, g = m.anc(width, "f"), m.anc(width, "g")
-    coeff_width = _signed_width(p) if history == "arithmetic" else n
+    coeff_width = (_signed_width(p, include_noncanonical=round_limit is not None,
+                                 max_rounds=rounds)
+                   if history == "arithmetic" else n)
     max_depth = _max_depth(p) if history == "arithmetic" else None
     fv, gv = m.anc(coeff_width, "fv"), m.anc(coeff_width, "gv")
     A.encode_const(m.ctx, f, p, ctrl)
@@ -263,14 +281,59 @@ def mod_inv(m, x, out, p, ctrl=None, history="full"):
         for a, b in zip(fv, inverse):
             m.ctx.cx(a, b)
     correction = m.begin()
-    _cmodneg_small(m, f[-1], inverse, p, g[0])
+    _cmodneg_small(m, f[-1], inverse, p,
+                   None if round_limit is not None else g[0])
     # The terminated remainder is zero, so its wires can carry clean scratch.
     for record in reversed(records):
         m.emit_inverse(_cmoddbl_small, m, record[0][0], inverse, p,
-                       g[:3])
+                       None if round_limit is not None else g[:3])
     corrections = m.since(correction)
+    success = None
+    if round_limit is not None:
+        g_nonzero = m.anc(1, "unfinished")
+        MA.is_nonzero(m, g, g_nonzero[0])
+        geq, nz = m.anc(1, "out_of_range"), m.anc(1, "input_nonzero")
+        cp, sc = m.anc(n, "constant"), m.anc(n, "compare")
+        A.geq_const(m.ctx, x, p, geq[0], cp, sc)
+        MA.is_nonzero(m, x, nz[0])
+        m.ctx.x(nz[0])
+        invalid = m.anc(1, "invalid")
+        m.ctx.cx(geq[0], invalid[0])
+        m.ctx.cx(nz[0], invalid[0])
+        active_invalid = m.anc(1, "active_invalid")
+        if ctrl is None:
+            m.ctx.cx(invalid[0], active_invalid[0])
+        else:
+            m.ctx.and_(ctrl, invalid[0], active_invalid[0])
+        m.ctx.cx(g_nonzero[0], failure)
+        m.ctx.cx(active_invalid[0], failure)
+        m.ctx.ccx(g_nonzero[0], active_invalid[0], failure)
+        if ctrl is None:
+            m.ctx.cx(invalid[0], active_invalid[0])
+        else:
+            m.ctx.and_dg(ctrl, invalid[0], active_invalid[0])
+        m.free(active_invalid)
+        m.ctx.cx(nz[0], invalid[0])
+        m.ctx.cx(geq[0], invalid[0])
+        m.free(invalid)
+        m.ctx.x(nz[0])
+        MA.is_nonzero(m, x, nz[0])
+        A.geq_const(m.ctx, x, p, geq[0], cp, sc)
+        m.free(nz, geq, cp, sc)
+        MA.is_nonzero(m, g, g_nonzero[0])
+        m.free(g_nonzero)
+        success = m.anc(1, "success")
+        m.ctx.x(success[0])
+        m.ctx.cx(failure, success[0])
     for a, b in zip(inverse, out):
-        m.ctx.cx(a, b)
+        if success is None:
+            m.ctx.cx(a, b)
+        else:
+            m.ctx.ccx(success[0], a, b)
+    if success is not None:
+        m.ctx.cx(failure, success[0])
+        m.ctx.x(success[0])
+        m.free(success)
     m.undo(corrections)
     if history == "arithmetic":
         m.emit_inverse(_copy_signed_residue, m, fv, inverse, p)

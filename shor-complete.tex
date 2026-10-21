@@ -2449,6 +2449,55 @@ paper's Zenodo code was unavailable; only the loop3 startup lookup and
 $w_4=1$; ancilla-free Fourier arithmetic without vents; toy widths. It
 is not the CFS 2024/222 least-significant-bit algorithm.
 
+\code{rns\_cfs.py} is a separate toy of the \emph{least-significant-bit}
+multi-product of Chevignard, Fouque and Schrottenloher \cite{cfs24},
+Algorithm~1: $x\mapsto[[\prod_iA_i^{x_i}]_N]_{2^r}$. It uses the Eq.~(27)
+cofactors and the paper's register widths ($q_M$ on $u+\lceil\log_2q_M\rceil+1$
+bits with $u$ from Lemma~5, $Q_N$ on $u'+r$ bits with $u'$ from Heuristic~3).
+Residues follow Lemma~7: a sum of discrete logarithms, then a table of
+$g_p^S\bmod p$ indexed by $S$, never by $x$. The circuit is coherent with
+no measurement. The two right shifts address the high slice of a register,
+and the remaining low bits are cleared by Theorem~2's recompute-and-subtract
+pass, giving the $4|P|$ multi-product circuits of the paper's \S6.1. A
+register-exact classical mirror labels every failing input by its cause:
+$q_M$ wrong (Lemma~5) or $Q_N$ wrong (Heuristic~3). On all $64$ basis inputs
+the circuit equals that mirror, preserves $x$ and clears every scratch
+qubit. This holds for primes $(7,11,13,19)$ ($56$ qubits, no failures) and
+for $(3,5,7,11)$ ($48$ qubits, with $12$ Heuristic-3 and $4$ Lemma-5 output
+failures reproduced).
+
+The toy of the paper's Algorithm~2 (compressed Eker\aa--H\aa stad) factors
+$N=15$ with $G=2$, $r=2$ and $6$ exponent qubits. The $\beta$-compressed
+bit is computed into one qubit, and Res is cleared by running Algorithm~1
+in reverse. It runs in $57$ qubits on Aer's CPU matrix-product-state
+simulator, with $2000$ shots per mask $\beta\in\{1,2,3\}$. The total
+variation distance to the exact distribution is at most $0.028$. $P(0)$ is
+$0.625$, $0.625$ and $0.5$, within the Theorem~3 bound
+$\tfrac12+\varepsilon+\tfrac18\approx0.635$. Every nonzero shot is a good
+pair for $d=1$, and $d=1$ gives $P+Q=8$, hence $3\times5$
+(\code{bench/rns\_cfs\_toy.json}).
+
+Separately, and \emph{not} as Algorithm~2, a plain Shor order finder on the
+same compressed oracle recovers $\mathrm{ord}_{21}(2)=6$. It uses
+$m=5$ exponent bits, primes $(5,7,11,13,29)$ and $61$ qubits, with total
+variation distance $0.031$ and per-shot success $0.24$.
+
+Labelled deviations:
+\begin{itemize}
+\item a toy RNS with $M>\prod A_i$, instead of the Lemma~4 Hamming-weight
+  bound;
+\item primes dividing some $A_i$ are rejected rather than set aside;
+\item sequential sums instead of the Lemma~8/9 trees;
+\item a single-window lookup;
+\item CDKM adders, so gate counts are not the paper's Tables~3--5;
+\item the short logarithm $d$ is enumerated instead of the
+  Eker\aa--H\aa stad lattice reduction;
+\item $\beta$ is fixed per circuit;
+\item clearing Res by the inverse doubles the cost per run.
+\end{itemize}
+This verifies the CFS dataflow at toy size. It is not the paper's
+cryptographic-scale qubit count, and not Sec.~5.2's general-$N$ path.
+
 There is also a change of character worth stating plainly. Every other construction in this note is
 \emph{exact}, and its tests assert exact equality with ancillas provably clean. The coset
 representation is approximate by design, so its tests measure an error \emph{rate} against a
@@ -5036,6 +5085,11 @@ C.~Gidney, \emph{Approximate encoded permutations and piecewise quantum adders},
 C.~Gidney,
 \emph{Windowed quantum arithmetic},
 2019. \href{https://arxiv.org/abs/1905.07682}{arXiv:1905.07682}.
+\bibitem{cfs24}
+C.~Chevignard, P.-A.~Fouque and A.~Schrottenloher,
+\emph{Reducing the number of qubits in quantum factoring},
+CRYPTO 2025, LNCS pp.~384--415; IACR ePrint 2024/222.
+\href{https://eprint.iacr.org/2024/222}{eprint.iacr.org/2024/222}.
 
 \bibitem{nielsen-chuang}
 M.~A. Nielsen and I.~L. Chuang,

@@ -257,6 +257,12 @@ def facts():
     f["gu_p7_decoded_bits"] = p7_decoded["task"].rsplit("=", 1)[-1]
     f["gu_p7_decoded_tvd"] = f"{p7_decoded['tvd']:.3f}"
     f["gu_p7_decoded_bound"] = f"{p7_decoded['tvd_limit']:.3f}"
+    packed = next(row for row in GU_AFFINE["additional_validation"]
+                  if row["backend"] == "packed-euclid")
+    f["gu_p7_packed_width"] = packed["qubits"]
+    f["gu_p7_packed_bits"] = packed["task"].rsplit("=", 1)[-1]
+    f["gu_p7_packed_tvd"] = f"{packed['tvd']:.3f}"
+    f["gu_p7_packed_bound"] = f"{packed['tvd_limit']:.3f}"
     skipped = [row["label"] for row in GU_AFFINE["rows"]
                if row["tvd"] is None]
     skipped_names = " and ".join("\\code{" + label + "}" for label in skipped)

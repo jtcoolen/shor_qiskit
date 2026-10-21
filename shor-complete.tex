@@ -3126,6 +3126,8 @@ fault-tolerance overhead priced in Part~III's bill.
 
 
 
+
+
 \clearpage
 \part*{Part VII --- The other Shor: elliptic-curve discrete logarithms}
 \addcontentsline{toc}{part}{Part VII --- The other Shor: elliptic-curve discrete logarithms}
@@ -4512,6 +4514,28 @@ coefficient is reduced modulo $p$ only when copying out the inverse, before
 the same $2^{-t}$ correction and reverse cleanup. Thus this implements the
 arithmetic decoder, but does not reproduce the paper's packed layout,
 measurement-based erasure or 256-bit resource schedule.
+\code{packed-euclid} is a separate, genuinely packed Euclidean inversion:
+Luo et al.'s Algorithms~1--3 \cite{ec:luo26}, which realise Gu's SI~II.2 walk.
+Two $(n+3)$-qubit words, Work1 and Work2, hold the remainders, the partial
+quotient and the B\'ezout coefficients from opposite ends. Coherent length
+counters $\ell_t,\ell_q,\ell_{r'}$ and a shift counter $\ell_s$ locate
+the boundaries. Each of the $4\lceil1.5795\,n\rceil$ reversible steps does
+four things: it moves the shift boundary; it subtracts or adds the shifted
+divisor in the remainder interval and records the quotient bit; it applies
+the matching coefficient update to the prefix; and, when a quotient finishes,
+it swaps the words and rewrites the counters from the highest-one and
+right-length scans. The inverse is copied out with the parity-dependent sign,
+and the whole walk is uncomputed. A bit-position classical model reproduces
+Luo's Table~4 ($13^{-1}\bmod37$). It matches Luo's integer recurrence and
+gives exact inverses for every odd prime below $128$. The gate-level step
+equals the model on every reachable state for $p\le13$. Controlled inversion
+returns every ancilla to zero for every input. Counter widths are toy sized,
+justified by these exhaustive checks rather than by a proof. Gates are plain
+Toffolis with a borrowed-ancilla multi-control ladder, so the Toffoli count
+below is an unoptimised toy circuit, \emph{not} the paper's resource estimate.
+On the $p=7$ curve with $2$ control bits per scalar, the
+$57$-qubit packed-euclid ECDLP circuit recovers $k=4$
+(TVD $0.017$ against $0.041$).
 An optional \code{ec\_divsteps.mod\_inv(round\_limit=, failure=)} limits the
 signed arithmetic walk while retaining coherent, clean failure signaling.
 It emits a zero inverse and a separate failure flag for an unfinished step
@@ -4527,7 +4551,7 @@ Pareto frontier. Fitted comparison windows, test-free quotient positions,
 truncated carries and a complete-oracle bounded-error run remain unbuilt.
 
 The following \emph{separate affine frontier} holds the complete ECDLP task
-fixed at $p=5$, order $3$, $k=2$, and two control bits per scalar. All five
+fixed at $p=5$, order $3$, $k=2$, and two control bits per scalar. All six
 affine oracles pass every one of their $16$ arithmetic basis-state checks.
 On Aer CPU (limit $63$ qubits), the full-history divsteps circuit's $1\,024$-shot full superposition/QFT/measurement
 run on $60$
@@ -4555,6 +4579,7 @@ kaliski-opt & $71$ & $13\,336$ & $51\,421$ & not sampled & no\\
 divsteps & $60$ & $26\,872$ & $75\,109$ & TVD $0.032$ & yes\\
 divsteps-decoded & $52$ & $27\,064$ & $75\,505$ & TVD $0.032$ & yes\\
 divsteps-arithmetic & $63$ & $37\,912$ & $93\,097$ & TVD $0.032$ & no\\
+packed-euclid & $57$ & $3\,522\,984$ & $3\,524\,181$ & TVD $0.032$ & no\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -4562,8 +4587,10 @@ The p=5 affine task is not comparable with the p=7 windowed frontier above.
 The arithmetic decoder's extra signed registers and generic reversible
 integer products cost more on this toy task than the round-specific lookup;
 an exact arithmetic decoder alone is \emph{not} the paper's complete optimised
-divsteps implementation. The separate packed-Euclidean circuit, two-register
-layout, fused coordinate arithmetic and bounded-error 256-bit schedule remain
+divsteps implementation. The packed-euclid row needs fewer qubits than the
+full-history and arithmetic divsteps rows, but about a hundred times more
+Toffolis, because of its generic coherent addressing. Fused coordinate arithmetic, Gu's
+optimised packed gate schedule and the bounded-error 256-bit schedule remain
 unimplemented; no cryptographic-size resource claim follows. The $p=7$,
 two-bit signed-decoder complete oracle requires $64$ qubits, above this Aer
 CPU installation's $63$-qubit limit; its inverse, division and in-place point
@@ -5059,6 +5086,12 @@ A.~Gu, A.~H.~Kemeny, S.~F.~Yelin, and M.~D.~Lukin,
 \emph{Discovering state-of-the-art quantum circuits with large language models},
 arXiv:2610.22367, 2026.
 \url{https://arxiv.org/abs/2610.22367}.
+
+\bibitem{ec:luo26}
+H.~Luo, Z.~Yang, J.~Luo, Z.~Wang, Y.~Su, X.~Sun, L.~Li, and T.~Li,
+\emph{Quantum algorithm for elliptic curve discrete logarithms with
+space-efficient point addition}, arXiv:2607.13816, 2026.
+\url{https://arxiv.org/abs/2607.13816}.
 
 \bibitem{ec:babbush26}
 R.~Babbush, A.~Zalcman, C.~Gidney, M.~Broughton, T.~Khattar, H.~Neven, T.~Bergamaschi, J.~Drake,

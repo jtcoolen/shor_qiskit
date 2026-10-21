@@ -3128,6 +3128,7 @@ fault-tolerance overhead priced in Part~III's bill.
 
 
 
+
 \clearpage
 \part*{Part VII --- The other Shor: elliptic-curve discrete logarithms}
 \addcontentsline{toc}{part}{Part VII --- The other Shor: elliptic-curve discrete logarithms}
@@ -4507,9 +4508,16 @@ $\operatorname{bit}_{j-1}(g_v'(f_v'/2^j)^{-1}\bmod2^j)$ from
 Appendix~A, Eq.~(A11). Reversible truncated integer products include carries
 when computing this odd inverse; the computation and its work qubits are
 uncomputed after toggling the branch bit. This is a circuit over signed
-registers, \emph{not} a lookup of toy states. The toy-only maximum step count,
-signed width and needed valuation depths are exhaustively bounded by the
-chosen field; the active/frozen bit remains stored once per round. The signed
+registers, \emph{not} a lookup of toy states. The toy-only maximum step count and
+signed width are exhaustively bounded by the chosen field. The valuation
+window is fitted \emph{per round}: round $r$ only tests the depths $j$ that
+some toy input actually reaches there after an ambiguous nonswap. For
+$p=5,7,11$, these are $(1,1,2,2,1)$, $(1,1,2,2,1,1)$ and
+$(1,1,2,2,3,3,2,1)$, where $1$ means no Eq.~(A11) window. The same exhaustive
+inverse checks pass. This cuts the $p=5$ ECDLP oracle from $37{,}912$ to
+$32{,}248$ Toffolis. For $p=5$ every round sees both swap outcomes. In
+the final exact round for $p=7,11$, every active input swaps, but that round is
+not specialised. The active/frozen bit remains stored once per round. The signed
 coefficient is reduced modulo $p$ only when copying out the inverse, before
 the same $2^{-t}$ correction and reverse cleanup. Thus this implements the
 arithmetic decoder, but does not reproduce the paper's packed layout,
@@ -4547,8 +4555,18 @@ contract for both divisions. Exhaustive toy-unit traces in
 one step short of the exact $p=5,7,11$ schedules, respectively; the exact
 ceilings have zero toy-unit failures. These are \emph{controlled-inversion
 component} measurements and are excluded from the complete-oracle
-Pareto frontier. Fitted comparison windows, test-free quotient positions,
-truncated carries and a complete-oracle bounded-error run remain unbuilt.
+Pareto frontier. A bounded affine adder is blocked at toy scale.
+\path{bench/ec_gu_bounded_adder.json} traces both divisions of each
+controlled addition on the actual task. It models a clean contract in which a
+failed addition is skipped and its flag is kept and measured. At one step
+below exact, $32/32$ ($p=5$) and $20/32$ ($p=7$) task additions fail. The
+resulting distributions are $0.477$ and $0.438$ in TVD from the exact ones,
+against $4096$-shot bounds of $0.040$ and $0.041$. At the exact limit, it only
+adds failure logic to the default. The flag cannot be cleaned in place. The
+second division uncomputes $\lambda$, so the flag must cover both divisors
+before $P$ is overwritten. After a successful addition, recomputing it would
+need the opposite, negated divisors, which have different step counts. Truncated
+carries and test-free quotient positions are therefore not used.
 
 The following \emph{separate affine frontier} holds the complete ECDLP task
 fixed at $p=5$, order $3$, $k=2$, and two control bits per scalar. All six
@@ -4578,7 +4596,7 @@ kaliski & $67$ & $10\,976$ & $46\,911$ & not sampled & yes\\
 kaliski-opt & $71$ & $13\,336$ & $51\,421$ & not sampled & no\\
 divsteps & $60$ & $26\,872$ & $75\,109$ & TVD $0.032$ & yes\\
 divsteps-decoded & $52$ & $27\,064$ & $75\,505$ & TVD $0.032$ & yes\\
-divsteps-arithmetic & $63$ & $37\,912$ & $93\,097$ & TVD $0.032$ & no\\
+divsteps-arithmetic & $63$ & $32\,248$ & $85\,213$ & TVD $0.032$ & no\\
 packed-euclid & $57$ & $3\,522\,984$ & $3\,524\,181$ & TVD $0.032$ & no\\
 \bottomrule
 \end{tabular}

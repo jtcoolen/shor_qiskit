@@ -1,129 +1,168 @@
-"""Toy complete twisted-Edwards arithmetic in extended coordinates.
+"""Twisted Edwards curves and out-of-place extended-coordinate point addition
+-- [106] Sec 4.4 ("Extension to Ed25519"), Fig. 11, Table 4.
 
-Scope, stated first because it is easy to over-read
----------------------------------------------------
-This is a *toy* construction: the field is tiny (p = 5 or 13) so that every
-basis state can be simulated and the whole Shor circuit can be sampled on Aer.
-Its mixed addition uses the same seven products as Kim et al., ePrint 2026/106
-Sec 4.4, but selects each classical addend with controlled constant arithmetic,
-not the paper's three-register windowed QROM. It does not implement Ed25519-scale
-arithmetic, the paper's QCSA multiplier or its resource schedule.
+The curve
+---------
+    E_{a,d} :  a x^2 + y^2 = 1 + d x^2 y^2   over GF(p),
 
-Sources for the formulas
-------------------------
-* H. Hisil, K. K.-H. Wong, G. Carter, E. Dawson, "Twisted Edwards Curves
-  Revisited", ASIACRYPT 2008 -- extended coordinates (X : Y : Z : T) with
-  x = X/Z, y = Y/Z, T = XY/Z, and the a = -1 addition law below (the EFD names
-  it add-2008-hwcd-3).  It is complete when a is a square and d is not.
-* RFC 8032 Sec 5.1.4 states the same a = -1 extended addition for Ed25519
-  (p = 2^255 - 19, which is 1 mod 4 so a = -1 is a square, and d non-square).
-* Kim et al., ePrint 2026/106 Sec 4.4 and Fig. 11 use the same mixed
-  fixed-affine-addend formula and count three constant and four variable
-  products. Their windowed lookup selects (y-x, y+x, 2dxy).
+identity (0, 1), negation (x, y) -> (-x, y).  Ed25519 [BDL+12] is a = -1,
+d = -121665/121666 over p = 2^255 - 19, cofactor 8.  The unified law
 
-The law, for a = -1 and k = 2d:
+    (x1, y1) + (x2, y2) = ( (x1 y2 + y1 x2) / (1 + d x1 x2 y1 y2),
+                            (y1 y2 - a x1 x2) / (1 - d x1 x2 y1 y2) )
 
-    A = (Y1 - X1)(Y2 - X2)    B = (Y1 + X1)(Y2 + X2)
-    C = k T1 T2               D = 2 Z1 Z2
-    E = B - A   F = D - C   G = D + C   H = B + A
-    X3 = E F    Y3 = G H    T3 = E H    Z3 = F G
+is *complete* when a is a square and d is not [BL07, BBJ+08 Thm 3.3]: the
+denominators never vanish, so one formula covers the identity, doubling and
+P + (-P).  That is the structural difference from `ec_proj`, whose Jacobian
+formulas break at H = 0.
 
-Why Edwards is interesting for Shor
------------------------------------
-The affine Weierstrass adders in `ec_pointadd`/`ec_window` exclude doubling,
-inverses and the point at infinity, so `ec_shor` must search for a "safe"
-offset and refuses instances where the control registers cover the whole
-subgroup.  The law above has *no* exceptional inputs (identity (0, 1) is an
-ordinary point), so this circuit runs the full-group toy instance with no
-offset at all.
+Extended coordinates [HWCD08]
+-----------------------------
+(X : Y : Z : T) with x = X/Z, y = Y/Z, T = XY/Z.  For a = -1, "add-2008-hwcd-3":
 
-What the reversible circuit does, and what it costs
----------------------------------------------------
-`ext_add_ctrl` is an *out-of-place* controlled addition of a classical point
-R.  The addend is (ctrl ? R : identity); its affine constants (y-x, y+x, kxy)
-are never loaded into qubits -- `_mul_sel` multiplies by "ctrl ? c1 : c0"
-directly (Horner doubling plus (controlled) constant additions).  The input
-registers are rewritten in place (Y1 - X1, Y1 + X1, then 2 Z1 = D), three
-n-bit products A, B, C are formed by `_mul_sel` and turned in place into E, H,
-G and F, the outputs X3, Y3, Z3 (and optionally T3) are multiplied out, and
-the whole body is then undone, so the input comes back unchanged and every scratch qubit is clean.
-The input (X1 : Y1 : Z1 : T1) itself cannot be cleared by this call:
-projective coordinates are not unique, so the input is *retained* -- 4n qubits
-per addition (the same "G" accounting as `ec_proj`).
+    A = (Y1 - X1)(Y2 - X2)   B = (Y1 + X1)(Y2 + X2)   C = T1 * 2d * T2
+    D = 2 Z1 Z2              E = B - A    F = D - C    G = D + C    H = B + A
+    X3 = E F     Y3 = G H     Z3 = F G     T3 = E H
 
-`ecdlp_oracle` offers two ways of dealing with that retained input:
+8 multiplications and one by the constant 2d.  [106] Sec 4.4 uses the mixed
+form (classical addend, Z2 = 1, T2 = x2 y2): the addend enters only through
+(y2 - x2, y2 + x2, 2d x2 y2) -- its affine Niels form -- and D = 2 Z1 is an
+addition.  7 multiplications, against 11 for Weierstrass Alg. 4.
 
-* style="bennett" runs every extended addition forward, normalises the last
-  accumulator to canonical affine (x, y) = (X/Z, Y/Z) with a Fermat inversion
-  Z^(p-2), and runs the additions backwards.  It is cheaper in gates, but
-  2m * 4n retained qubits are live at the peak (117 qubits for the p = 5 toy,
-  above the 63-qubit Aer limit).
-* style="inplace" (the default) does each addition affine -> affine:
-  `affine_add_ctrl` computes affine(P + R) out of place via one extended
-  addition and normalisation, then runs the inverse of the "+(-R)" map on the
-  new point to clear the old (x, y).  Nothing is retained, so the p = 5 toy
-  needs 54 qubits and the whole Shor circuit is sampled on Aer, at roughly
-  2.5x the gate count.
+The circuit ([106] Fig. 11)
+---------------------------
+     1  S  = Y1 - X1          6  D  = 2 Z1  (2 Z1 Z2 for a quantum addend)
+     2  Y1 = Y1 + X1          7  E  = B - A
+     3  A  = S  (y2 - x2)     8  A  = A + B   (= H, in place)
+     4  B  = Y1 (y2 + x2)     9  F  = D - C
+     5  C  = T1 (2d x2 y2)   10  C  = C + D   (= G, in place)
+    11-14  X3 = E F,  Y3 = G H,  Z3 = F G,  T3 = E H
 
-Both styles are reported in bench/ec_edwards_toy.json; neither dominates.
+The figure leaves S, Y1 + X1 and A..F behind; here steps 1-10 are recorded and
+unwound once the outputs exist (their inputs are all still live), so as in
+`ec_proj` the only garbage is the 4n-qubit input point.  Uncompute costs the
+three products A, B, C -- 7 + 3 multiplications per addition, against 11 + 10
+for `ec_proj.jacobian_add`, and 7n intermediates against 15n.
+
+Variants: the addend classical (`edwards_add_const`, the analogue of
+`jacobian_add`), looked up ([106]: "we load (y2 - x2), (y2 + x2), and 2dx2y2
+from the quantum lookup table" -- `edwards_add_niels`, `edwards_add_window`),
+controlled (`edwards_add_const_ctrl`), or a second quantum point in extended
+coordinates (`edwards_add`, full hwcd-3).  Completeness pays twice in Shor: a
+window's i = 0 entry is the identity, Niels (1, 1, 0), with no offset and no
+special case, and a controlled addition is just an addition of either P or O.
+
+The circuits hardcode a = -1 (H = B + A).  An a = 1 curve with p = 1 mod 4 is
+the a = -1 curve with d -> -d under x -> sqrt(-1) x; `to_a_minus_1` does that.
+
+Weierstrass
+-----------
+E_{a,d} is birational to the Montgomery curve B v^2 = u^3 + A u^2 + u with
+A = 2(a + d)/(a - d), B = 4/(a - d) [BBJ+08 Thm 3.2], u = (1 + y)/(1 - y),
+v = u/x; and that to a short Weierstrass curve by u = B t - A/3, v = B w.
+When d/a is not a square, E(F_p) has no points at infinity and the map is a
+group isomorphism onto the Weierstrass group: (0, 1) -> O, (0, -1) -> the
+point of order 2.  [106] uses this ([MS16]) to run its in-place affine
+addition on an Edwards instance; here it lets an Edwards ECDLP be checked
+against the Weierstrass machinery in `ec_classical`.
+
+Sources
+    [106]    Kim et al., eprint 2026/106, Sec 4.4
+    [HWCD08] Hisil, Wong, Carter, Dawson, Twisted Edwards curves revisited,
+             Asiacrypt 2008
+    [BBJ+08] Bernstein, Birkner, Joye, Lange, Peters, Twisted Edwards curves,
+             Africacrypt 2008
+    [BL07]   Bernstein, Lange, Faster addition and doubling on elliptic
+             curves, Asiacrypt 2007
+    [BDL+12] Bernstein, Duif, Lange, Schwabe, Yang, High-speed high-security
+             signatures, JCEN 2012 (Ed25519); parameters as in RFC 8032
+    [MS16]   Moody, Shumow, Analogues of Velu's formulas for isogenies on
+             alternate models of elliptic curves, Math. Comp. 2016
 """
-
-import math
-
-from qiskit.circuit import ClassicalRegister, QuantumCircuit
 
 import ec_modarith as MA
 import ec_mult as MU
-from ec_sim import Machine
+from ec_classical import O as W_INF, Curve, Point
+from qrom import lookup_ui
 
 
 # =============================================================================
-# Classical curve
+# Field helpers
 # =============================================================================
-def _is_square(a, p):
-    a %= p
-    return a == 0 or pow(a, (p - 1) // 2, p) == 1
+def _is_square(v, p):
+    v %= p
+    return v == 0 or pow(v, (p - 1) // 2, p) == 1
 
 
-class EdwardsCurve:
-    """-x^2 + y^2 = 1 + d x^2 y^2 over GF(p), complete: p = 1 mod 4, d non-square.
+def _sqrt_mod(v, p):
+    """A square root of v mod p (Tonelli-Shanks), or None."""
+    v %= p
+    if v == 0:
+        return 0
+    if not _is_square(v, p):
+        return None
+    q, s = p - 1, 0
+    while q % 2 == 0:
+        q, s = q // 2, s + 1
+    z = 2
+    while _is_square(z, p):
+        z += 1
+    mm, c, t, r = s, pow(z, q, p), pow(v, q, p), pow(v, (q + 1) // 2, p)
+    while t != 1:
+        i, t2 = 0, t
+        while t2 != 1:
+            t2, i = t2 * t2 % p, i + 1
+        b = pow(c, 1 << (mm - i - 1), p)
+        mm, c, t, r = i, b * b % p, t * b * b % p, r * b % p
+    return r
 
-    Points are affine tuples (x, y); the identity is (0, 1).
+
+# =============================================================================
+# The curve, in affine and extended coordinates
+# =============================================================================
+class TwistedEdwards:
+    """a x^2 + y^2 = 1 + d x^2 y^2 over GF(p), p an odd prime > 3.
+
+    Points are `ec_classical.Point`s; `inf` is never set -- the identity is the
+    affine point (0, 1).
     """
 
-    a = -1
+    def __init__(self, p, a, d, name=""):
+        a, d = a % p, d % p
+        assert a and d and a != d, "degenerate twisted Edwards curve"
+        self.p, self.a, self.d, self.name = p, a, d, name
 
-    def __init__(self, p, d, name=""):
-        if p < 5 or any(p % q == 0 for q in range(2, int(p**0.5) + 1)):
-            raise ValueError("p must be an odd prime >= 5")
-        if p % 4 != 1:
-            raise ValueError("a = -1 must be a square: need p = 1 mod 4")
-        if _is_square(d, p):
-            raise ValueError("d must be a non-square for a complete law")
-        self.p, self.d, self.name = p, d % p, name
-        self.k = 2 * self.d % p
-        self.identity = (0, 1)
+    @property
+    def identity(self):
+        return Point(0, 1)
 
-    # --- affine group law ----------------------------------------------------
-    def on_curve(self, P):
-        x, y = P
-        p = self.p
-        return (-x * x + y * y - 1 - self.d * x * x * y * y) % p == 0
+    def complete(self):
+        """a square, d non-square: the unified law has no exceptions."""
+        return _is_square(self.a, self.p) and not _is_square(self.d, self.p)
 
-    def add(self, P, Q):
-        """The unified affine law.  Denominators never vanish (completeness)."""
-        (x1, y1), (x2, y2) = P, Q
-        p, t = self.p, self.d * x1 * x2 * y1 * y2
-        x3 = (x1 * y2 + y1 * x2) * pow(1 + t, -1, p) % p
-        y3 = (y1 * y2 + x1 * x2) * pow(1 - t, -1, p) % p
-        return (x3, y3)
+    def is_on_curve(self, P):
+        p, x, y = self.p, P.x, P.y
+        return not P.inf and (self.a * x * x + y * y - 1 - self.d * x * x * y * y) % p == 0
 
     def neg(self, P):
-        return ((-P[0]) % self.p, P[1])
+        return Point((-P.x) % self.p, P.y)
+
+    def add(self, P, Q):
+        """The unified affine law.  Raises only if the curve is not complete."""
+        p = self.p
+        t = self.d * P.x * Q.x * P.y * Q.y % p
+        dx, dy = (1 + t) % p, (1 - t) % p
+        if dx == 0 or dy == 0:
+            raise ZeroDivisionError("exceptional pair: this curve is not complete")
+        x3 = (P.x * Q.y + P.y * Q.x) * pow(dx, -1, p) % p
+        y3 = (P.y * Q.y - self.a * P.x * Q.x) * pow(dy, -1, p) % p
+        return Point(x3, y3)
 
     def mul(self, k, P):
-        R, Q = self.identity, P
-        k %= self.point_order(P)
+        """[k]P by double-and-add.  k < 0 negates.  No special cases needed."""
+        if k < 0:
+            k, P = -k, self.neg(P)
+        R, Q = self.identity, Point(P.x, P.y)
         while k:
             if k & 1:
                 R = self.add(R, Q)
@@ -132,386 +171,391 @@ class EdwardsCurve:
         return R
 
     def points(self):
-        p = self.p
-        return [(x, y) for x in range(p) for y in range(p)
-                if self.on_curve((x, y))]
+        """Every point. Toy p only -- O(p^2) work."""
+        return [Point(x, y) for x in range(self.p) for y in range(self.p)
+                if self.is_on_curve(Point(x, y))]
 
     def point_order(self, P):
-        n, R = 1, P
+        n, R = 1, Point(P.x, P.y)
         while R != self.identity:
             R, n = self.add(R, P), n + 1
         return n
 
-    # --- extended coordinates ------------------------------------------------
-    def to_ext(self, P, lam=1):
-        """(lam x : lam y : lam : lam x y), a representative of P."""
-        x, y = P
+    def recover_x(self, y, odd=0):
+        """The x with (x, y) on the curve and x = odd (mod 2), or None."""
         p = self.p
-        lam %= p
-        if lam == 0:
-            raise ValueError("lambda must be non-zero")
-        return (lam * x % p, lam * y % p, lam, lam * x * y % p)
+        den = (self.d * y * y - self.a) % p
+        if den == 0:
+            return None
+        x = _sqrt_mod((y * y - 1) * pow(den, -1, p), p)
+        if x is None:
+            return None
+        return x if x % 2 == odd or x == 0 else p - x
 
-    def ext_valid(self, E):
-        X, Y, Z, T = E
+    # --- extended coordinates [HWCD08] ---------------------------------------
+    def to_extended(self, P, lam=1):
+        """(x, y) -> (lam x : lam y : lam : lam x y), any lam != 0."""
         p = self.p
-        return (Z % p != 0 and (X * Y - Z * T) % p == 0
-                and self.on_curve(self.from_ext(E)))
+        assert lam % p
+        return (lam * P.x % p, lam * P.y % p, lam % p, lam * P.x * P.y % p)
 
-    def from_ext(self, E):
-        X, Y, Z, _ = E
-        zi = pow(Z, -1, self.p)
-        return (X * zi % self.p, Y * zi % self.p)
-
-    def ext_add(self, E1, E2):
-        """HWCD 2008 / RFC 8032 Sec 5.1.4 extended addition for a = -1."""
-        X1, Y1, Z1, T1 = E1
-        X2, Y2, Z2, T2 = E2
+    def from_extended(self, X, Y, Z, T):
         p = self.p
-        A = (Y1 - X1) * (Y2 - X2) % p
-        B = (Y1 + X1) * (Y2 + X2) % p
-        C = self.k * T1 * T2 % p
-        D = 2 * Z1 * Z2 % p
-        E, F, G, H = (B - A) % p, (D - C) % p, (D + C) % p, (B + A) % p
-        return (E * F % p, G * H % p, F * G % p, E * H % p)
+        assert Z % p, "Z = 0 is not a point"
+        zi = pow(Z, -1, p)
+        return Point(X * zi % p, Y * zi % p)
 
-    def addend_constants(self, R):
-        """(Y2 - X2, Y2 + X2, k T2) for the affine point R with Z2 = 1."""
-        x, y = R
-        p = self.p
-        return ((y - x) % p, (y + x) % p, self.k * x * y % p)
+    def on_curve_extended(self, X, Y, Z, T):
+        """(aX^2 + Y^2) Z^2 = Z^4 + d X^2 Y^2 and XY = ZT, Z != 0."""
+        p, a, d = self.p, self.a, self.d
+        return (Z % p != 0
+                and (X * Y - Z * T) % p == 0
+                and ((a * X * X + Y * Y) * Z * Z - Z**4 - d * X * X * Y * Y) % p == 0)
 
-    # --- the birationally equivalent short Weierstrass curve -----------------
-    def weierstrass(self):
-        """(a_W, b_W, map) for y^2 = x^3 + a_W x + b_W, via Montgomery form.
+    def add_extended(self, P1, P2):
+        """The unified law on (X, Y, Z, T) tuples: hwcd-3 if a = -1, else hwcd."""
+        if self.a == self.p - 1:
+            return ext_add_ref(self, P1, P2)
+        return ext_add_general_ref(self, P1, P2)
 
-        Edwards (x, y) -> Montgomery u = (1 + y)/(1 - y), v = u / x with
-        A = 2(a + d)/(a - d), B = 4/(a - d); then X = u/B + A/(3B), Y = v/B.
-        Identity -> infinity (returned as None), (0, -1) -> the 2-torsion point.
+    def niels(self, P):
+        """(y - x, y + x, 2d x y): the three values [106] looks up per window."""
+        return niels_const(P.x, P.y, self.p, self.d)
+
+    # --- a = 1 -> a = -1 ----------------------------------------------------
+    def to_a_minus_1(self):
+        """(curve with a' = -a, d' = -d, and x -> sqrt(-1) x) -- needs p = 1 mod 4.
+
+        a x^2 + y^2 = 1 + d x^2 y^2 with x = i x' is -a x'^2 + y^2 = 1 - d x'^2
+        y^2.  The circuits hardcode a = -1, so this is how an a = 1 curve is run.
         """
-        p, a, d = self.p, self.a % self.p, self.d
-        inv = lambda z: pow(z % p, -1, p)
-        A = 2 * (a + d) * inv(a - d) % p
-        B = 4 * inv(a - d) % p
-        aw = (3 - A * A) * inv(3 * B * B) % p
-        bw = (2 * A**3 - 9 * A) * inv(27 * B**3) % p
+        p = self.p
+        i = _sqrt_mod(-1, p)
+        assert i is not None, "needs p = 1 mod 4"
+        E2 = TwistedEdwards(p, -self.a, -self.d, self.name + "-twisted")
+        ii = pow(i, -1, p)
+        return E2, (lambda P: Point(P.x * ii % p, P.y)), (lambda P: Point(P.x * i % p, P.y))
 
-        def to_w(P):
-            x, y = P
-            if P == self.identity:
-                return None
-            if x == 0:                       # (0, -1): Montgomery (0, 0)
-                u, v = 0, 0
-            else:
-                u = (1 + y) * inv(1 - y) % p
-                v = u * inv(x) % p
-            return ((u * inv(B) + A * inv(3 * B)) % p, v * inv(B) % p)
+    # --- birational maps: Montgomery and short Weierstrass [BBJ+08] ---------
+    def montgomery(self):
+        """(A, B) of B v^2 = u^3 + A u^2 + u."""
+        p, a, d = self.p, self.a, self.d
+        inv = pow(a - d, -1, p)
+        return 2 * (a + d) * inv % p, 4 * inv % p
 
-        return aw, bw, to_w
+    def to_montgomery(self, P):
+        p = self.p
+        if P == self.identity:
+            return W_INF
+        if P.x == 0:                        # (0, -1), order 2
+            return Point(0, 0)
+        u = (1 + P.y) * pow(1 - P.y, -1, p) % p
+        return Point(u, u * pow(P.x, -1, p) % p)
+
+    def from_montgomery(self, M):
+        p = self.p
+        if M.inf:
+            return self.identity
+        if M.y == 0:
+            assert M.x == 0, "a point at infinity of E: d/a is a square"
+            return Point(0, p - 1)
+        return Point(M.x * pow(M.y, -1, p) % p,
+                     (M.x - 1) * pow(M.x + 1, -1, p) % p)
+
+    def weierstrass(self):
+        """The short Weierstrass curve t^3 + a' t + b' birational to this one."""
+        p = self.p
+        A, B = self.montgomery()
+        aw = (3 - A * A) * pow(3 * B * B, -1, p) % p
+        bw = (2 * A**3 - 9 * A) * pow(27 * B**3, -1, p) % p
+        return Curve(p, aw, bw, (self.name or "edwards") + "-weierstrass")
+
+    def to_weierstrass(self, P):
+        M = self.to_montgomery(P)
+        if M.inf:
+            return W_INF
+        p = self.p
+        A, B = self.montgomery()
+        Bi = pow(B, -1, p)
+        return Point((M.x + A * pow(3, -1, p)) * Bi % p, M.y * Bi % p)
+
+    def from_weierstrass(self, W):
+        if W.inf:
+            return self.identity
+        p = self.p
+        A, B = self.montgomery()
+        return self.from_montgomery(Point((B * W.x - A * pow(3, -1, p)) % p, B * W.y % p))
+
+    def __repr__(self):
+        return f"TwistedEdwards({self.name}: p={self.p}, a={self.a}, d={self.d})"
 
 
-# Toy instances: both have 8 points and a cyclic group ((1, 2) and (6, 4)
-# generate).  EDW5 is the one small enough (n = 3) for the Aer run.
-EDW5 = EdwardsCurve(5, 3, "edwards-p5-d3")
-EDW13 = EdwardsCurve(13, 11, "edwards-p13-d11")
+def niels_const(x, y, p, d):
+    """Affine Niels form of (x, y): (y - x, y + x, 2 d x y) mod p."""
+    return (y - x) % p, (y + x) % p, 2 * d * x * y % p
 
 
-def generator(curve):
-    """A point of maximal order; ties go to the lexicographically lowest."""
-    return max(curve.points(),
-               key=lambda P: (curve.point_order(P), -P[0], -P[1]))
+NIELS_IDENTITY = (1, 1, 0)        # niels_const(0, 1, ...) for every p, d
 
 
-# =============================================================================
-# Reversible arithmetic
-# =============================================================================
-def _xor_const(ctx, reg, value, ctrl=None):
-    for i, q in enumerate(reg):
-        if (value >> i) & 1:
-            if ctrl is None:
-                ctx.x(q)
-            else:
-                ctx.cx(ctrl, q)
+def niels_window(curve, base, w):
+    """[i] base in Niels form, i = 0 .. 2^w - 1.
 
-
-def _mul_sel(m, ctrl, x, k1, k0, z, p):
-    """z (|0>) <- (k1 if ctrl else k0) * x mod p, for classical k1, k0.
-
-    Horner over the bits of the two constants: one modular doubling per bit,
-    then x is added unconditionally where both constants have a 1, under ctrl
-    where only k1 does, and under NOT ctrl where only k0 does.  This is how the
-    classical addend (ctrl ? R : identity) enters the circuit -- no register is
-    loaded with it, and it costs bitlen + popcount(k1 | k0) modular additions
-    instead of a full n-bit multiplication.  ctrl=None means k1 always.
+    Entry 0 is the identity, (1, 1, 0) -- no offset needed, unlike
+    `ec_classical.window_table` for Weierstrass, where [0] base = O has no
+    affine encoding and every other entry must dodge the exceptional cases.
     """
-    k1 %= p
-    k0 = k1 if ctrl is None else k0 % p
-    for i in reversed(range(max(k1, k0).bit_length())):
-        MA.moddbl(m, z, p)
-        b1, b0 = (k1 >> i) & 1, (k0 >> i) & 1
-        if b1 and b0:
-            MA.modadd(m, x, z, p)
-        elif b1:
-            MA.cmodadd(m, ctrl, x, z, p)
-        elif b0:
-            m.ctx.x(ctrl)
-            MA.cmodadd(m, ctrl, x, z, p)
-            m.ctx.x(ctrl)
+    out, acc = [], curve.identity
+    for _ in range(1 << w):
+        out.append(curve.niels(acc))
+        acc = curve.add(acc, base)
+    return out
 
 
-def ext_add_ctrl(m, ctrl, P1, R, curve, P3):
-    """P3 (|0>) <- P1 + (R if ctrl else identity), extended coordinates.
+# --- toy instances ------------------------------------------------------------
+# All have a square and d non-square (complete).  p = 1 mod 4 throughout, so
+# a = -1 is a square; the a = 1 curves exercise the general law.  Orders:
+# 20 = 4*5, 24 = 8*3, 28 = 4*7, 40 = 8*5, 44 = 4*11, 44 = 4*11.
+ED13 = TwistedEdwards(13, -1, 6, "ed-p13")         # n = 4 bits, the quantum test curve
+ED17 = TwistedEdwards(17, -1, 7, "ed-p17")         # n = 5, cofactor 8 like Ed25519
+ED_TOY = [
+    ED13,
+    ED17,
+    TwistedEdwards(29, -1, 2, "ed-p29"),
+    TwistedEdwards(29, 1, 2, "ed-p29-a1"),
+    TwistedEdwards(37, -1, 14, "ed-p37"),
+    TwistedEdwards(37, 1, 15, "ed-p37-a1"),
+]
 
-    P1 = (X1, Y1, Z1, T1) is the retained input: it is transformed in place to
-    hold the HWCD intermediates and restored before returning.  P3 is
-    (X3, Y3, Z3, T3); T3 may be None when the caller only needs (X:Y:Z).
-    `ctrl` may be None for an unconditional addition.  Scratch (A, B, C and the
-    adders' carries) is returned to |0> and freed with a cleanliness check.
+# --- Ed25519 [BDL+12], RFC 8032 Sec 5.1 -----------------------------------------
+ED25519_P = 2**255 - 19
+ED25519 = TwistedEdwards(ED25519_P, -1, -121665 * pow(121666, -1, ED25519_P), "ed25519")
+ED25519_L = 2**252 + 27742317777372353535851937790883648493     # prime subgroup order
+ED25519_H = 8                                                   # cofactor
+ED25519_B = Point(
+    15112221349535400772501151409588531511454012693041857206046113283949847762202,
+    46316835694926478169428394003475163141307993866256225615783033603165251855960)
 
-    Register life, all in place:
-        Y1 -> Y1 - X1,  X1 -> Y1 + X1                    (u, v)
-        A = u a2,  B = v b2,  C = T1 c2                   (selected constants)
-        Z1 -> 2 Z1 = D
-        B -> B - A = E,  A -> 2A + E = H
-        C -> C + D = G,  Z1 -> 2D - G = F
-    then X3 = E F, Y3 = G H, Z3 = F G, T3 = E H, and the block is undone.
+
+# =============================================================================
+# Reference formulas -- the specifications of the circuits below
+# =============================================================================
+def ext_add_ref(curve, P1, P2):
+    """add-2008-hwcd-3 [HWCD08], a = -1: 8 multiplications + 1 by k = 2d.
+
+    P1, P2, and the result are (X, Y, Z, T) tuples.  The spec of `edwards_add`.
     """
     p = curve.p
-    n = len(P1[0])
+    assert curve.a == p - 1, "hwcd-3 is the a = -1 formula"
     X1, Y1, Z1, T1 = P1
-    X3, Y3, Z3, T3 = P3
-    on = curve.addend_constants(R)
-    off = curve.addend_constants(curve.identity)           # (1, 1, 0)
-    mark = m.begin()
-
-    MA.modsub(m, X1, Y1, p)                                # Y1 = u
-    MA.moddbl(m, X1, p)
-    MA.modadd(m, Y1, X1, p)                                # X1 = v
-    A, B, C = m.anc(n, "A"), m.anc(n, "B"), m.anc(n, "C")
-    _mul_sel(m, ctrl, Y1, on[0], off[0], A, p)
-    _mul_sel(m, ctrl, X1, on[1], off[1], B, p)
-    _mul_sel(m, ctrl, T1, on[2], off[2], C, p)
-    MA.moddbl(m, Z1, p)                                    # Z1 = D
-    MA.modsub(m, A, B, p)                                  # B = E
-    MA.moddbl(m, A, p)
-    MA.modadd(m, B, A, p)                                  # A = H
-    MA.modadd(m, Z1, C, p)                                 # C = G
-    MA.moddbl(m, Z1, p)
-    MA.modsub(m, C, Z1, p)                                 # Z1 = F
-    body = m.since(mark)
-
-    E, F, G, H = B, Z1, C, A
-    MU.modmul(m, E, F, X3, p)
-    MU.modmul(m, G, H, Y3, p)
-    MU.modmul(m, F, G, Z3, p)
-    if T3 is not None:
-        MU.modmul(m, E, H, T3, p)
-
-    m.undo(body)
-    m.free(C, B, A)
+    X2, Y2, Z2, T2 = P2
+    A = (Y1 - X1) * (Y2 - X2) % p
+    B = (Y1 + X1) * (Y2 + X2) % p
+    C = T1 * 2 * curve.d * T2 % p
+    D = Z1 * 2 * Z2 % p
+    E, F, G, H = (B - A) % p, (D - C) % p, (D + C) % p, (B + A) % p
+    return E * F % p, G * H % p, F * G % p, E * H % p
 
 
-def fermat_inverse_chain(m, Z, p):
-    """Registers computing Z^(p-2) by square-and-multiply; returns (zinv, regs).
+def ext_madd_ref(curve, P1, x2, y2):
+    """[106] Sec 4.4 mixed addition, (X1:Y1:Z1:T1) + (x2, y2): 7 multiplications.
 
-    All returned registers are scratch the caller must uncompute (the chain is
-    garbage-producing by design; `ext_to_affine` undoes it).
+    The spec of `edwards_add_const`; with the Niels triple looked up, of
+    `edwards_add_niels`.
     """
-    e = p - 2
-    acc, regs = Z, []
-    for bit in bin(e)[3:]:
-        sq = m.anc(len(Z), "zsq")
-        MU.modsqr(m, acc, sq, p)
-        regs.append(sq)
-        acc = sq
-        if bit == "1":
-            pr = m.anc(len(Z), "zmul")
-            MU.modmul(m, acc, Z, pr, p)
-            regs.append(pr)
-            acc = pr
-    return acc, regs
+    return ext_add_niels_ref(curve, P1, niels_const(x2, y2, curve.p, curve.d))
 
 
-def ext_to_affine(m, P, ox, oy, p):
-    """ox, oy (|0>) <- X/Z, Y/Z for P = (X, Y, Z, ...).
-
-    Z^-1 = Z^(p-2) (Fermat); Z is never 0 because the law is complete.  P and
-    every scratch register are restored.
-    """
-    X, Y, Z = P[:3]
-    mark = m.begin()
-    zinv, regs = fermat_inverse_chain(m, Z, p)
-    body = m.since(mark)
-    MU.modmul(m, X, zinv, ox, p)
-    MU.modmul(m, Y, zinv, oy, p)
-    m.undo(body)
-    m.free(*reversed(regs))
-
-
-def affine_add_out(m, ctrl, x, y, R, curve, ox, oy):
-    """ox, oy (|0>) <- affine((x, y) + (ctrl ? R : identity)); x, y preserved.
-
-    Embed (x, y) as (x : y : 1 : xy), add in extended coordinates, normalise,
-    then unwind the embedding and the projective sum.  Nothing is retained.
-    """
-    p, n = curve.p, len(x)
-    mark = m.begin()
-    Z1, T1 = m.anc(n, "Z1"), m.anc(n, "T1")
-    m.ctx.x(Z1[0])
-    MU.modmul(m, x, y, T1, p)
-    P3 = (m.anc(n, "X3"), m.anc(n, "Y3"), m.anc(n, "Z3"), None)
-    ext_add_ctrl(m, ctrl, (x, y, Z1, T1), R, curve, P3)
-    body = m.since(mark)
-    ext_to_affine(m, P3, ox, oy, p)
-    m.undo(body)
-    m.free(*P3[2::-1], T1, Z1)
-
-
-def affine_add_ctrl(m, ctrl, x, y, R, curve):
-    """(x, y) <- (x, y) + (ctrl ? R : identity), in place up to relabelling.
-
-    Forward: (x, y, 0, 0) -> (x, y, x', y') with x', y' the sum.  Backward:
-    the *inverse* of "add -R" maps (x', y', x, y) -> (x', y', 0, 0), because
-    x' - R = x exactly.  The complete law makes both steps exception-free, so
-    no input is retained and the old registers are freed.  Returns (x', y').
-    """
-    n = len(x)
-    nx, ny = m.anc(n, "ax"), m.anc(n, "ay")
-    affine_add_out(m, ctrl, x, y, R, curve, nx, ny)
-    m.emit_inverse(affine_add_out, m, ctrl, nx, ny, curve.neg(R), curve,
-                   x, y)
-    m.free(x, y)
-    return nx, ny
-
-
-# =============================================================================
-# Shor's ECDLP with the complete Edwards oracle
-# =============================================================================
-def rungs(curve, P, Q, mb):
-    return ([curve.mul(1 << i, P) for i in range(mb)],
-            [curve.mul(1 << i, Q) for i in range(mb)])
-
-
-def ecdlp_oracle(curve, P, Q, mb, mode="toffoli", offset=None,
-                 style="inplace"):
-    """|u>|v>|0> -> |u>|v>|affine(S + [u]P + [v]Q)>, every other qubit clean.
-
-    `offset` S defaults to the identity: completeness means no safe-offset
-    search is needed.
-
-    style="inplace"  each controlled addition is `affine_add_ctrl` (forward
-                     extended sum + inverse of the -R sum).  Width does not
-                     grow with m.
-    style="bennett"  extended accumulators chained with `ext_add_ctrl`; every
-                     retained projective input (4n qubits per addition) stays
-                     live until one normalisation, then all additions run
-                     backwards.  Fewer arithmetic passes, width O(m n).
-
-    Returns (Machine, info).
-    """
-    if style not in ("inplace", "bennett"):
-        raise ValueError(f"unknown style {style!r}")
+def ext_add_niels_ref(curve, P1, N):
     p = curve.p
-    n = p.bit_length()
-    S = curve.identity if offset is None else offset
-    if not curve.on_curve(S):
-        raise ValueError("offset is not on the curve")
-    m = Machine(mode, "edwards_ecdlp")
-    kr, lr = m.alloc(mb, "k"), m.alloc(mb, "l")
-    Ps, Qs = rungs(curve, P, Q, mb)
-    ctrls = list(kr) + list(lr)
-
-    if style == "inplace":
-        x, y = m.anc(n, "ax"), m.anc(n, "ay")
-        _xor_const(m.ctx, x, S[0])
-        _xor_const(m.ctx, y, S[1])
-        for c, R in zip(ctrls, Ps + Qs):
-            x, y = affine_add_ctrl(m, c, x, y, R, curve)
-        ox, oy, retained = x, y, 0
-    else:
-        start = tuple(m.anc(n, nm) for nm in ("X0", "Y0", "Z0", "T0"))
-        ox, oy = m.alloc(n, "ox"), m.alloc(n, "oy")
-        S_ext = curve.to_ext(S)
-        for reg, val in zip(start, S_ext):
-            _xor_const(m.ctx, reg, val)
-        mark = m.begin()
-        cur, kept = start, []
-        for c, R in zip(ctrls, Ps + Qs):
-            nxt = tuple(m.anc(n, nm) for nm in ("Xa", "Ya", "Za", "Ta"))
-            ext_add_ctrl(m, c, cur, R, curve, nxt)
-            kept.append(nxt)
-            cur = nxt
-        retained = len(kept) * 4 * n
-        forward = m.since(mark)
-        ext_to_affine(m, cur, ox, oy, p)
-        m.undo(forward)
-        for trip in reversed(kept):
-            m.free(*trip)
-        for reg, val in zip(start, S_ext):                # constant start -> |0>
-            _xor_const(m.ctx, reg, val)
-        m.free(*start)
-    return m, {"n": n, "m_bits": mb, "offset": S, "style": style,
-               "regs": (kr, lr, ox, oy), "retained_qubits_peak": retained,
-               "additions": len(Ps) + len(Qs)}
+    X1, Y1, Z1, T1 = P1
+    ymx, ypx, kt = N
+    A = (Y1 - X1) * ymx % p                 # 3
+    B = (Y1 + X1) * ypx % p                 # 4
+    C = T1 * kt % p                         # 5
+    D = 2 * Z1 % p                          # 6  an addition, not a multiply
+    E, F, G, H = (B - A) % p, (D - C) % p, (D + C) % p, (B + A) % p
+    return E * F % p, G * H % p, F * G % p, E * H % p
 
 
-def ecdlp_circuit(curve, P, Q, order, m_bits=None, mode="toffoli",
-                  measure_scratch=False, offset=None, style="inplace"):
-    """Hadamards, the Edwards oracle, inverse QFTs and measurement.
+def ext_add_general_ref(curve, P1, P2):
+    """add-2008-hwcd [HWCD08 Sec 3.1], any a: 9 multiplications + 2 constants.
 
-    measure_scratch: also measure every qubit other than the controls and the
-    affine output into a register "scr" -- in a correct circuit every shot
-    reads all zeros there, which checks uncomputation *in superposition*.
+    E = (X1 + Y1)(X2 + Y2) - A - B and H = B - aA; used for the a = 1 curves.
     """
-    from shor_essentials import qft
-    mb = max(1, math.ceil(math.log2(order))) if m_bits is None else m_bits
-    m, info = ecdlp_oracle(curve, P, Q, mb, mode, offset, style)
-    kr, lr, ox, oy = info["regs"]
-    ck, cl = ClassicalRegister(mb, "ok"), ClassicalRegister(mb, "ol")
-    cregs = [ck, cl]
-    keep = set(list(kr) + list(lr) + list(ox) + list(oy))
-    scratch = [q for q in m.qc.qubits if q not in keep]
-    if measure_scratch:
-        cregs.append(ClassicalRegister(len(scratch), "scr"))
-    qc = QuantumCircuit(*m.qc.qregs, *cregs, name="edwards_ecdlp")
-    qc.h(kr)
-    qc.h(lr)
-    qc.compose(m.qc, inplace=True)
-    qc.append(qft(mb).inverse(), list(kr))
-    qc.append(qft(mb).inverse(), list(lr))
-    qc.measure(kr, ck)
-    qc.measure(lr, cl)
-    if measure_scratch:
-        qc.measure(scratch, cregs[2])
-    info.update(order=order, machine=m, qubits=qc.num_qubits,
-                scratch_qubits=len(scratch))
-    return qc, info
+    p, a, d = curve.p, curve.a, curve.d
+    X1, Y1, Z1, T1 = P1
+    X2, Y2, Z2, T2 = P2
+    A, B = X1 * X2 % p, Y1 * Y2 % p
+    C, D = d * T1 * T2 % p, Z1 * Z2 % p
+    E = ((X1 + Y1) * (X2 + Y2) - A - B) % p
+    F, G, H = (D - C) % p, (D + C) % p, (B - a * A) % p
+    return E * F % p, G * H % p, F * G % p, E * H % p
 
 
-def split_counts(counts, measure_scratch=False):
-    """Qiskit counts -> ({(j1, j2): shots}, {scratch value: shots})."""
-    pairs, scr = {}, {}
-    for bits, c in counts.items():
-        parts = bits.split()
-        if measure_scratch:
-            s, lo, ko = parts
-            scr[int(s, 2)] = scr.get(int(s, 2), 0) + c
-        else:
-            lo, ko = parts
-        key = (int(ko, 2), int(lo, 2))
-        pairs[key] = pairs.get(key, 0) + c
-    return pairs, scr
+# Multiplications per out-of-place addition: (forward, uncompute), each split
+# as general multiplications + multiplications by a classical constant.
+OPS = {
+    "jacobian_add (Weierstrass, [106] Alg. 4)": ((9, 2), (8, 2)),
+    "edwards_add_const ([106] Sec 4.4, classical addend)": ((4, 3), (0, 3)),
+    "edwards_add_niels ([106] Sec 4.4, looked-up addend)": ((7, 0), (3, 0)),
+    "edwards_add (hwcd-3, quantum addend)": ((8, 1), (4, 1)),
+}
 
 
-def run_ecdlp(curve, P, Q, order, shots=2048, seed=7, measure_scratch=True,
-              **kw):
-    """Sample the full Edwards ECDLP circuit on Aer; returns (pairs, scr, cands, info)."""
-    import aer_device as AD
-    import ec_classical as C
-    qc, info = ecdlp_circuit(curve, P, Q, order,
-                             measure_scratch=measure_scratch, **kw)
-    counts = AD.run(qc, shots=shots, seed=seed)
-    info["aer"] = AD.describe(qc.num_qubits)
-    pairs, scr = split_counts(counts, measure_scratch)
-    cands = C.ecdlp_postprocess(pairs, order, info["m_bits"])
-    return pairs, scr, cands, info
+# =============================================================================
+# Quantum circuits
+# =============================================================================
+def _copy_into(m, src, dst):
+    for a, b in zip(src, dst):
+        m.ctx.cx(a, b)
+
+
+def _sub_into(m, a, b, out, p):
+    """out (|0>) <- a - b mod p."""
+    _copy_into(m, a, out)
+    MA.modsub(m, b, out, p)
+
+
+def _mul(m, x, k, out, p):
+    """out (|0>) <- x k mod p.  k a register, or a classical constant."""
+    if isinstance(k, int):
+        MU.modmul_const(m, x, k, out, p)
+    else:
+        MU.modmul(m, x, k, out, p)
+
+
+def _front(m, P1, N, S, A, B, C, D, E, F, p):
+    """Steps 1-10 of [106] Fig. 11: everything before the four products.
+
+    N = (y2 - x2, y2 + x2, 2d x2 y2, Z2): registers or classical ints; Z2 is
+    None for an affine addend (then D = 2 Z1 costs an addition, not a multiply).
+    """
+    X1, Y1, Z1, T1 = P1
+    ymx, ypx, kt, z2 = N
+    _sub_into(m, Y1, X1, S, p)              # 1  S  = Y1 - X1
+    MA.modadd(m, X1, Y1, p)                 # 2  Y1 = Y1 + X1
+    _mul(m, S, ymx, A, p)                   # 3  A  = (Y1 - X1)(y2 - x2)
+    _mul(m, Y1, ypx, B, p)                  # 4  B  = (Y1 + X1)(y2 + x2)
+    _mul(m, T1, kt, C, p)                   # 5  C  = T1 * 2d x2 y2
+    if z2 is None:                          # 6  D  = 2 Z1
+        _copy_into(m, Z1, D)
+    else:                                   #    D  = 2 Z1 Z2
+        MU.modmul(m, Z1, z2, D, p)
+    MA.moddbl(m, D, p)
+    _sub_into(m, B, A, E, p)                # 7  E  = B - A
+    MA.modadd(m, B, A, p)                   # 8  A  = A + B  = H
+    _sub_into(m, D, C, F, p)                # 9  F  = D - C
+    MA.modadd(m, D, C, p)                   # 10 C  = C + D  = G
+
+
+def _core(m, P1, N, P3, p):
+    """(X3:Y3:Z3:T3) <- P1 + N, every intermediate returned to |0>."""
+    n = len(P1[0])
+    X3, Y3, Z3, T3 = P3
+    S, A, B, C, D, E, F = (m.anc(n, nm) for nm in "SABCDEF")
+    _, front = m.step(_front, m, P1, N, S, A, B, C, D, E, F, p)
+    H, G = A, C
+    MU.modmul(m, E, F, X3, p)               # 11 X3 = E F
+    MU.modmul(m, G, H, Y3, p)               # 12 Y3 = G H
+    MU.modmul(m, F, G, Z3, p)               # 13 Z3 = F G
+    MU.modmul(m, E, H, T3, p)               # 14 T3 = E H
+    m.undo(front)                           # A, B, C cost a multiply each
+    m.free(F, E, D, C, B, A, S)
+
+
+def edwards_add_const(m, P1, x2, y2, P3, p, d):
+    """P3 <- P1 + (x2, y2) for a classical affine addend.  [106] Sec 4.4.
+
+    P1 = (X1, Y1, Z1, T1) survives unchanged -- the garbage, as in
+    `ec_proj.jacobian_add`.  P3 must be |0>.  a = -1.  Complete: (x2, y2) may
+    be the identity, equal to P1, or its negation.
+    """
+    _core(m, P1, niels_const(x2, y2, p, d) + (None,), P3, p)
+
+
+def edwards_add_const_inv(m, P1, x2, y2, P3, p, d):
+    """The PA-dagger of [106] Fig. 10: clears P3 given P1."""
+    m.emit_inverse(edwards_add_const, m, P1, x2, y2, P3, p, d)
+
+
+def edwards_add_niels(m, P1, N2, P3, p):
+    """P3 <- P1 + P2 with P2 given by registers N2 = (y2 - x2, y2 + x2, 2d x2 y2).
+
+    The windowed form of [106] Sec 4.4: seven general multiplications.
+    """
+    ymx, ypx, kt = N2
+    _core(m, P1, (ymx, ypx, kt, None), P3, p)
+
+
+def _load_ctrl(m, ctrl, regs, v1, v0):
+    """regs ^= (ctrl ? v1 : v0), bitwise.  X and CNOT only; self-inverse."""
+    for r, a, b in zip(regs, v1, v0):
+        for i, q in enumerate(r):
+            if (b >> i) & 1:
+                m.ctx.x(q)
+            if ((a ^ b) >> i) & 1:
+                m.ctx.cx(ctrl, q)
+
+
+def edwards_add_const_ctrl(m, ctrl, P1, x2, y2, P3, p, d):
+    """P3 <- P1 + [ctrl] (x2, y2).
+
+    Completeness makes the control free: load Niels(P2) if ctrl else Niels(O)
+    = (1, 1, 0) -- CNOTs, no Toffoli -- and add unconditionally.  The price is
+    that A, B, C become general multiplications (the window-of-one case of
+    `edwards_add_window`).
+    """
+    n = len(P1[0])
+    N = [m.anc(n, nm) for nm in ("ymx", "ypx", "kt")]
+    v1 = niels_const(x2, y2, p, d)
+    _load_ctrl(m, ctrl, N, v1, NIELS_IDENTITY)
+    edwards_add_niels(m, P1, N, P3, p)
+    _load_ctrl(m, ctrl, N, v1, NIELS_IDENTITY)
+    m.free(*N)
+
+
+def edwards_add_window(m, addr, P1, table, P3, p):
+    """P3 <- P1 + [addr] base, `table` = niels_window(curve, base, len(addr)).
+
+    One unary-iteration lookup loads all three Niels values (3n bits per
+    entry), another unloads them.  Entry 0 is the identity: no special case.
+    """
+    n, w = len(P1[0]), len(addr)
+    assert len(table) == 1 << w
+    N = [m.anc(n, nm) for nm in ("ymx", "ypx", "kt")]
+    words = [a | b << n | c << 2 * n for a, b, c in table]
+    one, lk = m.anc(1, "one"), m.anc(w, "lk")
+    m.ctx.x(one[0])
+    lookup_ui(m.ctx, one[0], addr, N[0] + N[1] + N[2], words, lk)
+    edwards_add_niels(m, P1, N, P3, p)
+    lookup_ui(m.ctx, one[0], addr, N[0] + N[1] + N[2], words, lk)
+    m.ctx.x(one[0])
+    m.free(lk, one, *N)
+
+
+def edwards_add(m, P1, P2, P3, p, d):
+    """P3 <- P1 + P2, both quantum, extended coordinates.  add-2008-hwcd-3.
+
+    P2 is put into projective Niels form in place (Y2 - X2 into scratch,
+    Y2 += X2, 2d T2 into scratch), the Fig. 11 core runs with D = 2 Z1 Z2, and
+    the preparation is unwound.  P1 and P2 survive; P3 must be |0>.  P1 and P2
+    must be distinct registers (their values may be equal: doubling is fine).
+    """
+    X2, Y2, Z2, T2 = P2
+    n = len(X2)
+    S2, K2 = m.anc(n, "S2"), m.anc(n, "K2")
+
+    def prep():
+        _sub_into(m, Y2, X2, S2, p)         # Y2 - X2
+        MA.modadd(m, X2, Y2, p)             # Y2 + X2
+        MU.modmul_const(m, T2, 2 * d % p, K2, p)     # 2d T2
+
+    _, body = m.step(prep)
+    _core(m, P1, (S2, Y2, K2, Z2), P3, p)
+    m.undo(body)
+    m.free(K2, S2)
+
+
+def edwards_add_inv(m, P1, P2, P3, p, d):
+    m.emit_inverse(edwards_add, m, P1, P2, P3, p, d)

@@ -1,0 +1,172 @@
+{
+  "1024": {
+    "n": 1024,
+    "params": {
+      "s": 8,
+      "ell": 18,
+      "w1": 6,
+      "w3": 3,
+      "w4": 6,
+      "f": 28,
+      "m": 640
+    },
+    "primes": 6242,
+    "iteration": {
+      "toffoli_paper": 22011,
+      "toffoli_expected": 20109.0,
+      "qubits": 800,
+      "measure": 4541,
+      "toffoli_depth": 22011
+    },
+    "ends": 10856,
+    "per_shot": 137403518,
+    "per_shot_expected": 125531234.0,
+    "depth_per_shot": 137392662,
+    "shots": 9.4,
+    "per_factoring_expected": 1179993599.6000001,
+    "qubits": 800,
+    "tally_per_shot": 123251036.0,
+    "tally_qubits": 770,
+    "published": {
+      "toffoli_per_factoring": 1100000000.0,
+      "qubits": 742
+    },
+    "seconds": 8.8
+  },
+  "1536": {
+    "n": 1536,
+    "params": {
+      "s": 8,
+      "ell": 21,
+      "w1": 6,
+      "w3": 3,
+      "w4": 5,
+      "f": 31,
+      "m": 960
+    },
+    "primes": 11956,
+    "iteration": {
+      "toffoli_paper": 33268,
+      "toffoli_expected": 30446.0,
+      "qubits": 1138,
+      "measure": 7556,
+      "toffoli_depth": 33268
+    },
+    "ends": 16800,
+    "per_shot": 397769008,
+    "per_shot_expected": 364029176.0,
+    "depth_per_shot": 397752208,
+    "shots": 9.3,
+    "per_factoring_expected": 3385471336.8,
+    "qubits": 1138,
+    "tally_per_shot": 356577708.0,
+    "tally_qubits": 1105,
+    "published": {
+      "toffoli_per_factoring": 3100000000.0,
+      "qubits": 1074
+    },
+    "seconds": 35.0
+  },
+  "2048": {
+    "n": 2048,
+    "params": {
+      "s": 8,
+      "ell": 21,
+      "w1": 6,
+      "w3": 3,
+      "w4": 5,
+      "f": 33,
+      "m": 1280
+    },
+    "primes": 21320,
+    "iteration": {
+      "toffoli_paper": 38276,
+      "toffoli_expected": 35449.0,
+      "qubits": 1467,
+      "measure": 9454,
+      "toffoli_depth": 38276
+    },
+    "ends": 22610,
+    "per_shot": 816066930,
+    "per_shot_expected": 755795290.0,
+    "depth_per_shot": 816044320,
+    "shots": 9.2,
+    "per_factoring_expected": 6953316667.999999,
+    "qubits": 1467,
+    "tally_per_shot": 744598512.0,
+    "tally_qubits": 1432,
+    "published": {
+      "toffoli_per_factoring": 6500000000.0,
+      "qubits": 1399
+    },
+    "seconds": 103.9
+  },
+  "3072": {
+    "n": 3072,
+    "params": {
+      "s": 8,
+      "ell": 21,
+      "w1": 6,
+      "w3": 3,
+      "w4": 5,
+      "f": 35,
+      "m": 1920
+    },
+    "primes": 47814,
+    "iteration": {
+      "toffoli_paper": 47690,
+      "toffoli_expected": 44858.0,
+      "qubits": 2115,
+      "measure": 12856,
+      "toffoli_depth": 47690
+    },
+    "ends": 33920,
+    "per_shot": 2280283580,
+    "per_shot_expected": 2144874332.0,
+    "depth_per_shot": 2280249660,
+    "shots": 9.2,
+    "per_factoring_expected": 19732843854.399998,
+    "qubits": 2115,
+    "tally_per_shot": 2117088638.0,
+    "tally_qubits": 2078,
+    "published": {
+      "toffoli_per_factoring": 19000000000.0,
+      "qubits": 2043
+    },
+    "seconds": 491.3
+  },
+  "4096": {
+    "n": 4096,
+    "params": {
+      "s": 8,
+      "ell": 24,
+      "w1": 6,
+      "w3": 3,
+      "w4": 5,
+      "f": 36,
+      "m": 2560
+    },
+    "primes": 74245,
+    "iteration": {
+      "toffoli_paper": 66759,
+      "toffoli_expected": 62774.0,
+      "qubits": 2766,
+      "measure": 19325,
+      "toffoli_depth": 66759
+    },
+    "ends": 46912,
+    "per_shot": 4956568867,
+    "per_shot_expected": 4660702542.0,
+    "depth_per_shot": 4956521955,
+    "shots": 9.2,
+    "per_factoring_expected": 42878463386.399994,
+    "qubits": 2766,
+    "tally_per_shot": 4598588971.5,
+    "tally_qubits": 2728,
+    "published": {
+      "toffoli_per_factoring": 40000000000.0,
+      "qubits": 2692
+    },
+    "seconds": 1389.7
+  }
+}

@@ -37,17 +37,21 @@ NUM = {}
 # --- the deck's palette (sampled from shor_pres_v4_1.pdf) ----------------------
 BLUE, VERM, PURPLE, INDIGO = "#1a5fa0", "#b3401a", "#63389b", "#52439a"
 TEXT, SUBTLE, GREY, RULE = "#1a1c20", "#3a4550", "#757d84", "#c7c4be"
+# Each figure is drawn at the size it is shown on its slide (figsize = the width given to
+# \fig in shor_circuits.tex), so these point sizes are the sizes the audience reads.
 plt.rcParams.update({
-    "font.family": "Palatino", "font.size": 9,
+    "font.family": "Palatino", "font.size": 9.5,
+    "xtick.labelsize": 8.5, "ytick.labelsize": 8.5, "legend.fontsize": 8.5,
     "mathtext.fontset": "custom", "mathtext.rm": "Palatino",
     "mathtext.it": "Palatino:italic", "mathtext.bf": "Palatino:bold",
-    "axes.edgecolor": SUBTLE, "axes.labelcolor": TEXT, "axes.titlesize": 9,
+    "axes.edgecolor": SUBTLE, "axes.labelcolor": TEXT, "axes.titlesize": 9.5,
     "axes.spines.top": False, "axes.spines.right": False,
     "xtick.color": SUBTLE, "ytick.color": SUBTLE, "legend.frameon": False,
     "savefig.bbox": "tight", "savefig.pad_inches": 0.02,
+    "figure.constrained_layout.use": True,      # labels stay inside figsize, so nothing is shrunk on the slide
 })
 CIRCUIT_STYLE = {
-    "name": "bw", "fontsize": 16, "subfontsize": 11,
+    "name": "bw", "fontsize": 16, "subfontsize": 13,
     "textcolor": TEXT, "gatetextcolor": "#ffffff", "gatefacecolor": VERM, "linecolor": SUBTLE,
     "creglinecolor": "#9aa0a6", "backgroundcolor": "#ffffff",
     "displaycolor": {
@@ -64,6 +68,21 @@ def save(fig, name):
     fig.savefig(FIG / f"{name}.pdf")
     plt.close(fig)
     print("  wrote", name)
+
+
+PAD = "  "         # qiskit prints wire indices at the left edge of a multi-qubit box: keep labels clear of them
+
+
+def padded(qc, labels):
+    """The same circuit, with the named boxes relabelled (padded) for drawing."""
+    out = qc.copy_empty_like()
+    for ins in qc.data:
+        op = ins.operation
+        if op.name in labels:
+            op = op.to_mutable()
+            op.label = PAD + labels[op.name] + PAD
+        out.append(op, ins.qubits, ins.clbits)
+    return out
 
 
 def draw(qc, name, scale=0.7, fold=-1):
@@ -104,7 +123,7 @@ def circuits():
 
     q = QuantumCircuit(QuantumRegister(3, "y"))
     add_const(q, 3, list(q.qubits))
-    draw(q, "draper3", 0.8)
+    draw(padded(q, {"qft": "QFT", "qft_dg": "QFT\u2020"}), "draper3", 0.8)
 
     from rc_adder import _maj, _uma
     cr = QuantumRegister(1, "c")
@@ -158,12 +177,12 @@ def qft_readout():
     t, shots = 3, 1000
     res = {}
     for name, phi in (("qft_readout_exact", Fraction(1, 4)), ("qft_readout_inexact", Fraction(1, 6))):
-        fig, (a1, a2) = plt.subplots(1, 2, figsize=(5.6, 1.6), gridspec_kw={"width_ratios": [1.5, 1]})
+        fig, (a1, a2) = plt.subplots(1, 2, figsize=(5.15, 1.32), gridspec_kw={"width_ratios": [1.45, 1]})
         xs = np.arange(2**t)
         th = 2 * np.pi * xs * float(phi)
         for x in xs:
             a1.add_patch(plt.Circle((x, 0), 0.44, fill=False, color=RULE, lw=0.9))
-            a1.text(x, -0.62, str(x), ha="center", va="top", fontsize=8, color=SUBTLE)
+            a1.text(x, -0.62, str(x), ha="center", va="top", fontsize=8.5, color=SUBTLE)
         a1.quiver(xs, np.zeros_like(xs), 0.38 * np.cos(th), 0.38 * np.sin(th), angles="xy",
                   scale_units="xy", scale=1, color=PURPLE, width=0.011, headwidth=3.6,
                   headlength=3.6, headaxislength=3.2)
@@ -171,8 +190,7 @@ def qft_readout():
         a1.set_ylim(-0.95, 0.55)
         a1.set_aspect("equal")
         a1.axis("off")
-        a1.set_title(rf"the ramp: amplitude of $|x\rangle$ turns ${360 * phi.numerator // phi.denominator}^\circ$ per step ($s/r={phi.numerator}/{phi.denominator}$)",
-                     fontsize=8.5)
+        a1.set_title(rf"the ramp: $|x\rangle$ turns ${360 * phi.numerator // phi.denominator}^\circ$ per step ($s/r={phi.numerator}/{phi.denominator}$)")
         qc = ramp_circuit(t, float(phi))
         qc.append(qft(t).inverse(), range(t))
         qc.measure(range(t), range(t))
@@ -180,15 +198,13 @@ def qft_readout():
         exact = np.array([abs(sum(np.exp(2j * np.pi * x * (float(phi) - y / 2**t)) for x in range(2**t)) / 2**t) ** 2
                           for y in range(2**t)])
         a2.bar(range(2**t), emp, width=0.7, color=BLUE, alpha=0.8, label=f"Aer, {shots} shots")
-        a2.plot(range(2**t), exact, "o", ms=3.5, color=PURPLE, label="exact")
+        a2.plot(range(2**t), exact, "o", ms=4, color=PURPLE, label="exact")
         a2.axvline(2**t * float(phi), color=GREY, ls=":", lw=0.9)
         a2.set_xticks(range(2**t))
         a2.set_ylim(0, 1.08)
-        a2.tick_params(labelsize=8)
-        a2.set_xlabel("measured y", fontsize=8.5)
-        a2.set_title(rf"after $\mathrm{{QFT}}^\dagger$ ($2^3 s/r={2**t * float(phi):.3g}$)", fontsize=8.5)
-        a2.legend(fontsize=7, loc="upper right")
-        plt.tight_layout()
+        a2.set_xlabel("measured y")
+        a2.set_title(rf"after $\mathrm{{QFT}}^\dagger$ ($2^3 s/r={2**t * float(phi):.3g}$)")
+        a2.legend(loc="upper right")
         res[f"{phi.numerator}/{phi.denominator}"] = {"exact": exact.tolist(), "measured": emp.tolist()}
         save(fig, name)
     NUM["qft_readout"] = res
@@ -221,7 +237,7 @@ def order_with_garbage(A, N, t, garbage):
 def uncomputation():
     print("uncomputation")
     A, N, t, shots = 7, 15, 4, 2048
-    fig, axes = plt.subplots(1, 3, figsize=(5.9, 1.55), sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=(5.15, 1.5), sharey=True)
     res = {}
     for ax, (garbage, title) in zip(axes, ((None, "clean: no garbage"),
                                            ("f(x)", "garbage = copy of f(x)"),
@@ -230,15 +246,15 @@ def uncomputation():
         exact = exact_probs(qc, range(t))
         emp = ST.empirical(ST.order_counts(sample(qc, shots)), 2**t)
         ax.bar(range(2**t), emp, width=0.75, color=BLUE, alpha=0.75, label=f"Aer, {shots} shots")
-        ax.plot(range(2**t), exact, "o", ms=2.6, color=PURPLE, label="exact")
-        ax.set_title(title, fontsize=9)
+        ax.plot(range(2**t), exact, "o", ms=3.2, color=PURPLE, label="exact")
+        ax.set_title(title)
         ax.set_xticks([0, 4, 8, 12, 15])
-        ax.set_xlabel("measured y", fontsize=8)
+        ax.set_xlabel("measured y")
         res[garbage or "clean"] = {"max_p": float(exact.max()), "qubits": qc.num_qubits,
                                    "tvd_vs_clean": None}
         res[garbage or "clean"]["exact"] = exact.tolist()
-    axes[0].set_ylabel("probability", fontsize=8)
-    axes[-1].legend(fontsize=7, loc="upper right")
+    axes[0].set_ylabel("probability")
+    axes[-1].legend(loc="upper right")
     clean = np.array(res["clean"]["exact"])
     for k in res:
         res[k]["tvd_vs_clean"] = ST.tvd(np.array(res[k]["exact"]), clean)
@@ -271,14 +287,14 @@ def synthesis():
     skd = SolovayKitaevDecomposition()
     sk = [(dist(q), tcount(q)) for q in (skd.run(target, recursion_degree=d) for d in (1, 2, 3))]
     NUM["synthesis"] = {"gridsynth": gs, "sk": sk}
-    fig, ax = plt.subplots(figsize=(3.3, 2.1))
+    fig, ax = plt.subplots(figsize=(2.65, 2.0))
     e = np.logspace(-10.6, -1.5, 50)
     ax.plot(np.log10(1 / e), 3 * np.log2(1 / e), ":", color=GREY, label=r"$3\log_2(1/\varepsilon)$")
     ax.plot([np.log10(1 / d) for d, _ in gs], [T for _, T in gs], "o-", color=BLUE, ms=3.5, label="Ross–Selinger")
     ax.plot([np.log10(1 / d) for d, _ in sk], [T for _, T in sk], "s-", color=VERM, ms=3.5, label="Solovay–Kitaev")
     ax.set_xlabel(r"precision  $\log_{10}(1/\varepsilon)$")
     ax.set_ylabel("T gates")
-    ax.legend(fontsize=7.5, loc="upper left")
+    ax.legend(loc="upper right")
     save(fig, "synthesis")
 
 
@@ -298,16 +314,16 @@ def factoring_runs():
                   "tvd": ST.tvd(emp, theory), "bound": ST.tvd_null(theory, 4096),
                   "aer_exact_eq_closed_form": bool(np.allclose(exact_probs(qc, range(t)), theory)),
                   "p_success": float(theory[hit].sum()), "p_success_measured": float(emp[hit].sum())}
-    fig, ax = plt.subplots(figsize=(3.3, 1.9))
+    fig, ax = plt.subplots(figsize=(2.8, 1.95))
     ys = sorted(measured)
     ax.bar(ys, [emp[y] for y in ys], width=7, color=BLUE, alpha=0.75, label="Aer, 4096 shots")
     ax.plot(ys, [theory[y] for y in ys], "o", color=PURPLE, ms=4, label="exact")
     ax.set_xlim(-8, 263)
     ax.set_xticks([0, 64, 128, 192, 255])
     ax.set_ylim(0, 0.32)
-    ax.set_xlabel("measured y  (t = 8 counting qubits)")
+    ax.set_xlabel("measured y  (t = 8)")
     ax.set_ylabel("probability")
-    ax.legend(fontsize=7.5, loc="upper right", ncol=2)
+    ax.legend(loc="upper right", ncol=2, columnspacing=1.0, handlelength=1.2)
     save(fig, "n15_hist")
 
     from onectrl import order_circuit_1c
@@ -322,17 +338,17 @@ def factoring_runs():
                   "bound": ST.tvd_null(th, shots), "p_success": float(th[hit].sum()),
                   "p_success_measured": float(e1[hit].sum()), "r": order_from_counts(c1, A, N, t)}
     for name, counts_ in (("n21_exact", None), ("n21_measured", c1)):
-        fig, axes = plt.subplots(1, 6, figsize=(5.9, 1.45), sharey=True)
+        fig, axes = plt.subplots(1, 6, figsize=(5.4, 1.4), sharey=True)
         for s, ax in enumerate(axes):
             cen = s * 2**t / 6
             yy = np.arange(math.floor(cen) - 5, math.floor(cen) + 7)
             if counts_ is not None:
                 ax.bar(yy, e1[yy % 2**t], width=0.8, color=BLUE, alpha=0.75)
-            ax.plot(yy, th[yy % 2**t], "o-", ms=2.2, lw=0.8, color=PURPLE)
-            ax.axvline(cen, color=GREY, ls=":", lw=0.7)
-            ax.set_title(f"$s={s}$: $y\\approx{cen:.1f}$", fontsize=7.5)
-            ax.tick_params(labelsize=6.5)
-        axes[0].set_ylabel("probability", fontsize=7.5)
+            ax.plot(yy, th[yy % 2**t], "o-", ms=2.6, lw=0.9, color=PURPLE)
+            ax.axvline(cen, color=GREY, ls=":", lw=0.8)
+            ax.set_title(f"$s={s}$")
+            ax.set_xticks([round(cen)])              # the peak's position, s * 1024 / 6
+        axes[0].set_ylabel("probability")
         save(fig, name)
 
 
@@ -351,7 +367,7 @@ def costs():
                      "cphase_formula": 4 * n * n * (5 * m * (m - 1) + 2 * m) + t * (t - 1) // 2})
     NUM["factoring_counts"] = rows
     ns = np.array([r_["n"] for r_ in rows], float)
-    fig, ax = plt.subplots(figsize=(3.2, 2.2))
+    fig, ax = plt.subplots(figsize=(2.75, 1.95))
     for key, lab, col in (("toffoli", "Toffoli", VERM), ("cphase", "controlled phases", PURPLE),
                           ("rotations", "small rotations", BLUE)):
         ys = np.array([r_[key] for r_ in rows], float)
@@ -361,7 +377,7 @@ def costs():
     ax.minorticks_off()
     ax.set_xlabel("n = bits of N")
     ax.set_ylabel("count (measured)")
-    ax.legend(fontsize=7.5, loc="upper left")
+    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), fontsize=8)   # above the axes, clear of the lines
     save(fig, "factoring_scaling")
 
     from rc_adder import rc_c_ua
@@ -384,15 +400,15 @@ def costs():
         windowed_c_ua(q, c[0], 2, list(x), list(yq), sf[0], sf[1], N, list(tmp), list(un), 4)
         per["win4"].append(R.count(q).T_with_rotations(1e-3))
     NUM["per_rung_T"] = {"n": list(NS), **per}
-    fig, ax = plt.subplots(figsize=(3.2, 2.2))
+    fig, ax = plt.subplots(figsize=(2.85, 2.1))
     ax.semilogy(NS, per["fourier"], "o-", color=PURPLE, ms=3.5, label="Fourier adders (Beauregard)")
     ax.semilogy(NS, per["win4"], "^-", color=BLUE, ms=3.5, label="windowed, w = 4")
     ax.semilogy(NS, per["rc"], "s-", color=VERM, ms=3.5, label="ripple-carry (Toffoli only)")
     for n, a_, b_ in zip(NS, per["fourier"], per["rc"]):
-        ax.annotate(f"÷{a_ / b_:.0f}", (n, math.sqrt(a_ * b_)), fontsize=7, color=GREY, ha="center")
+        ax.annotate(f"÷{a_ / b_:.0f}", (n, math.sqrt(a_ * b_)), fontsize=8.5, color=GREY, ha="center")
     ax.set_xlabel("n = bits of N")
-    ax.set_ylabel("T per rung (rotations synthesised)")
-    ax.legend(fontsize=7, loc="upper left")
+    ax.set_ylabel("T gates per rung")
+    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), fontsize=8)   # above the axes, clear of the lines
     save(fig, "rung_T")
 
 
@@ -435,24 +451,24 @@ def variants():
         rows.append({"label": lab, "qubits": r.qubits, "toffoli": r.toffoli, "T_toffoli": r.T,
                      "rotations": r.rotations, "T_total": r.T_with_rotations(1e-3)})
     NUM["variants_n15"] = rows
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(5.9, 1.9), gridspec_kw={"width_ratios": [1, 1.6]})
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(5.4, 1.9), gridspec_kw={"width_ratios": [1, 1.9]})
     labs = [r_["label"] for r_ in rows]
     a1.barh(labs, [r_["qubits"] for r_ in rows], color=BLUE, alpha=0.8)
     a1.invert_yaxis()
     a1.set_xlabel("qubits")
     for i, r_ in enumerate(rows):
-        a1.text(r_["qubits"] + 0.4, i, str(r_["qubits"]), va="center", fontsize=7)
+        a1.text(r_["qubits"] + 0.4, i, str(r_["qubits"]), va="center", fontsize=8.5)
     a2.barh(labs, [r_["T_toffoli"] for r_ in rows], color=VERM, alpha=0.85, label="T from Toffolis")
     a2.barh(labs, [r_["T_total"] - r_["T_toffoli"] for r_ in rows], left=[r_["T_toffoli"] for r_ in rows],
             color=PURPLE, alpha=0.45, label="T from synthesised rotations")
     a2.invert_yaxis()
     a2.set_yticklabels([])
-    a2.set_xlabel(r"T gates  (total synthesis error $\varepsilon = 10^{-3}$)")
+    a2.set_xlabel(r"T gates  (synthesis error $\varepsilon = 10^{-3}$)")
     for i, r_ in enumerate(rows):
-        a2.text(r_["T_total"] * 1.01 + 8000, i, f"{r_['T_total'] / 1000:,.0f}k", va="center", fontsize=7)
-    a2.set_xlim(0, 1.18e6)
+        a2.text(r_["T_total"] * 1.01 + 8000, i, f"{r_['T_total'] / 1000:,.0f}k", va="center", fontsize=8.5)
+    a2.set_xlim(0, 1.22e6)
     a2.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"{v / 1000:.0f}k" if v else "0"))
-    a2.legend(fontsize=7, loc="lower right")
+    a2.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, fontsize=8, columnspacing=1.0, handlelength=1.2)
     save(fig, "variants")
 
 
@@ -465,14 +481,14 @@ def ecdlp():
     r = curve.point_order(G)
     k = next(k for k in range(r) if curve.mul(k, G) == Q)
     pts = [P for P in curve.points() if not P.inf]
-    fig, ax = plt.subplots(figsize=(2.4, 2.25))
+    fig, ax = plt.subplots(figsize=(2.3, 2.15))
     ax.scatter([P.x for P in pts], [P.y for P in pts], s=26, color=RULE, edgecolor=SUBTLE, zorder=2, lw=0.6)
     for i in range(1, r):
         P = curve.mul(i, G)
         col = PURPLE if P == Q else VERM
         ax.scatter([P.x], [P.y], s=38, color=col, zorder=3)
         ax.annotate(f"[{i}]G" if P != Q else f"Q=[{i}]G", (P.x, P.y), xytext=(5, 4), textcoords="offset points",
-                    fontsize=7.5, color=col)
+                    fontsize=8.5, color=col)
     ax.set_xticks(range(7))
     ax.set_yticks(range(7))
     ax.set_xlim(-0.5, 6.9)
@@ -480,7 +496,7 @@ def ecdlp():
     ax.grid(color="#eeeeee", lw=0.6)
     ax.set_xlabel("x")
     ax.set_ylabel("y")
-    ax.set_title(r"$y^2=x^3+5x+4$ over $\mathbb{F}_7$", fontsize=8.5)
+    ax.set_title(r"$y^2=x^3+5x+4$ over $\mathbb{F}_7$")
     save(fig, "curve_p7")
 
     counts, cands, info = S.run_ecdlp(curve, G, Q, r, shots=4096, seed=7)
@@ -495,18 +511,18 @@ def ecdlp():
                        "bound": ST.tvd_null(exact, 4096), "p_success": float(exact[hit].sum()),
                        "p_success_measured": float(emp[hit].sum()),
                        "votes": [(kk, w / total) for kk, w in cands]}
-    fig, axes = plt.subplots(1, 2, figsize=(4.6, 2.0))
-    for ax, (lab, M) in zip(axes, (("exact  P(j₁, j₂)", exact), ("Aer, 4096 shots", emp))):
+    fig, axes = plt.subplots(1, 2, figsize=(3.2, 1.85))
+    for ax, (lab, M) in zip(axes, ((r"exact  $P(j_1, j_2)$", exact), ("Aer, 4096 shots", emp))):
         ax.imshow(M.T, origin="lower", cmap="Purples", vmin=0, vmax=0.2)
-        ax.set_title(lab, fontsize=8.5)
-        ax.set_xlabel("j₁  (register u)", fontsize=8)
+        ax.set_title(lab, fontsize=9)
+        ax.set_xlabel(r"$j_1$  (register u)", fontsize=8.5)
         ax.set_xticks(range(q_))
         ax.set_yticks(range(q_))
-        ax.tick_params(labelsize=7)
-    axes[0].set_ylabel("j₂  (register v)", fontsize=8)
+        ax.tick_params(labelsize=8)
+    axes[0].set_ylabel(r"$j_2$  (register v)", fontsize=8.5)
     save(fig, "ecdlp_heat")
 
-    fig, ax = plt.subplots(figsize=(2.3, 1.6))
+    fig, ax = plt.subplots(figsize=(2.3, 1.7))
     ax.bar([str(kk) for kk, _ in cands], [w / total for _, w in cands],
            color=[PURPLE if kk == k else RULE for kk, _ in cands])
     ax.set_xlabel("candidate k")
@@ -556,12 +572,11 @@ def ecdlp():
     tot = sum(v for _, v in vals)
     NUM["padd_steps"] = {"steps": vals, "total": tot, "division_share": (vals[2][1] + vals[7][1]) / tot,
                          "qubits": mch.qc.num_qubits}
-    fig, ax = plt.subplots(figsize=(3.3, 2.3))
+    fig, ax = plt.subplots(figsize=(3.0, 2.3))
     cols = [VERM if "division" in lab else RULE for lab, _ in vals]
     ax.barh([lab for lab, _ in vals], [v for _, v in vals], color=cols)
     ax.invert_yaxis()
     ax.set_xlabel("Toffoli-equivalents (p = 7)")
-    ax.tick_params(axis="y", labelsize=7.5)
     save(fig, "padd_steps")
 
     rows = []
@@ -578,13 +593,14 @@ def ecdlp():
     slope = np.polyfit(np.log(nn[3:]), np.log(tof[3:]), 1)[0]
     qfit = np.polyfit(nn, qub, 1)
     NUM["padd_fit"] = {"toffoli_slope": slope, "qubits_linear": qfit.tolist()}
-    fig, ax = plt.subplots(figsize=(3.2, 2.2))
+    fig, ax = plt.subplots(figsize=(2.75, 2.0))
     ax.loglog(nn, tof, "o-", color=VERM, ms=3.5, label=f"Toffoli per addition (slope {slope:.1f})")
     ax.loglog(nn, qub, "s-", color=BLUE, ms=3.5, label=f"qubits (≈ {qfit[0]:.0f}n + {qfit[1]:.0f})")
     ax.set_xticks(nn, [str(int(v)) for v in nn])
     ax.minorticks_off()
     ax.set_xlabel("n = bits of p")
-    ax.legend(fontsize=7, loc="upper left")
+    ax.set_ylim(top=3e5)                         # headroom for the legend
+    ax.legend(loc="upper left", fontsize=8)
     save(fig, "ecdlp_scaling")
 
     abl = json.load(open(ROOT / "bench" / "ec_ablation.json"))
@@ -602,14 +618,13 @@ def ecdlp():
         metric = "t" if key.startswith("tempand") else "toffoli_paper"
         bars.append((lab, 1 - e["variants"][o][metric] / e["variants"][b][metric]))
     NUM["ablation"] = bars
-    fig, ax = plt.subplots(figsize=(3.7, 2.3))
+    fig, ax = plt.subplots(figsize=(3.6, 1.95))
     ax.barh([b[0] for b in bars], [100 * b[1] for b in bars], color=INDIGO, alpha=0.8)
     ax.invert_yaxis()
     for i, (_, v) in enumerate(bars):
         ax.text(100 * v + 1, i, f"{100 * v:.0f}%", va="center", fontsize=8.5)
     ax.set_xlim(0, 98)
-    ax.set_xlabel("saved (Toffoli; T for the last row)", fontsize=9)
-    ax.tick_params(axis="y", labelsize=8.5)
+    ax.set_xlabel("saved (%)")
     save(fig, "ablation")
 
 
@@ -654,17 +669,17 @@ def rsa_vs_ecc():
                     "ratio": lit_rsa(rn)[1] / lit_ecc(en)[1]} for sg, rn, en in levels],
     }
 
-    fig, ax = plt.subplots(figsize=(3.3, 2.25))
+    fig, ax = plt.subplots(figsize=(2.9, 2.1))
     ax.semilogy(ns, [padd[n]["toffoli"] for n in ns], "o-", color=PURPLE, ms=3.5, label="controlled point addition")
     ax.semilogy(ns, [mult[n] for n in ns], "s-", color=VERM, ms=3.5, label="controlled modular multiplication")
     for n in (4, 8, 12):
-        ax.annotate(f"×{ratio[n]:.1f}", (n, math.sqrt(padd[n]["toffoli"] * mult[n])), ha="center", fontsize=8, color=SUBTLE)
+        ax.annotate(f"×{ratio[n]:.1f}", (n, math.sqrt(padd[n]["toffoli"] * mult[n])), ha="center", fontsize=8.5, color=SUBTLE)
     ax.set_xlabel("n = bits of the modulus / field")
     ax.set_ylabel("Toffolis per operation")
-    ax.legend(fontsize=7.5, loc="lower right")
+    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), fontsize=8)   # above the axes, clear of the lines
     save(fig, "group_op_cost")
 
-    fig, ax = plt.subplots(figsize=(3.6, 2.3))
+    fig, ax = plt.subplots(figsize=(3.2, 2.25))
     groups = [("minimal width\n(literature)", 1.26e11, 1.86e13),
               ("this repo's circuits\n(extrapolated)", repo_ecc(256)[1], repo_rsa(3072)[1]),
               ("optimised\n(literature)", 5e7, ge_rsa(3072))]
@@ -675,22 +690,22 @@ def rsa_vs_ecc():
         ax.text(x_, g[2] * 2.2, f"÷{g[2] / g[1]:.0f}", ha="center", fontsize=9.5, color=TEXT)
     ax.set_yscale("log")
     ax.set_ylim(1e7, 1e15)
-    ax.set_xticks(xs, [g[0] for g in groups], fontsize=8.5)
+    ax.set_xticks(xs, [g[0] for g in groups], fontsize=8)
     ax.set_ylabel("Toffolis, whole attack")
-    ax.legend(fontsize=8.5, loc="upper right", ncol=2)
+    ax.legend(loc="upper right", ncol=2, fontsize=8, columnspacing=1.0, handlelength=1.2)
     save(fig, "rsa_vs_ecc")
 
-    fig, ax = plt.subplots(figsize=(3.3, 2.25))
+    fig, ax = plt.subplots(figsize=(2.9, 2.1))
     sg = [L["sigma"] for L in NUM["rsa_ecc"]["levels"]]
     ax.semilogy(sg, [L["rsa_toff"] for L in NUM["rsa_ecc"]["levels"]], "s-", color=VERM, ms=3.5, label="RSA")
     ax.semilogy(sg, [L["ecc_toff"] for L in NUM["rsa_ecc"]["levels"]], "o-", color=PURPLE, ms=3.5, label="elliptic curve")
     for L in NUM["rsa_ecc"]["levels"]:
         ax.annotate(f"÷{L['ratio']:.0f}", (L["sigma"], math.sqrt(L["rsa_toff"] * L["ecc_toff"])), ha="center",
-                    fontsize=7.5, color=SUBTLE)
+                    fontsize=8.5, color=SUBTLE)
     ax.set_xticks(sg)
     ax.set_xlabel("classical security level (bits)")
     ax.set_ylabel("Toffolis (minimal width)")
-    ax.legend(fontsize=7.5, loc="upper left")
+    ax.legend(loc="upper left")
     save(fig, "security_scaling")
 
     # RSA-2048 with Beauregard's circuit, exact and approximate QFT (formulas verified for n = 4..8)

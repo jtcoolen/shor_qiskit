@@ -1,0 +1,179 @@
+\section{Why error correction, and what it costs}\label{sec:qec-why}
+
+\subsection{Noise, and the discretisation of errors}
+
+A circuit of $N$ logical qubits and $G$ gates run directly on physical hardware fails with probability $\approx Gp$, where $p$ is the error per operation. The circuits of Part~I have $G\approx4\times10^7$ Toffolis---each itself several two-qubit gates---on $\approx1{,}200$ qubits, while the best physical two-qubit gates in 2026 sit at $p\sim10^{-3}$ (superconducting) to $10^{-4}$ (trapped ions) \cite{willow25,walkingcat26}. The gap of five to ten orders of magnitude is closed by quantum error correction, whose two founding facts are:
+
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Errors can be discretised.} Any single-qubit noise process is a linear combination of $I,X,Y,Z$ (its Kraus operators expand in the Pauli basis), so a code that corrects $X$, $Y$ and $Z$ on any one qubit corrects \emph{every} single-qubit error, and the measurement of the syndrome projects a continuous error onto one of the discrete Pauli cases. Formally, a set of errors $\{E_a\}$ is correctable by a code with projector $\Pi$ iff the \emph{Knill--Laflamme conditions} hold \cite{knill-laflamme97}:
+\begin{equation}\label{eq:KL}
+\Pi\,E_a^\dagger E_b\,\Pi=c_{ab}\,\Pi\qquad\text{for all }a,b ,
+\end{equation}
+i.e.\ no error maps a codeword onto another codeword, and different errors are either distinguishable or act identically on the code (\emph{degeneracy}).
+\item \textbf{Fault tolerance is possible below a threshold.} If every component fails with probability below some $p_{\rm th}$, then arbitrarily long quantum computations can be carried out with arbitrarily small logical error at a cost that is polylogarithmic in the circuit size (the threshold theorem \cite{aharonov-benor08,knill05}). The proof concatenates a distance-$3$ code with itself $\ell$ times: one level turns $p$ into $cp^2$ (two faults are needed to fail), so $\ell$ levels give $p_\ell=(cp)^{2^\ell}/c$, which is $\le\varepsilon$ once $\ell=O(\log\log(1/\varepsilon))$, at a size overhead of $n^\ell=\mathrm{polylog}(1/\varepsilon)$.
+\end{enumerate}
+
+In practice the overhead is dominated not by the asymptotics but by the constants of the code family, so the right question is: \emph{for a given physical error rate $p$ and a target logical error $\varepsilon$ per gate, how many physical qubits does a logical qubit cost, and how many does a logical gate cost?} The answer for the surface code is set by its threshold $p_{\rm th}\approx1\%$ and the empirical law
+\begin{equation}\label{eq:plaw}
+p_L(d)\approx A\Big(\frac{p}{p_{\rm th}}\Big)^{(d+1)/2},\qquad A\approx0.1,
+\end{equation}
+per code-distance-$d$ patch per round of syndrome measurement \cite{fowler12,fowler-gidney18}, so that each step $d\to d+2$ suppresses the logical error by $\Lambda=p_{\rm th}/p$ (Google measured $\Lambda=2.14\pm0.02$ on Willow at its physical noise \cite{willow25}; \cref{fig:threshold} shows $\Lambda\approx10$ at $p=10^{-3}$ for the circuit-level depolarising model simulated here). A distance-$d$ patch costs $2d^2-1$ physical qubits ($d^2$ data, $d^2-1$ measurement), so a target of $\varepsilon=10^{-15}$ per patch per round at $p=10^{-3}$ needs $d\approx25$ and $\approx1{,}250$ physical qubits per logical qubit before any routing space---the origin of the ``$\sim10^3$ physical qubits per logical qubit'' rule of thumb and of the million-qubit estimates of \cref{sec:physical}.
+
+\subsection{The stabiliser formalism}\label{sec:stabiliser}
+
+Let $\mathcal P_n$ be the Pauli group on $n$ qubits (tensor products of $I,X,Y,Z$ with phases $\pm1,\pm i$). A \emph{stabiliser code} is defined by an abelian subgroup $\mathcal S=\langle S_1,\dots,S_{n-k}\rangle\subset\mathcal P_n$ with $-I\notin\mathcal S$; its code space is the joint $+1$ eigenspace $\mathcal C=\{\ket\psi:\ S\ket\psi=\ket\psi\ \forall S\in\mathcal S\}$, of dimension $2^k$ when the $n-k$ generators are independent \cite{gottesman97,crss98}. Three facts carry the whole subject:
+\begin{itemize}[leftmargin=*]
+\item \textbf{Detection.} For a Pauli error $E$, either $E$ commutes with every generator or it anticommutes with some of them; measuring the generators returns the \emph{syndrome} $s\in\{0,1\}^{n-k}$, $s_i=1$ iff $E$ anticommutes with $S_i$, without disturbing the encoded state, because the measurement of $S_i$ projects onto its $\pm1$ eigenspaces and the code state is already an eigenstate.
+\item \textbf{Logical operators.} The \emph{normaliser} $N(\mathcal S)$ (Paulis commuting with all of $\mathcal S$) acts on $\mathcal C$; $N(\mathcal S)/\mathcal S$ is the $2k$-generated group of logical Paulis $\bar X_j,\bar Z_j$. An undetectable error is an element of $N(\mathcal S)$; it is harmless iff it lies in $\mathcal S$. The \emph{distance} is $d=\min\{\wt(E):E\in N(\mathcal S)\setminus\mathcal S\}$, and the code corrects all errors of weight $\le t=\lfloor(d-1)/2\rfloor$ (\cref{eq:KL}: for $\wt(E_a^\dagger E_b)<d$ the product is either in $\mathcal S$ or detectable).
+\item \textbf{Binary representation.} Writing a Pauli as a $2n$-bit vector $(x|z)$ (ignoring phase), products become sums mod $2$ and commutation becomes the symplectic form $x\cdot z'+z\cdot x'\bmod2$; the generators form an $(n-k)\times2n$ \emph{check matrix} $H=[H_X|H_Z]$ with $H_XH_Z^{\mathsf T}+H_ZH_X^{\mathsf T}=0$, and the syndrome of $E=(x|z)$ is $s=H_Xz+H_Zx$. Decoding, encoding and the bounds of \cref{sec:bounds} are all linear algebra over $\F_2$ on $H$.
+\end{itemize}
+A \emph{CSS code} \cite{calderbank-shor96,steane96} has generators that are purely $X$-type or purely $Z$-type, $H=\big[\begin{smallmatrix}H_X&0\\0&H_Z\end{smallmatrix}\big]$ with $H_XH_Z^{\mathsf T}=0$ (now $H_X$ and $H_Z$ denote the $X$- and $Z$-check matrices, $r_X\times n$ and $r_Z\times n$). The $Z$-type checks detect $X$ errors through the classical code $\ker H_Z$ and the $X$-type checks detect $Z$ errors through $\ker H_X$, independently, so a CSS code is two classical codes $C_X=\ker H_Z\supseteq\mathrm{row}(H_X)$ and $C_Z=\ker H_X\supseteq\mathrm{row}(H_Z)$ glued by the orthogonality condition; $k=n-\rank H_X-\rank H_Z$; and the transversal CNOT is automatically a logical CNOT (\cref{sec:transversal}). Every code in this document except $\bits{5}{1}{3}$ is CSS.
+
+\begin{figure}[H]
+\centering
+\begin{quantikz}[column sep=6pt,row sep=4pt,font=\small]
+\lstick{$\ket0$}  & \targ{} & \targ{} & \targ{} & \targ{} & \meter{} \\
+\lstick{$q_1$}    & \ctrl{-1} &       &         &         & \\
+\lstick{$q_2$}    &         & \ctrl{-2} &       &         & \\
+\lstick{$q_3$}    &         &         & \ctrl{-3} &       & \\
+\lstick{$q_4$}    &         &         &         & \ctrl{-4} & \\
+\end{quantikz}
+\hspace{1cm}
+\begin{quantikz}[column sep=6pt,row sep=4pt,font=\small]
+\lstick{$\ket+$}  & \ctrl{1} & \ctrl{2} & \ctrl{3} & \ctrl{4} & \gate{H} & \meter{} \\
+\lstick{$q_1$}    & \targ{} &          &          &          & & \\
+\lstick{$q_2$}    &         & \targ{}  &          &          & & \\
+\lstick{$q_3$}    &         &          & \targ{}  &          & & \\
+\lstick{$q_4$}    &         &          &          & \targ{}  & & \\
+\end{quantikz}
+\caption{Measuring a weight-four $Z$-type check $Z_1Z_2Z_3Z_4$ (left) and $X$-type check $X_1X_2X_3X_4$ (right) with one ancilla. The ancilla accumulates the parity; the data qubits are untouched if nothing fails. A single ancilla fault in the middle of the left circuit can propagate to two data qubits (a \emph{hook} error), which is why the CNOT order matters for the surface code (\cref{sec:surface}) and why cat-state or flag constructions are needed for high-weight checks (\cref{sec:ftsyndrome}).}
+\label{fig:checks}
+\end{figure}
+
+\subsection{Encoding}\label{sec:encoding}
+
+There are two ways to prepare a logical state, and real machines use the second.
+
+\paragraph{Unitary encoders (Gottesman's standard form).} Bring the check matrix, by row operations over $\F_2$ and qubit permutations, to the standard form
+\begin{equation}\label{eq:stdform}
+H=\left[\begin{array}{ccc|ccc} I_r & A_1 & A_2 & B & 0 & C\\ 0&0&0& D & I_{n-k-r} & E\end{array}\right],\qquad
+\bar X=\left[\,0\ \ E^{\mathsf T}\ \ I_k\ \big|\ C^{\mathsf T}\ \ 0\ \ 0\,\right],
+\end{equation}
+where $r=\rank H_X$ \cite{gottesman97}. Then (\cref{alg:encoder}) place the $k$ data qubits last and the $n-k$ ancillas in $\ket0$; for each logical $\bar X_j$ apply its $X$-part to the ancillas controlled on data qubit $j$ (the $Z$-part acts trivially on $\ket0$); then for $i=1,\dots,r$ apply $H$ to ancilla $i$ followed by generator $i$'s Pauli on the other qubits controlled on ancilla $i$, with an $S$ on ancilla $i$ when the generator has $Y$ there. Each such block applies $(I+S_i)/\sqrt2$ to a state in which qubit $i$ is $\ket0$, and since the projectors commute the result is $\prod_i\frac{I+S_i}{\sqrt2}\,\bar X^{c}\ket{0\cdots0}$, the encoded $\ket{c_L}$. The three small encoders of \cref{sec:smallcodes} were generated or checked this way with Stim (\cref{app:scripts}). The cost is $O(n(n-k))$ controlled-Paulis---fine for $n=7$, irrelevant for $n=10^3$.
+
+\begin{algorithm}[H]
+\caption{Standard-form encoder for an $\bits{n}{k}{d}$ stabiliser code (verified in \code{scripts/standard\_form\_encoder.py})}\label{alg:encoder}
+\begin{algorithmic}[1]
+\Require check matrix $H$ in the standard form \eqref{eq:stdform} after a qubit permutation $\pi$; data qubits $n-k,\dots,n-1$
+\For{$j=0,\dots,k-1$}\Comment{conditional logical $X$}
+  \For{each ancilla $q$ with $(E^{\mathsf T})_{q,j}=1$} apply $\mathrm{CX}(n-k+j\to q)$ \EndFor
+\EndFor
+\For{$i=0,\dots,r-1$}\Comment{project onto $S_i=+1$}
+  \State apply $H$ on qubit $i$
+  \For{each qubit $q\neq i$} apply $\mathrm{CX}$, $\mathrm{CZ}$ or $\mathrm{CY}$ from $i$ to $q$ according to the $(x,z)$ entries of $S_i$ at $q$ \EndFor
+  \If{$S_i$ has $Y$ on qubit $i$} apply $S$ on qubit $i$ \EndIf
+\EndFor
+\State \Return the permutation $\pi$ that maps circuit qubits back to code qubits
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Measurement-based encoding.} Prepare every data qubit in $\ket0$ (which is already a $+1$ eigenstate of all $Z$-type checks and of $\bar Z$), measure all $X$-type checks, and record the outcomes: the state is now a stabiliser state of the code with some $X$-checks at $-1$, which is just a known Pauli frame, or is corrected by a Pauli. This prepares $\ket{0_L}$ in one round of syndrome measurement; $\ket{+_L}$ is the same with $\ket+$ and the $Z$-checks. A non-stabiliser state ($\ket{T_L}$) cannot be prepared this way and needs injection (\cref{sec:magic}). This is how surface-code, colour-code and bicycle-code logical qubits are initialised in every architecture below; the ``encoder'' is the error-correction cycle itself.
+
+\subsection{Decoding, in general}\label{sec:decoding-general}
+
+Given the syndrome $s$ the decoder must choose a correction $\hat E$ with $\mathrm{syn}(\hat E)=s$; the correction succeeds iff $\hat E E\in\mathcal S$. The best possible decoder is \emph{maximum-likelihood} (MLD): choose the coset $\hat E\mathcal S$ of maximal total probability---degenerate decoding, since all errors in a coset are equivalent. MLD is \#P-hard in general, so practical decoders approximate it:
+\begin{itemize}[leftmargin=*]
+\item \textbf{Lookup tables} for small codes: a table from each of the $2^{n-k}$ syndromes to a minimum-weight error (\cref{sec:smallcodes}).
+\item \textbf{Minimum-weight decoding}: find the lowest-weight $\hat E$ with syndrome $s$ (ignoring degeneracy). For codes whose errors create \emph{pairs} of syndrome defects (surface and toric codes, repetition codes) this is a minimum-weight perfect matching problem on a graph, solvable in polynomial time (\cref{sec:mwpm}); union-find decoders give an almost-linear-time approximation (\cref{sec:unionfind}).
+\item \textbf{Belief propagation} on the Tanner graph of $H$, which is approximate for quantum codes because of degeneracy and short cycles, repaired by ordered-statistics post-processing (BP+OSD) or by the memory/relay heuristics of Relay-BP (\cref{sec:bposd}).
+\item \textbf{Learned decoders} (AlphaQubit) trained on real syndrome data \cite{alphaqubit24}.
+\end{itemize}
+Real decoding is \emph{circuit-level}: measurements are themselves noisy, so the syndrome is measured repeatedly ($\approx d$ rounds), the decoder works on the differences between consecutive rounds (\emph{detectors}), and a fault anywhere in the extraction circuit---a data error, a measurement error, an ancilla error that hooks onto two data qubits---is one of the ``error mechanisms'' of a \emph{detector error model} that lists, for each possible fault, which detectors it flips and which logical observables it toggles. Stim builds this model from the circuit automatically, and that is what the matching decoder of \cref{fig:threshold} decodes \cite{gidney21stim,higgott23pymatching}. The decoder must also be \emph{fast}: a $1\,\mu$s surface-code cycle produces $\approx d^2$ bits per patch per microsecond, and the reaction time (decoding latency plus control) multiplies the critical path of every non-Clifford gate (\cref{sec:physical}); Google's real-time decoder ran at $63\,\mu$s average latency for a distance-$5$ memory over a million cycles \cite{willow25}, and IBM's Relay-BP is designed to be implemented on FPGAs/ASICs \cite{mueller25relaybp}.
+
+\subsection{The bounds, and a map of the codes}\label{sec:bounds}
+
+For stabiliser (and, mostly, all) codes with rate $R=k/n$ and relative distance $\delta=d/n$, the classical bounds have quantum analogues \cite{gottesman97,crss98,ekert-macchiavello96,rains99shadow,ashikhmin-litsyn99}:
+\begin{align}
+\text{Singleton (Knill--Laflamme):}\quad& n-k\ \ge\ 2(d-1) &&\Rightarrow\ R\le1-2\delta;\label{eq:singleton}\\
+\text{Hamming (non-degenerate):}\quad& \sum_{j=0}^{t}3^j\binom nj\,2^k\ \le\ 2^n &&\Rightarrow\ R\le1-\tfrac{\delta}{2}\log_23-h\!\big(\tfrac\delta2\big);\label{eq:hamming}\\
+\text{Gilbert--Varshamov (existence):}\quad& \sum_{j=1}^{d-1}3^j\binom nj\ <\ 2^{n-k}\ \text{suffices} &&\Rightarrow\ R\ge1-\delta\log_23-h(\delta),\label{eq:gv}
+\end{align}
+with $h$ the binary entropy. The Hamming bound counts the $3^j\binom nj$ Pauli errors of weight $j$ that a non-degenerate code must map to distinct syndromes---degenerate codes can beat it slightly, and the surface code is highly degenerate---while the Gilbert--Varshamov bound shows that random stabiliser codes achieve rate $1-\delta\log_23-h(\delta)>0$ for $\delta<0.189$: \emph{good} codes exist, but random ones have dense checks. Rains' shadow enumerators and the Ashikhmin--Litsyn linear-programming bounds tighten the upper bound below Hamming for stabiliser codes \cite{rains99shadow,ashikhmin-litsyn99}. For codes with \emph{geometrically local} checks in two dimensions there is the far stronger Bravyi--Poulin--Terhal bound
+\begin{equation}\label{eq:bpt}
+k\,d^2\ \le\ c\,n\qquad(\text{2D local stabiliser codes}),
+\end{equation}
+so the surface code's $k=1$, $d=\Theta(\sqrt n)$ is optimal for a planar layout, and any code with $k=\Theta(n)$ or $d\gg\sqrt n$ must have non-local checks \cite{bpt10,bravyi-terhal09}---which is exactly what the hypergraph-product and bivariate-bicycle codes of \cref{sec:qldpc} buy with long-range couplers, and what the asymptotically good LDPC codes of Panteleev--Kalachev ($k,d=\Theta(n)$ with constant-weight checks) show is possible in principle \cite{panteleev-kalachev21good,leverrier-zemor22}. \Cref{fig:bounds} places the codes of this document on the $(\delta,R)$ plane; \cref{tab:codefamilies} summarises what each family offers.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{semilogyaxis}[width=0.94\textwidth,height=0.68\textwidth,
+  xlabel={relative distance $\delta=d/n$}, ylabel={rate $R=k/n$},
+  xmin=0,xmax=0.68,ymin=0.001,ymax=1.3, grid=both, grid style={black!10},
+  legend style={font=\scriptsize,at={(0.98,0.03)},anchor=south east,cells={anchor=west}},
+  tick label style={font=\footnotesize}, label style={font=\small}, xtick={0,0.1,...,0.7},
+  x tick label style={/pgf/number format/fixed}, unbounded coords=discard, clip=false,
+  every node near coord/.append style={font=\tiny}]
+\addplot[thick,color=boxred] table[x=delta,y=singleton] {data/bounds.dat}; \addlegendentry{quantum Singleton $R\le1-2\delta$}
+\addplot[thick,color=orange!90!black] table[x=delta,y=hamming] {data/bounds.dat}; \addlegendentry{quantum Hamming (non-degenerate)}
+\addplot[thick,color=boxgreen] table[x=delta,y=gv] {data/bounds.dat}; \addlegendentry{quantum Gilbert--Varshamov (achievable)}
+\addplot[only marks,mark=*,mark size=2pt,color=black] table[x=delta,y=rate] {data/codes_small.dat}; \addlegendentry{small codes}
+\addplot[only marks,mark=square*,mark size=2pt,color=cZ!80!black] table[x=delta,y=rate] {data/codes_surface.dat}; \addlegendentry{surface / toric}
+\addplot[only marks,mark=triangle*,mark size=2.6pt,color=cX!80!black] table[x=delta,y=rate] {data/codes_colour.dat}; \addlegendentry{colour codes 4.8.8}
+\addplot[only marks,mark=diamond*,mark size=2.6pt,color=violet] table[x=delta,y=rate] {data/codes_ldpc.dat}; \addlegendentry{quantum LDPC (IBM bivariate bicycle, IonQ)}
+\addplot[only marks,mark=o,mark size=2.4pt,color=black!60] table[x=delta,y=rate] {data/codes_det.dat}; \addlegendentry{detection codes ($d=2$)}
+% ---- labels
+\tikzset{lab/.style={font=\tiny,inner sep=1pt}}
+\node[lab,anchor=south] at (axis cs:0.6,0.2) {$\bits{5}{1}{3}$ (perfect)};
+\node[lab,anchor=west] at (axis cs:0.4286,0.1429) {Steane $\bits{7}{1}{3}$};
+\node[lab,anchor=south west] at (axis cs:0.3333,0.1111) {Shor / surface $d{=}3$};
+\node[lab,anchor=west] at (axis cs:0.2,0.0667) {RM $\bits{15}{1}{3}$};
+\node[lab,anchor=west] at (axis cs:0.3043,0.0435) {Golay $\bits{23}{1}{7}$};
+\node[lab,anchor=west] at (axis cs:0.2941,0.0588) {4.8.8 $d{=}5$};
+\node[lab,anchor=west] at (axis cs:0.2258,0.0323) {4.8.8 $d{=}7$};
+\node[lab,anchor=west] at (axis cs:0.1837,0.0204) {4.8.8 $d{=}9$};
+\node[lab,anchor=south west] at (axis cs:0.2,0.04) {surface $d{=}5$};
+\node[lab,anchor=north east] at (axis cs:0.1429,0.0204) {surface $d{=}7$};
+\node[lab,anchor=north east] at (axis cs:0.1111,0.01235) {$d{=}9$};
+\node[lab,anchor=west] at (axis cs:0.0588,0.00346) {surface $d{=}17$};
+\node[lab,anchor=west] at (axis cs:0.04,0.0016) {surface $d{=}25$ (Model S)};
+\node[lab,anchor=west] at (axis cs:0.1667,0.1111) {toric $L{=}3$};
+\node[lab,anchor=north west] at (axis cs:0.1,0.04) {toric $L{=}5$};
+\node[lab,anchor=west] at (axis cs:0.0882,0.2157) {IonQ Q102 $\bits{102}{22}{9}$};
+\node[lab,anchor=west] at (axis cs:0.0833,0.1667) {$\bits{72}{12}{6}$};
+\node[lab,anchor=south west] at (axis cs:0.1111,0.0889) {$\bits{90}{8}{10}$};
+\node[lab,anchor=west] at (axis cs:0.1286,0.0857) {IonQ $\bits{70}{6}{9}$};
+\node[lab,anchor=east] at (axis cs:0.0833,0.0833) {gross $\bits{144}{12}{12}$};
+\node[lab,anchor=north west] at (axis cs:0.0926,0.0741) {$\bits{108}{8}{10}$};
+\node[lab,anchor=south west] at (axis cs:0.0625,0.0417) {two-gross $\bits{288}{12}{18}$};
+\node[lab,anchor=west] at (axis cs:0.5,0.5) {$\bits{4}{2}{2}$};
+\node[lab,anchor=west] at (axis cs:0.3333,0.6667) {$\bits{6}{4}{2}$};
+\node[lab,anchor=west] at (axis cs:0.25,0.75) {$\bits{8}{6}{2}$};
+\end{semilogyaxis}
+\end{tikzpicture}
+\caption{Rate against relative distance (logarithmic rate axis) for the codes discussed in Part~II, with the three bounds \eqref{eq:singleton}--\eqref{eq:gv} computed for this document (the Hamming and Gilbert--Varshamov curves stop where they reach zero). Finite codes sit far below the asymptotic curves; what the plot shows is the trade each family makes. The surface code slides toward $R\to0$ as $d$ grows ($d=25$, the distance used in \cref{sec:physical}, is at $\delta=0.04$, $R=0.0016$); colour codes are somewhat denser at equal distance; the bivariate bicycle codes sit an order of magnitude higher in rate at comparable $\delta$ (the gross code at $\delta=R=1/12$), and IonQ's $\bits{102}{22}{9}$ higher still; the $\bits{5}{1}{3}$ code is perfect---it meets the Hamming bound with equality, $1+3\cdot5=2^4$.}
+\label{fig:bounds}
+\end{figure}
+
+\begin{table}[H]
+\centering\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}p{2.3cm}p{2.1cm}p{1.9cm}p{3.0cm}p{2.8cm}p{2.5cm}@{}}
+\toprule
+family & $\bits{n}{k}{d}$ & locality & threshold (circuit-level) & native logical gates & decoder\\
+\midrule
+Shor, Steane, $\bits{5}{1}{3}$, RM & $9,7,5,15$ / $1$ / $3$ & none needed & (concatenated) $\sim10^{-4}$--$10^{-3}$ & Steane: transversal Clifford; RM$_{15}$: transversal $T$ & lookup table\\
+surface / toric & $d^2$ / $1$ / $d$; $2d^2$ / $2$ / $d$ & 2D, weight 4 & $\approx0.5$--$1\%$ \cite{fowler12,raussendorf07} & lattice surgery CNOT, Pauli product measurements; $T$ by injection & MWPM, union-find, neural\\
+2D colour code (4.8.8, 6.6.6) & $\frac{d^2+2d-1}2$ / $1$ / $d$ & 2D, weight 4--8 & $\approx0.2$--$0.5\%$ & transversal $H,S,$CNOT & matching on restricted lattices, BP\\
+3D colour code & e.g.\ $\bits{15}{1}{3}$ & 3D & lower & transversal $T$ (gauge fixing) & \\
+bivariate bicycle (IBM) & $\bits{144}{12}{12}$, $\bits{288}{12}{18}$ & degree 6, two planar layers & $0.8\%$ (pseudo-threshold $0.65$--$0.7\%$) \cite{bravyi24gross} & automorphisms; generalised surgery via LPU; $T$ injected & BP+OSD, Relay-BP\\
+three-ring QLDPC (IonQ) & $\bits{70}{6}{9}$, $\bits{102}{22}{9}$ & non-local (ion transport) & -- & cat-state measurements, Clifford frame & \cite{walkingcat26}\\
+hypergraph product & $\Theta(n)$ / $\Theta(\sqrt n)$ & non-local & $\sim$ & surgery & BP+OSD\\
+good QLDPC (PK, LZ) & $\Theta(n)$ / $\Theta(n)$ & expander-like & -- & (theory) & linear-time decoders exist\\
+repetition cat (Alice\,\&\,Bob) & $\bits{d}{1}{d}$ on cat qubits & 1D & bias-tailored & lattice surgery, injection & matching\\
+yoked surface codes & concatenated & 2D & -- & storage only & \\
+\bottomrule
+\end{tabular}
+\caption{The code families used in the architectures of \cref{sec:physical}. Thresholds depend strongly on the noise model and decoder; the quoted ranges are indicative.}
+\label{tab:codefamilies}
+\end{table}

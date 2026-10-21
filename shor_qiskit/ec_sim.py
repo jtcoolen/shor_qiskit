@@ -120,6 +120,21 @@ class Machine:
             self._pool.extend(qs)
             self._live -= len(qs)
 
+    def claim(self, qubits):
+        """Take these *specific* qubits back out of the pool, as `anc` would.
+
+        Register sharing ([1128] Sec 3.1) frees the high qubits of u and v as
+        the GCD shrinks them and lets the record grow into them; undoing it
+        must give the *same* qubits back to v, because v's low part is the
+        caller's x register.  They must be in the pool (i.e. free and |0>).
+        """
+        qs = list(qubits)
+        for q in qs:
+            self._pool.remove(q)            # ValueError if it is not free
+        self._live += len(qs)
+        self.peak_live = max(self.peak_live, self._live)
+        return Reg(qs, "claimed")
+
     # -- running a builder backwards ----------------------------------------
     def emit_inverse(self, fn, *args, **kw):
         """Append the *inverse* of whatever `fn` would have appended.
@@ -252,6 +267,10 @@ def simulate(qc, init=None, checks=(), strict=True):
             if strict and bits[w[2]] != (bits[w[0]] & bits[w[1]]):
                 raise SimError("AND-dagger target did not hold a AND b")
             bits[w[2]] = 0
+            return
+        hook = getattr(op, "ec_basis", None)
+        if hook is not None:        # a logical gate that states its basis-state action
+            hook(bits, w)
             return
 
         # any controlled-X / controlled-SWAP, whatever its arity or ctrl_state

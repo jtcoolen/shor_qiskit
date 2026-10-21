@@ -25,7 +25,7 @@ from qiskit.quantum_info import Statevector
 from _ec_util import FULL, ok, section
 
 import ec_cost
-import ec_edwards as E
+import ec_edwards_toy as E
 import ec_edwards_kim as K
 import shor_stats as ST
 from ec_sim import Machine, getv, setv, simulate

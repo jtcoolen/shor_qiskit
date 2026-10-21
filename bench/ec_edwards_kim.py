@@ -5,7 +5,7 @@ Same task as bench/ec_edwards_toy.py -- the 8-point complete curve
 -x^2 + y^2 = 1 + 3x^2y^2 over F_5, P = (1, 2), Q = [5]P, 3-bit u and v --
 with two oracle families selected by `ec_edwards_kim.build_oracle`:
 
-  horner    `ec_edwards` baseline: one control bit per addition, the addend
+  horner    `ec_edwards_toy` baseline: one control bit per addition, the addend
             constants folded into (controlled) constant additions
   kim-qrom  `ec_edwards_kim`: w-bit windows; per window the three constants
             (y-x, y+x, 2d x y) are loaded coherently by one QROM walk into
@@ -40,7 +40,7 @@ sys.path.insert(0, str(HERE.parent / "tests"))
 sys.path.insert(0, str(HERE.parent / "shor_qiskit"))
 
 import ec_cost as CO  # noqa: E402
-import ec_edwards as E  # noqa: E402
+import ec_edwards_toy as E  # noqa: E402
 import ec_edwards_kim as KM  # noqa: E402
 import shor_stats as ST  # noqa: E402
 from ec_sim import getv, setv, simulate  # noqa: E402
@@ -164,7 +164,7 @@ def measure():
         "scope": "toy only (p = 5, n = 3 bits): Kim ePrint 2026/106 Sec 4.4 "
                  "out-of-place mixed extended-Edwards addition with the three "
                  "addend constants loaded by a coherent windowed QROM, inside "
-                 "a full Shor ECDLP circuit; compared with the ec_edwards "
+                 "a full Shor ECDLP circuit; compared with the ec_edwards_toy "
                  "controlled-Horner baseline. NOT Ed25519 scale, NOT the "
                  "paper's QCSA/ProjectQ synthesis; same-task toy resource "
                  "frontier only, not a cryptographic-scale Pareto claim",

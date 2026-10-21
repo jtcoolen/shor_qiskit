@@ -1,0 +1,48 @@
+{
+  "rsa": {
+    "N": 60491,
+    "s": 2,
+    "primes": 7,
+    "L_mod_N": 6,
+    "f": 13,
+    "deviation_bound": 0.0205078125,
+    "worst_deviation": 0.0011076027838852062,
+    "exact_vs_closed_form": 9.055798645685176e-17,
+    "masks": [
+      {
+        "mask_bits": 5,
+        "window": 256,
+        "period": 3000,
+        "tvd": 0.0714098869125136,
+        "peak_mass": 0.8664553663616485,
+        "exact_peak_mass": 0.9000087941395123
+      },
+      {
+        "mask_bits": 7,
+        "window": 1024,
+        "period": 3000,
+        "tvd": 0.10502181941037629,
+        "peak_mass": 0.8931501461281027,
+        "exact_peak_mass": 0.9000087941395123
+      },
+      {
+        "mask_bits": 9,
+        "window": 4096,
+        "period": 3000,
+        "tvd": 0.20443501013404086,
+        "peak_mass": 0.9045925096822403,
+        "exact_peak_mass": 0.9000087941395123
+      }
+    ]
+  },
+  "ecdlp_signed": {
+    "curve": "rand-p37-a21-b34",
+    "order": 43,
+    "k": 7,
+    "wrong_fraction": 0.27978515625,
+    "tvd": 0.3696886501491524,
+    "success": 0.429983885030585,
+    "ideal_success": 0.7655051104616722,
+    "ionq_bound": 0.09945267164992148
+  }
+}

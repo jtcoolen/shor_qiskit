@@ -1,0 +1,150 @@
+\section{The Pareto frontier}\label{sec:pareto}
+
+\subsection{Three constructions, and which one is a frontier}
+
+Supplemental Note~A is careful to keep three objects apart \cite{ecdsafail-supp}. The \emph{product-score incumbent sequence} is the chronological list of promoted submissions, each of which lowered $\QT$ when it landed; it is what the leaderboard shows and what \cref{fig:trajectory} plots. The \emph{low-width track} is a mechanism-oriented selection of validator-clean circuits below the product-efficient regime (q980, q988, q952, q1019, q948, q828, q826, q825 in ledger order). The \emph{admitted $(Q,T)$ Pareto set} is the only one of the three that is a frontier in the multi-objective sense,
+\begin{equation}\label{eq:pareto}
+\mathcal P(\mathcal A)=\{c\in\mathcal A:\ \nexists\,d\in\mathcal A\ \text{with } Q(d)\le Q(c),\ T(d)\le T(c),\ \text{one inequality strict}\},
+\end{equation}
+over the set $\mathcal A$ of \emph{admitted} rows: promoted ones, plus rejected ones (``rejected'' is the CLI's word for a valid run that did not beat the incumbent) that carry public evidence of a complete $9{,}024$-instance clean run. At the 26~July cutoff $\mathcal P$ had eight points, six of them rejected low-$Q$ rows that a winner-only leaderboard would have discarded (\cref{tab:pareto}).
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lrrlp{5.6cm}@{}}
+\toprule
+submission & $Q$ & $T$ & status & interpretation\\
+\midrule
+\multicolumn{5}{@{}l}{\emph{Admitted Pareto set at the data cutoff, 26 July 2026 (Table~2 of the paper)}}\\
+\code{b6f2b0a} & 825 & 489,161,900 & admitted & lowest admitted width (register-shared EEA)\\
+\code{f1d8707} & 826 & 479,337,428 & admitted & one qubit coincides with $9{,}824{,}472$ fewer Toffolis\\
+\code{39a9b5f} & 828 & 448,102,916 & admitted & two more qubits, $31{,}234{,}512$ fewer ($\approx15.6$\,M per qubit)\\
+\code{a3b0148} & 948 & 54,781,961 & admitted & exit from the hard-$Q$ metadata cliff\\
+\code{4352cfb} & 980 & 28,847,321 & admitted & lowest admitted $T$ below $1{,}000$ qubits\\
+\code{1c0e0e9} & 1,133 & 1,460,511 & admitted & bridge toward the product-efficient regime\\
+\code{8e9c9a2} & 1,151 & 1,299,453 & promoted & $\QT$ incumbent, $1{,}495{,}670{,}403$\\
+\code{a536a48} & 1,158 & 1,292,651 & promoted & lowest-$T$ promoted point\\
+\midrule
+\multicolumn{5}{@{}l}{\emph{Non-dominated rows of the 7 October 2026 snapshot, promoted or rejected with API metrics \cite{ecdsafail-wiki}}}\\
+\code{10177cd} & 792 & 656,602,578 & rejected & lowest width on the snapshot\\
+\code{87cffbd} & 794 & 415,821,960 & rejected & \\
+\code{8d26593} & 795 & 300,862,444 & rejected & \\
+\code{c60617f} & 807 & 276,427,457 & rejected & \\
+\code{5c4ec19} & 822 & 250,088,365 & rejected & \\
+\code{3170f7b} & 823 & 154,247,477 & rejected & \\
+\code{05f08d8} & 833 & 61,654,186 & rejected & \\
+\code{48d934d} & 838 & 22,019,787 & rejected & \\
+\code{a9d89c2} & 973 & 11,844,334 & rejected & \\
+\code{9d4282b} & 998 & 10,438,839 & rejected & \\
+\code{4188053} & 1,011 & 9,329,693 & rejected & \\
+\code{57aa8ae} & 1,072 & 2,791,974 & rejected & \\
+\code{c1c0da9} & 1,112 & 1,739,356 & rejected & \\
+\code{dd3621d} & 1,145 & 1,132,785 & rejected & \\
+\code{17250b2} & 1,164 & 970,983 & rejected & \\
+\code{b72ce1a} & 1,170 & 946,553 & promoted & Skywalk, 6 Oct\\
+\code{ee41004} & 1,174 & 943,826 & promoted & Skywalk, 3 Oct\\
+\code{c039e59} & 1,243 & 802,520 & promoted & Leapfrog, 7 Oct\\
+\code{a02c716} & 1,244 & 797,905 & promoted & Leapfrog, 7 Oct: $\QT=992{,}593{,}820$\\
+\bottomrule
+\end{tabular}
+\caption{The admitted Pareto set of the paper and the non-dominated set of the latest public snapshot. The post-cutoff ``rejected'' rows passed the evaluator ($0/0/0$ on their own island) but did not improve the scalar score; the paper's stricter curation (a public note with a full clean run) was not re-applied here, so the lower block is the API-reported frontier, not a re-audited one. Several intermediate promoted rows ($1{,}171$--$1{,}173$ qubits) are omitted for brevity.}
+\label{tab:pareto}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{loglogaxis}[width=0.93\textwidth,height=0.6\textwidth,
+  xlabel={peak logical qubits $Q$}, ylabel={average executed Toffolis $T$ per point addition},
+  xmin=700,xmax=3200,ymin=5e5,ymax=2e9, grid=both, grid style={black!10},
+  legend style={font=\scriptsize,at={(0.98,0.98)},anchor=north east,cells={anchor=west}}, legend columns=1,
+  tick label style={font=\footnotesize}, label style={font=\small},
+  log ticks with fixed point, xtick={800,1000,1500,2000,3000}, xticklabels={800,1000,1500,2000,3000}]
+\addplot[only marks,mark=*,mark size=0.9pt,color=black!28] table[x=q,y=t] {data/rejected_qt.dat};
+\addlegendentry{rejected, valid run (7 Oct snapshot)}
+\addplot[only marks,mark=*,mark size=1.0pt,color=boxblue!70] table[x=q,y=t] {data/promoted_qt.dat};
+\addlegendentry{promoted (580, 30 May--7 Oct)}
+\addplot[const plot mark right,thick,color=boxred] table[x=q,y=t] {data/frontier_oct7_all.dat};
+\addlegendentry{non-dominated set, 7 Oct (all valid rows)}
+\addplot[only marks,mark=square*,mark size=2.2pt,color=boxgreen] coordinates {(825,489161900) (826,479337428) (828,448102916) (948,54781961) (980,28847321) (1133,1460511) (1151,1299453) (1158,1292651)};
+\addlegendentry{admitted Pareto set, 26 Jul (paper)}
+\addplot[only marks,mark=diamond*,mark size=3pt,color=orange!80!black] coordinates {(1175,2700000) (1425,2100000)};
+\addlegendentry{Google/Babbush et al.\ (upper bounds, incl.\ lookups)}
+\addplot[only marks,mark=triangle*,mark size=3pt,color=violet] coordinates {(1192,2391000) (1446,1863000)};
+\addlegendentry{Schrottenloher space / gate ($2^{21.19}$, $2^{20.83}$)}
+\addplot[only marks,mark=pentagon*,mark size=3pt,color=teal] coordinates {(1169,2090000) (1050,32300000)};
+\addlegendentry{TrailMix jump-lowqubit / shrunken-PZ}
+\addplot[only marks,mark=o,mark size=3pt,thick,color=magenta!70!black] coordinates {(835,70290000)};
+\addlegendentry{Luo et al.\ (three field registers)}
+\addplot[only marks,mark=otimes*,mark size=3pt,color=cyan!60!black] coordinates {(1457,1392608)};
+\addlegendentry{IonQ, incl.\ $3\cdot2^{16}$ lookups}
+\addplot[only marks,mark=x,mark size=3.5pt,very thick,color=boxred!80!black] coordinates {(1162,1683828)};
+\addlegendentry{ECDSA.fail windowed variant (lookups included)}
+\addplot[only marks,mark=star,mark size=3.5pt,very thick,color=black] coordinates {(1457,1310693) (1246,2821091) (851,85204396) (1107,86033905) (2233,1426965) (1845,1432285) (1798,8346972)};
+\addlegendentry{built in \texttt{shor/} (windowed, incl.\ lookups; see \cref{sec:shor-impl})}
+\end{loglogaxis}
+\end{tikzpicture}
+\caption{The $(Q,T)$ plane. Grey and blue dots are every valid run on the 7~October snapshot ($459$ rejected, $580$ promoted); the red staircase is their non-dominated set; green squares are the paper's admitted Pareto set at the cutoff. The external points are plotted where the sources put them, but they are \emph{not} measured under one accounting rule: Google's two points are upper bounds attested by a zero-knowledge proof for a circuit that includes coherent lookups; Schrottenloher's, TrailMix's, IonQ's and the \code{shor/} points are windowed additions that include their table lookups (\cref{sec:windowed}); the \ecdsafail{} points are for a classical addend and executed Toffolis on the challenge distribution. The paper's own external table carries the same caveat \cite{ecdsafail26}.}
+\label{fig:pareto}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{semilogyaxis}[width=0.93\textwidth,height=0.5\textwidth,
+  xlabel={days since 29 May 2026}, ylabel={promoted score $\QT$},
+  xmin=0,xmax=135,ymin=8e8,ymax=1.3e10, grid=both, grid style={black!10},
+  tick label style={font=\footnotesize}, label style={font=\small}]
+\addplot[const plot,thick,color=boxblue] table[x=days,y=score] {data/incumbents.dat};
+\foreach \d/\lab in {4/{dialog GCD},21/{TrailMix Jump-2},84/{ping-pong},123/{Skywalk},131/{Leapfrog}} {
+  \addplot[dashed,color=black!50] coordinates {(\d,8e8) (\d,1.3e10)};
+}
+\node[font=\scriptsize,rotate=90,anchor=south] at (axis cs:4,2.5e9) {dialog GCD};
+\node[font=\scriptsize,rotate=90,anchor=south] at (axis cs:21,2.5e9) {TrailMix Jump-2};
+\node[font=\scriptsize,rotate=90,anchor=south] at (axis cs:84,3e9) {ping-pong};
+\node[font=\scriptsize,rotate=90,anchor=south] at (axis cs:123,3e9) {Skywalk};
+\node[font=\scriptsize,rotate=90,anchor=south] at (axis cs:131,3e9) {Leapfrog};
+\node[font=\scriptsize,anchor=west] at (axis cs:2,1.05e10) {Kaliski baseline $2{,}715\times3{,}960{,}753$};
+\addplot[only marks,mark=*,mark size=1.8pt,color=boxred] coordinates {(58.39,1495670403)};
+\node[font=\scriptsize,anchor=north west] at (axis cs:59,1.55e9) {\code{8e9c9a2} (26 Jul)};
+\addplot[only marks,mark=*,mark size=1.8pt,color=boxred] coordinates {(131.4,992593820)};
+\node[font=\scriptsize,anchor=north east] at (axis cs:130,1.0e9) {\code{a02c716} (7 Oct)};
+\end{semilogyaxis}
+\end{tikzpicture}
+\caption{The product-score incumbent sequence: all $580$ promoted submissions on the 7~October snapshot, with the five changes of inversion architecture marked. From $10.75\times10^9$ to $0.99\times10^9$ in $131$ days; the paper's three eras (I: joint peak owners, to $5.69$\,B at \code{375fdff}; II: hosted and decoded history, to $1.83$\,B at \code{4b7d727}; III: last-consumer proofs, to $1.57$\,B at \code{71f5115}) all lie inside the first two architectures \cite{ecdsafail-supp}.}
+\label{fig:trajectory}
+\end{figure}
+
+\subsection{Reading the frontier}
+
+\paragraph{The secants are not marginal costs.} Moving from $826$ to $828$ qubits coincides with $31.2$\,M fewer Toffolis, about $15.6$\,M per qubit; from $980$ to $1{,}133$ with more than $27$\,M fewer; from $1{,}133$ to $1{,}151$ with only $161{,}058$ fewer, and from $1{,}151$ to $1{,}158$ with $6{,}802$. These are descriptive secants between \emph{different circuit families}, not derivatives of one design; what they evidence is a steep ``hard-$Q$'' transition among the observed routes, a cliff below $\approx950$ qubits where resident arithmetic state has been replaced by metadata and recomputation and the Toffoli count rises by orders of magnitude \cite{ecdsafail-supp}. The fixed-budget slices are discontinuous for the same reason: no admitted circuit between $981$ and $1{,}050$ qubits improved on the $980$-qubit row's count.
+
+\paragraph{What the frontier is relative to.} The baseline of the challenge was $2{,}715\times3{,}960{,}753=10.75$\,B (with the $9{,}000$-pair \code{DUMMY\_TOFFOLIS} padding; $3{,}942{,}753$ unpadded). The cutoff incumbent \code{8e9c9a2} is $86.1\%$ lower ($7.19\times$); its $Q$ fell $57.6\%$ and its $T$ $67.2\%$; the product tip ($1{,}151$) and the Toffoli tip ($1{,}158$, \code{a536a48}) are different rows. The 7~October incumbent \code{a02c716} is $90.8\%$ below the baseline; it spent $93$ qubits to buy $502$k Toffolis relative to \code{8e9c9a2}. Google's attested points are $3.17$\,B and $2.99$\,B retry-adjusted (their reported circuits were treated as zero-error); the paper's claim is that the challenge reached ``more than 50\% below'' them \emph{under its own accounting}, which excludes the coherent lookups that Google's circuits include (\cref{sec:windowed}: adding them costs $+11$ qubits and $+29.6\%$ Toffolis) \cite{ecdsafail26}.
+
+\paragraph{Retry-adjusted scores.} Because frontier circuits are approximate, the paper also plots $\QT/\hat p$ with $\hat p$ the success rate on a common $50{,}000$-input corpus and, for a full attack with $28$ additions, $28\,Q'T'/(1-28e)$ with $Q'=Q+16$, $T'=T+3\cdot2^{16}$, $e=1-\hat p$; $\hat p$ stays near $1$ on the point-addition axis (the $0.192\%$ failure of \code{8e9c9a2} would cost $\approx5.3\%$ additional expected work under an independently re-runnable success model), but some nominal improvements shrink or reverse once the $28\times$ amplification is applied, and the union bound is only a plug-in proxy: $\hat p$ measures classical-output agreement, not coherent circuit success, and silent errors inside Shor's algorithm accumulate coherently across additions \cite{ecdsafail26,ecdsafail-supp}.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}p{5.4cm}rrp{5.8cm}@{}}
+\toprule
+artifact & $Q$ & Toffolis & accounting\\
+\midrule
+Google/Babbush low-$Q$ \cite{babbush26} & 1,175 & $2.7$\,M & disclosed upper bound (ZK proof); lookups included\\
+Google/Babbush low-gate \cite{babbush26} & 1,425 & $2.1$\,M & same package\\
+Schrottenloher space-optimised \cite{schrottenloher26} & 1,192 & $2^{21.19}$ & reproducible architecture, windowed, plus $16$ window qubits\\
+Schrottenloher gate-optimised \cite{schrottenloher26} & 1,446 & $2^{20.83}$ & \\
+TrailMix \code{jump-lowqubit} \cite{ecdsafail26} & 1,169 & $2.09$\,M & open implementation prior\\
+TrailMix \code{shrunken-PZ} \cite{ecdsafail26} & 1,050 & $32.3$\,M & architectural prior for the low-$Q$ track\\
+Luo et al.\ \cite{luo26} & 835 & $70.29$\,M & $3n+6\lfloor\log_2n\rfloor+19$ qubits\\
+IonQ/H\"aner et al.\ \cite{haener26} & 1,457 & $1.196$\,M $+3\cdot2^{16}$ & windowed, signed-window ready; $28$ additions $\Rightarrow39.0$\,M\\
+\ecdsafail{} \code{8e9c9a2} & 1,151 & $1{,}299{,}453$ & classical addend, executed Toffolis\\
+\ecdsafail{} windowed \code{8e9c9a2} (Note F) & 1,162 & $1{,}683{,}828$ & coherent lookups included\\
+\ecdsafail{} \code{a02c716} (7 Oct) & 1,244 & $797{,}905$ & classical addend\\
+\ecdsafail{} \code{b6f2b0a} / \code{10177cd} & 825 / 792 & $489$\,M / $657$\,M & extreme-width evidence\\
+\code{shor/}: IonQ cells, signed windows, SELECT-SWAP & 1,457 & $1{,}310{,}693$ & windowed, executed; $37.1$\,M for $28$ additions\\
+\code{shor/}: dialog on the space cells & 1,246 & $2{,}821{,}091$ & windowed\\
+\code{shor/}: three field registers (Luo) & 851 & $85{,}204{,}396$ & windowed; $2.39$\,G for the attack\\
+\bottomrule
+\end{tabular}
+\caption{Neighbouring public operating points for one secp256k1 point addition, under heterogeneous accounting rules (after Table~3 of \cite{ecdsafail26}, extended). ``Reported count'' is not a uniform metric across rows.}
+\label{tab:external}
+\end{table}

@@ -35,6 +35,15 @@ def count(obj):
     and_dgs = tally.get("ecand_dg", 0)
     toffs = tally.get("ccx", 0) + tally.get("mcx", 0)
     cswaps = tally.get("cswap", 0)
+    # logical gates that carry their own price (ec_mbu: lookups, unlookups,
+    # phase fixes, flag uncomputes).  None exist in the original circuits.
+    mbu, meas, mbu_exp = 0, 0, 0.0
+    for ci in qc.data:
+        c = getattr(ci.operation, "ec_cost", None)
+        if c:
+            mbu += c.get("toffoli", 0)
+            mbu_exp += c.get("toffoli", 0) * c.get("p_fire", 1)
+            meas += c.get("measure", 0)
     return {
         "qubits": qc.num_qubits,
         "gates": len(qc.data),
@@ -48,14 +57,20 @@ def count(obj):
         # together CCX, CCZ as well as And gates" [1128].  A measurement-based
         # AND-dagger contains no Toffoli and no T gate, so it is not counted.
         # This is the number to compare against published figures.
-        "toffoli_paper": ands + toffs + cswaps,
+        "toffoli_paper": ands + toffs + cswaps + mbu,
         # `toffoli_equiv` charges for the uncompute too.  It is the honest
         # count of three-qubit *operations* performed, and it is the one to use
         # when comparing a construction that uncomputes a lot against one that
         # does not -- but it understates Gidney-style circuits relative to the
         # literature, so it is never the headline.
-        "toffoli_equiv": ands + and_dgs + toffs + cswaps,
-        "t": ands * AND_T + and_dgs * AND_DG_T + (toffs + cswaps) * TOFFOLI_T,
+        "toffoli_equiv": ands + and_dgs + toffs + cswaps + mbu,
+        "t": ands * AND_T + and_dgs * AND_DG_T + (toffs + cswaps) * TOFFOLI_T
+             + mbu * AND_T,
+        # the "executed gates" convention of IonQ / Babbush et al.: a repair
+        # that fires only on measurement outcome 1 counts with its probability
+        "toffoli_expected": ands + toffs + cswaps + mbu_exp,
+        "mbu_toffoli": mbu,             # included above; lookups + repairs
+        "measure": meas,                # X-basis measurements of MBU gates
         "clifford": tally.get("cx", 0) + tally.get("x", 0) + tally.get("swap", 0),
         "by_name": tally,
     }

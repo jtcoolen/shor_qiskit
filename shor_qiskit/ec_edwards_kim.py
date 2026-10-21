@@ -70,7 +70,7 @@ import math
 
 from qiskit.circuit import ClassicalRegister, QuantumCircuit
 
-import ec_edwards as E
+import ec_edwards_toy as E
 import ec_modarith as MA
 import ec_mult as MU
 from ec_sim import Machine

@@ -6,7 +6,7 @@
 #   ./run_tests.sh full     adds end-to-end factoring  (~30 minutes)
 #   ./run_tests.sh all      adds N=21 / N=33 and ECDLP  (hours; 8 GB peak RAM)
 #   ./run_tests.sh ec       the ECDLP suite only       (~6 minutes)
-#   ./run_tests.sh doc      check Part VII matches the benchmark  (instant)
+#   ./run_tests.sh doc      check Parts VII-VIII match the benchmarks  (seconds)
 #
 # SHOR_EC_FULL=1 widens the ECDLP suite (more primes, more cases, more
 # projective representatives).  Default is the narrow sweep.
@@ -18,22 +18,31 @@ PY=${PYTHON:-python3}
 FAST="qft_check test_qrom test_tempand test_fixup test_mbu test_unlookup
       test_essentials test_rc test_windowed test_nested test_coset_law
       test_semiclassical test_resources test_yoked_storage test_rns_reference
-      test_rns_order test_runway test_win_inplace"
-E2E="test_rc_l4 test_win_l4 test_acc_mbu test_win_full test_nested_e2e test_win_e2e test_1c test_coset_order
-     test_rns_gidney test_rns_cfs"
+      test_rns_order test_runway test_win_inplace
+      test_api_surface test_depth
+      test_sparse_sim test_eh test_physical test_g25_arith
+      test_coset_order test_rns"
+E2E="test_rc_l4 test_win_l4 test_acc_mbu test_win_full test_nested_e2e
+     test_win_e2e test_1c test_coset_order_runway test_rns_gidney test_rns_cfs"
 SLOW="test_precision test_n21 test_win_n21 test_n33"
 
 # --- ECDLP (elliptic-curve discrete log) ------------------------------------
 EC="test_ec_classical test_ec_quantum test_ec_arith test_ec_kaliski
     test_ec_divsteps_reference test_ec_divsteps test_ec_divsteps_arith_codec
     test_ec_divsteps_arithmetic test_ec_divsteps_schedule test_ec_packed_euclid
-    test_ec_edwards test_ec_edwards_kim test_ec_dynamic_modarith
+    test_ec_edwards_toy test_ec_edwards_kim test_ec_dynamic_modarith
     test_ec_pointadd test_ec_shor test_ec_opt106 test_ec_opt1128 test_ec_pbt
     test_ec_eea_register_sharing test_ec_pingpong test_ec_jump2 test_ec_karatsuba
-    test_ec_pareto"
+    test_ec_pareto
+    test_ec_regress test_ec_mbu test_ec_window_cfg
+    test_ec_signed test_ec_gcd test_ec_square
+    test_ec_windowed test_ec_padd_mont test_ec_opt
+    test_hier test_ec_space test_ec_cla test_ec_edwards test_ec_proj_q
+    test_ec_depth test_ec_signedwin test_ec_batch test_ec_luo test_ec_luo3
+    test_ec_cqadd"
 
-# Part VII of shor-complete.tex is generated from bench/ec_ablation.json; this
-# asserts the document still matches what the benchmark measured.
+# Parts VII and VIII of shor-complete.tex are generated from bench/*.json; this
+# asserts the document still matches what the benchmarks measured.
 DOC="../bench/ec_check_tex"
 
 case "${1:-fast}" in
@@ -42,7 +51,7 @@ case "${1:-fast}" in
   all)  SET="$FAST $E2E $SLOW $EC" ;;
   ec)   SET="$EC" ;;
   doc)  SET="" ; "$PY" bench/ec_check_tex.py; exit $? ;;
-  *)    echo "usage: $0 [fast|full|all|ec]"; exit 2 ;;
+  *)    echo "usage: $0 [fast|full|all|ec|doc]"; exit 2 ;;
 esac
 
 fails=0

@@ -23,7 +23,7 @@ import pathlib
 
 import ec_classical as C
 import ec_cost as CO
-import ec_edwards as E
+import ec_edwards_toy as E
 import ec_shor as S
 import shor_stats as ST
 from aer_device import describe

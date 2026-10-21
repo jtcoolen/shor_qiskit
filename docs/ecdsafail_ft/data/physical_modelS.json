@@ -1,0 +1,156 @@
+[
+ {
+  "label": "ECDSA.fail 8e9c9a2 (26 Jul incumbent) + 16 window qubits, 28 adds + lookups",
+  "logical": 1167,
+  "toffoli": 41889708,
+  "d": 25,
+  "hot": 1352,
+  "physical": 1748136,
+  "hours": 0.29090075,
+  "p_ok": 0.9986479123741254,
+  "days": 0.01213727524300123
+ },
+ {
+  "label": "ECDSA.fail windowed 8e9c9a2 (Note F; lookups included)",
+  "logical": 1162,
+  "toffoli": 47147184,
+  "d": 25,
+  "hot": 1352,
+  "physical": 1741376,
+  "hours": 0.327411,
+  "p_ok": 0.9984842240408873,
+  "days": 0.01366283479651789
+ },
+ {
+  "label": "ECDSA.fail a02c716 (7 Oct frontier, Leapfrog) + 16, 28 adds + lookups",
+  "logical": 1260,
+  "toffoli": 27846364,
+  "d": 25,
+  "hot": 1352,
+  "physical": 1873872,
+  "hours": 0.19337752777777778,
+  "p_ok": 0.9990363592920151,
+  "days": 0.008065168915824804
+ },
+ {
+  "label": "ECDSA.fail b6f2b0a low-Q (825) + 16, 28 adds + lookups",
+  "logical": 841,
+  "toffoli": 13702038224,
+  "d": 25,
+  "hot": 1352,
+  "physical": 1307384,
+  "hours": 95.15304322222222,
+  "p_ok": 0.718218085459029,
+  "days": 5.520203702090467
+ },
+ {
+  "label": "ECDSA.fail 10177cd low-Q (792, 7 Oct) + 16, 28 adds + lookups",
+  "logical": 808,
+  "toffoli": 18390377208,
+  "d": 25,
+  "hot": 1352,
+  "physical": 1262768,
+  "hours": 127.71095283333334,
+  "p_ok": 0.6511129915741862,
+  "days": 8.172605631049821
+ },
+ {
+  "label": "Google/Babbush et al. low-qubit variant (whole algorithm)",
+  "logical": 1200,
+  "toffoli": 90000000,
+  "d": 25,
+  "hot": 1352,
+  "physical": 1792752,
+  "hours": 0.625,
+  "p_ok": 0.9970233237575423,
+  "days": 0.026119415710880122
+ },
+ {
+  "label": "Google/Babbush et al. low-gate variant (whole algorithm)",
+  "logical": 1450,
+  "toffoli": 70000000,
+  "d": 25,
+  "hot": 1352,
+  "physical": 2130752,
+  "hours": 0.4861111111111111,
+  "p_ok": 0.9972479981272423,
+  "days": 0.020310524230348237
+ },
+ {
+  "label": "IonQ/Haener et al. (whole algorithm)",
+  "logical": 1457,
+  "toffoli": 39000000,
+  "d": 25,
+  "hot": 1352,
+  "physical": 2140216,
+  "hours": 0.2708333333333333,
+  "p_ok": 0.9984589971914368,
+  "days": 0.011302138849932739
+ },
+ {
+  "label": "Schrottenloher space-optimised (whole algorithm)",
+  "logical": 1208,
+  "toffoli": 72490961,
+  "d": 25,
+  "hot": 1352,
+  "physical": 1803568,
+  "hours": 0.5034094513888888,
+  "p_ok": 0.9975872740769768,
+  "days": 0.021026124082504934
+ },
+ {
+  "label": "Schrottenloher gate-optimised (whole algorithm)",
+  "logical": 1462,
+  "toffoli": 57698094,
+  "d": 25,
+  "hot": 1352,
+  "physical": 2146976,
+  "hours": 0.4006812083333333,
+  "p_ok": 0.9977138337732445,
+  "days": 0.016733305465038376
+ },
+ {
+  "label": "Julian: IonQ cells, signed windows, SELECT-SWAP (whole algorithm, executed)",
+  "logical": 1457,
+  "toffoli": 36758053,
+  "d": 25,
+  "hot": 1352,
+  "physical": 2140216,
+  "hours": 0.25526425694444443,
+  "p_ok": 0.9985475186355584,
+  "days": 0.010651481784814652
+ },
+ {
+  "label": "Julian: dialog on the space cells (whole algorithm)",
+  "logical": 1246,
+  "toffoli": 79056082,
+  "d": 25,
+  "hot": 1352,
+  "physical": 1854944,
+  "hours": 0.5490005694444444,
+  "p_ok": 0.9972942109918569,
+  "days": 0.022937086643771393
+ },
+ {
+  "label": "Julian: three field registers, Luo EEA (whole algorithm)",
+  "logical": 851,
+  "toffoli": 2385774798,
+  "d": 25,
+  "hot": 1352,
+  "physical": 1320904,
+  "hours": 16.567880541666668,
+  "p_ok": 0.9434367316620994,
+  "days": 0.7317166405918837
+ },
+ {
+  "label": "RSA-2048, Gidney 2025 (published inputs; 9.2 shots of 12.07 h)",
+  "logical": 1399,
+  "toffoli": 6500000000,
+  "d": 25,
+  "hot": 1352,
+  "physical": 2061800,
+  "hours": 45.138888888888886,
+  "p_ok": 0.7806608854857845,
+  "days": 2.4092241227977924
+ }
+]

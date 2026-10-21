@@ -1,0 +1,208 @@
+{
+  "n": 256,
+  "w": 16,
+  "msbs": 48,
+  "zero_steps": 37,
+  "kappa": 65,
+  "delta": 32,
+  "published": {
+    "IonQ": {
+      "toffoli": 1392608,
+      "qubits": 1457,
+      "toffoli_without_lookups": 1196000
+    }
+  },
+  "cells": {
+    "signed add, Alg 11 + 0<->q swaps (before)": {
+      "toffoli": 712,
+      "expected": 712.0
+    },
+    "signed add, careful (first 37 steps)": {
+      "toffoli": 712,
+      "expected": 712.0
+    },
+    "signed add, phase-approximate (IonQ Alg 2)": {
+      "toffoli": 352,
+      "expected": 336.0
+    },
+    "halving, 74-bit correction (before)": {
+      "toffoli": 73,
+      "expected": 73.0
+    },
+    "halving, kappa = 65": {
+      "toffoli": 64,
+      "expected": 64.0
+    }
+  },
+  "scratch": {
+    "careful signed add": {
+      "scratch": 647,
+      "toffoli": 703,
+      "expected": 703
+    },
+    "careful signed add, lean": {
+      "scratch": 259,
+      "toffoli": 703,
+      "expected": 703
+    },
+    "phase-approximate signed add": {
+      "scratch": 258,
+      "toffoli": 352,
+      "expected": 336
+    },
+    "exact modular addition (the replay's copy and clear)": {
+      "scratch": 516,
+      "toffoli": 1023,
+      "expected": 1023
+    },
+    "phase-approximate subtraction (the fold)": {
+      "scratch": 258,
+      "toffoli": 352,
+      "expected": 352
+    }
+  },
+  "rows": {
+    "IonQ-style, Alg 11 replay cells (before)": {
+      "toffoli": 1711194,
+      "expected": 1711194,
+      "qubits": 2251,
+      "toffoli_depth": 1409170
+    },
+    "+ phase-approximate adder in the replay, 37 careful steps": {
+      "toffoli": 1441968,
+      "expected": 1430352,
+      "qubits": 2233,
+      "toffoli_depth": 1116947
+    },
+    "+ the same adder in the point addition, approximate negation": {
+      "toffoli": 1438613,
+      "expected": 1426965,
+      "qubits": 2233,
+      "toffoli_depth": 1114102
+    },
+    "+ Fig. 1 packing, replay in x's qubits": {
+      "toffoli": 1443933,
+      "expected": 1432285,
+      "qubits": 1845,
+      "toffoli_depth": 1255253
+    },
+    "+ signed windows (2^15-entry tables), no Fig. 1": {
+      "toffoli": 1340563,
+      "expected": 1328915,
+      "qubits": 2233,
+      "toffoli_depth": 1048565
+    },
+    "+ Fig. 1, x's qubits, lean careful cell, CNOT ends, shared walk, phase fold": {
+      "toffoli": 1436519,
+      "expected": 1424871,
+      "qubits": 1457,
+      "toffoli_depth": 1296204
+    },
+    "  the same with signed windows: IonQ's count and qubits in one circuit": {
+      "toffoli": 1338469,
+      "expected": 1326821,
+      "qubits": 1457,
+      "toffoli_depth": 1198152
+    },
+    "  + SELECT-SWAP on the 3x lookup (2 words per load): no extra qubits": {
+      "toffoli": 1322341,
+      "expected": 1310693,
+      "qubits": 1457,
+      "toffoli_depth": 1182024
+    }
+  },
+  "select_swap": [
+    {
+      "k_point": 0,
+      "k_3x": 0,
+      "toffoli": 1338469,
+      "expected": 1326821,
+      "qubits": 1457,
+      "toffoli_depth": 1198152
+    },
+    {
+      "k_point": 0,
+      "k_3x": 1,
+      "toffoli": 1322341,
+      "expected": 1310693,
+      "qubits": 1457,
+      "toffoli_depth": 1182024
+    },
+    {
+      "k_point": 1,
+      "k_3x": 1,
+      "toffoli": 1290597,
+      "expected": 1278949,
+      "qubits": 1565,
+      "toffoli_depth": 1150276
+    },
+    {
+      "k_point": 1,
+      "k_3x": 2,
+      "toffoli": 1282917,
+      "expected": 1271269,
+      "qubits": 1565,
+      "toffoli_depth": 1142347
+    },
+    {
+      "k_point": 2,
+      "k_3x": 2,
+      "toffoli": 1268581,
+      "expected": 1256933,
+      "qubits": 2588,
+      "toffoli_depth": 1126989
+    },
+    {
+      "k_point": 3,
+      "k_3x": 3,
+      "toffoli": 1261413,
+      "expected": 1249765,
+      "qubits": 4635,
+      "toffoli_depth": 1117009
+    }
+  ],
+  "components": {
+    "IonQ-style, Alg 11 replay cells (before)": {
+      "table lookups and repair": 197364,
+      "GCD walk and its undoing": 593432,
+      "  of which signed additions": 569600,
+      "Bezout replay": 833312,
+      "square-subtract": 79160,
+      "everything else": 7926,
+      "total": 1711194
+    },
+    "+ the same adder in the point addition, approximate negation": {
+      "table lookups and repair": 197364,
+      "GCD walk and its undoing": 593432,
+      "  of which signed additions": 307574,
+      "Bezout replay": 564086,
+      "square-subtract": 79160,
+      "everything else": 4571,
+      "total": 1438613
+    }
+  },
+  "full_algorithm": {
+    "config": "+ the same adder in the point addition, approximate negation",
+    "toffoli": 40346698,
+    "expected": 40020554,
+    "toffoli_depth": 29490972,
+    "additions": 28,
+    "qubits_semiclassical": 2233
+  },
+  "full_algorithm_one_circuit": {
+    "config": "the same with signed windows: IonQ's count and qubits in one circuit",
+    "toffoli": 37535781,
+    "expected": 37209637,
+    "toffoli_depth": 33606905,
+    "additions": 28,
+    "qubits_semiclassical": 1457
+  },
+  "full_algorithm_select_swap": {
+    "config": "+ SELECT-SWAP on the 3x lookup (2 words per load): no extra qubits",
+    "toffoli": 37084197,
+    "expected": 36758053,
+    "toffoli_depth": 33155321,
+    "additions": 28,
+    "qubits_semiclassical": 1457
+  }
+}

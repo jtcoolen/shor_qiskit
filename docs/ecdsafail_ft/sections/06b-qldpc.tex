@@ -1,0 +1,163 @@
+\section{The codes: colour codes and quantum LDPC codes}\label{sec:codes2}
+
+\subsection{Colour codes}\label{sec:colour}
+
+\subsubsection{Two-dimensional colour codes}
+Take a trivalent lattice whose faces can be three-coloured so that no two faces of the same colour share an edge (the $4.8.8$ tiling of squares and octagons, or the $6.6.6$ honeycomb), put a qubit on every vertex, and attach to every face \emph{both} an $X$-type and a $Z$-type check on its vertices \cite{bombin06}. Two faces share $0$ or $2$ vertices (trivalence plus three-colourability), so all checks commute, and the code is CSS with $H_X=H_Z$: it is \emph{self-dual}. A triangular patch with one boundary of each colour encodes one qubit; the $4.8.8$ family has $n=\frac{d^2+2d-1}2$ ($7,17,31,49,\dots$) and the $6.6.6$ family $n=\frac{3d^2+1}4$ ($7,19,37,\dots$); both start at the Steane code (\cref{fig:colour}). Because $H_X=H_Z$, transversal Hadamard $H^{\otimes n}$ swaps the two check families and so preserves the code, implementing $\bar H$; and because every face has a number of vertices divisible by four---every stabiliser weight is doubly even---the transversal $S^{\otimes n}$ (or $S^{\dagger\otimes n}$) is a logical $S$ \cite{kubica15}. With the transversal CNOT of any CSS code this is the whole Clifford group, transversally, in two dimensions: the colour code is the natural home of the Clifford frame (\cref{sec:ft-clifford}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.15]
+\coordinate (q1) at (-1.5,1); \coordinate (q2) at (1.5,1); \coordinate (q4) at (0,-1.6);
+\coordinate (q3) at (0,1); \coordinate (q5) at (-0.75,-0.3); \coordinate (q6) at (0.75,-0.3); \coordinate (q7) at (0,0.13);
+\fill[cX!35] (q7) -- (q3) -- (q1) -- (q5) -- cycle;
+\fill[boxgreen!30] (q7) -- (q3) -- (q2) -- (q6) -- cycle;
+\fill[cZ!35] (q7) -- (q5) -- (q4) -- (q6) -- cycle;
+\draw[black!60] (q1) -- (q2) -- (q4) -- cycle; \draw[black!60] (q7) -- (q3); \draw[black!60] (q7) -- (q5); \draw[black!60] (q7) -- (q6);
+\foreach \n/\l in {q1/1,q2/2,q3/3,q4/4,q5/5,q6/6,q7/7}{\node[dq,minimum size=7pt] at (\n) {}; }
+\node[font=\scriptsize] at ($(q1)+(-0.22,0.12)$) {1}; \node[font=\scriptsize] at ($(q2)+(0.22,0.12)$) {2}; \node[font=\scriptsize] at ($(q3)+(0,0.22)$) {3};
+\node[font=\scriptsize] at ($(q4)+(0,-0.24)$) {4}; \node[font=\scriptsize] at ($(q5)+(-0.24,-0.05)$) {5}; \node[font=\scriptsize] at ($(q6)+(0.24,-0.05)$) {6}; \node[font=\scriptsize] at ($(q7)+(0.22,0.1)$) {7};
+\node[font=\scriptsize,text width=5.4cm,anchor=west] at (2.3,0.2) {Three faces, each carrying $X_{\rm face}$ and $Z_{\rm face}$: red $\{1,3,5,7\}$, green $\{2,3,6,7\}$, blue $\{4,5,6,7\}$---the Hamming rows of \cref{tab:syn-steane}. $\bar X=X^{\otimes7}$, $\bar Z=Z^{\otimes7}$; the three boundaries have the three colours.};
+\end{tikzpicture}
+\hspace{4mm}
+\begin{tikzpicture}[scale=0.42]
+% a 4.8.8 fragment: octagons at (0,0),(4,4)... draw a 3x3 block of octagons with squares in between
+\foreach \i in {0,1,2}{\foreach \j in {0,1,2}{
+  \pgfmathsetmacro{\cx}{\i*4.83}\pgfmathsetmacro{\cy}{\j*4.83}
+  \pgfmathparse{int(mod(\i+\j,2))}
+  \ifnum\pgfmathresult=0 \def\col{cX!30}\else\def\col{cZ!30}\fi
+  \fill[\col,draw=black!50] ($(\cx,\cy)+(22.5:2.613)$) \foreach \a in {67.5,112.5,...,382.5}{-- ($(\cx,\cy)+(\a:2.613)$)} -- cycle;
+}}
+\foreach \i in {0,1}{\foreach \j in {0,1}{
+  \pgfmathsetmacro{\cx}{\i*4.83+2.415}\pgfmathsetmacro{\cy}{\j*4.83+2.415}
+  \fill[boxgreen!30,draw=black!50] (\cx-1.414,\cy) -- (\cx,\cy+1.414) -- (\cx+1.414,\cy) -- (\cx,\cy-1.414) -- cycle;
+}}
+\node[font=\scriptsize,text width=4.6cm,align=center] at (4.83,-1.8) {$4.8.8$: octagons (two colours) and squares (third colour); checks of weight 8 and 4};
+\end{tikzpicture}
+\caption{Left: the $\bits{7}{1}{3}$ code as the smallest triangular colour code. Right: a fragment of the $4.8.8$ lattice from which the $\bits{17}{1}{5}$, $\bits{31}{1}{7}$, \dots\ codes of \cref{fig:bounds} are cut.}
+\label{fig:colour}
+\end{figure}
+
+The price is paid in decoding and in threshold. A single error flips \emph{three} checks (one of each colour), so the decoding graph is a hypergraph and matching does not apply directly. Delfosse's \emph{projection} (restriction) decoder \cite{delfosse14} restricts the syndrome to the two colours $\{c_1,c_2\}$---where every error flips exactly two of the remaining checks---runs MWPM on that surface-code-like sub-problem, repeats for the other pairs, and lifts the three matchings to a colour-code correction; the \emph{M\"obius} decoder and Google's open-source Chromobius refine the lift \cite{gidney23color}. Syndrome extraction is also heavier: a weight-eight octagon needs eight CNOTs and the hook problem of \cref{fig:surface-cycle} is harder to tame, which is what the ``superdense'' and ``middle-out'' cycles of Gidney and Jones address. The result is that at $p=0.1\%$ a colour code needs about $1{,}250$ physical qubits for a $10^{-12}$-per-round logical qubit (the \emph{teraquop footprint}) where the surface code with correlated matching needs $650$ \cite{gidney23color}; Google's 2024 experiment measured $\Lambda_{3/5}=1.56(4)$ on a colour code, transversal Clifford gates adding only $0.0027(3)$ error per operation, magic-state injection above $99\%$ with $75\%$ post-selection yield, and lattice surgery between $d=3$ patches \cite{lacroix24color}. Honeywell/Quantinuum's $\bits{7}{1}{3}$ demonstrations---real-time error correction in 2021, fault-tolerant logical teleportation with transversal gates and lattice surgery in 2024---are colour-code experiments \cite{ryan-anderson21,ryan-anderson24}.
+
+\subsubsection{Three-dimensional colour codes, gauge colour codes}
+On a three-dimensional four-colourable lattice, with $X$-checks on the \emph{cells} and $Z$-checks on the \emph{faces}, every $X$-stabiliser is triply even and the code has a transversal $T$ \cite{bombin07,kubica15}; the tetrahedral $d=3$ member is the $\bits{15}{1}{3}$ code of \cref{sec:smallcodes}. By the Bravyi--K\"onig theorem a $D$-dimensional topological code can only have transversal gates in level $D$ of the Clifford hierarchy, so 3D is the minimum for a transversal $T$ and no such code has a transversal $H$ as well \cite{bravyi-koenig13}. Bomb\'in's \emph{gauge colour code} \cite{bombin15} places both $X$- and $Z$-type operators on faces into a gauge group; fixing the gauge one way yields the code with transversal $T$, fixing it the other way yields a code with transversal Clifford gates, and switching between the two by measuring the gauge operators of the target code is the \emph{gauge fixing} route to universality of \cref{sec:codeswitch}. The 3D code also allows \emph{single-shot} error correction (one noisy syndrome round suffices, because the cell checks are redundant and their redundancy corrects measurement errors), but its qubit count grows as $d^3$.
+
+\subsection{Quantum LDPC codes}\label{sec:qldpc}
+
+A family of codes is \emph{LDPC} if every check has bounded weight and every qubit is in a bounded number of checks as $n\to\infty$; the surface code is LDPC with weight $4$, but with $k=1$. The hope of the field, and the design basis of IBM's, IonQ's and the neutral-atom roadmaps, is codes that are LDPC \emph{and} have $k=\Theta(n)$ (constant rate) with $d$ growing as fast as possible---which by the BPT bound \eqref{eq:bpt} requires long-range checks \cite{breuckmann-eberhardt21}. Constructing such codes is a problem of commuting checks: random sparse $H_X,H_Z$ never satisfy $H_XH_Z^{\mathsf T}=0$, so every construction builds the orthogonality in algebraically.
+
+\subsubsection{Hypergraph product codes}
+Tillich and Z\'emor's product \cite{tillich-zemor14} takes two classical parity-check matrices $H_1$ ($m_1\times n_1$) and $H_2$ ($m_2\times n_2$) and sets
+\begin{equation}\label{eq:hgp}
+H_X=\big[\,H_1\otimes I_{n_2}\ \big|\ I_{m_1}\otimes H_2^{\mathsf T}\,\big],\qquad
+H_Z=\big[\,I_{n_1}\otimes H_2\ \big|\ H_1^{\mathsf T}\otimes I_{m_2}\,\big],
+\end{equation}
+so that $H_XH_Z^{\mathsf T}=H_1\otimes H_2^{\mathsf T}+H_1\otimes H_2^{\mathsf T}=0$ automatically. The qubits are the $n_1n_2$ ``bit--bit'' pairs plus the $m_1m_2$ ``check--check'' pairs; the parameters are
+\[
+\bits{\,n_1n_2+m_1m_2\,}{\,k_1k_2+k_1^{\mathsf T}k_2^{\mathsf T}\,}{\,\min(d_1,d_2,d_1^{\mathsf T},d_2^{\mathsf T})\,},
+\]
+with $k^{\mathsf T},d^{\mathsf T}$ the dimension and distance of the transpose code $\ker H^{\mathsf T}$. The toric code is the hypergraph product of two cyclic repetition codes ($n_1=n_2=m_1=m_2=L$, $k=1+1=2$, $d=L$). Taking $H_1=H_2$ a good classical LDPC code with $k=\Theta(n)$ and $d=\Theta(n)$ gives $k=\Theta(n)$ and $d=\Theta(\sqrt n)$ quantum codes with constant check weight---the first constant-rate quantum LDPC family---and their generalisation, the \emph{lifted product} over a group ring \cite{panteleev-kalachev21bposd}, is the code family of the neutral-atom estimates in \cref{sec:physical} (e.g.\ $\bits{2610}{744}{\le16}$ at a $29\%$ rate) \cite{cain26}.
+
+\subsubsection{Bivariate bicycle codes and IBM's gross code}\label{sec:bb}
+IBM's bivariate bicycle (BB) codes \cite{bravyi24gross} are the lifted product of a one-term code with itself over the abelian group $\Z_\ell\times\Z_m$. Let $x=S_\ell\otimes I_m$ and $y=I_\ell\otimes S_m$ be the two commuting cyclic-shift matrices ($S_\ell$ the $\ell\times\ell$ shift), and let $A$ and $B$ be sums of three monomials in $x,y$. Then
+\begin{equation}\label{eq:bb}
+H_X=[\,A\ |\ B\,],\qquad H_Z=[\,B^{\mathsf T}\ |\ A^{\mathsf T}\,],\qquad H_XH_Z^{\mathsf T}=AB+BA=0,
+\end{equation}
+because polynomials in commuting matrices commute. There are $n=2\ell m$ data qubits in two halves $L$ and $R$, $\ell m$ $X$-checks and $\ell m$ $Z$-checks, every check has weight six (three $L$ neighbours from the monomials of $A$ or $B^{\mathsf T}$, three $R$ neighbours from the other), every data qubit is in three $X$- and three $Z$-checks, and $k=2\dim(\ker A\cap\ker B)$. \Cref{tab:bb} lists the codes of IBM's paper; the parameters $n$, $k$, check weights and degrees were recomputed for this document from the polynomials (\code{scripts/bb\_codes.py}), the distances are IBM's (found by integer programming).
+
+\begin{table}[H]
+\centering\footnotesize
+\begin{tabular}{@{}lccllc@{}}
+\toprule
+code & $\ell,m$ & $n$ & $A$ & $B$ & $k$ (recomputed) \\
+\midrule
+$\bits{72}{12}{6}$ & $6,6$ & 72 & $x^3+y+y^2$ & $y^3+x+x^2$ & 12\\
+$\bits{90}{8}{10}$ & $15,3$ & 90 & $x^9+y+y^2$ & $1+x^2+x^7$ & 8\\
+$\bits{108}{8}{10}$ & $9,6$ & 108 & $x^3+y+y^2$ & $y^3+x+x^2$ & 8\\
+$\bits{144}{12}{12}$ (``gross'') & $12,6$ & 144 & $x^3+y+y^2$ & $y^3+x+x^2$ & 12\\
+$\bits{288}{12}{18}$ (``two-gross'') & $12,12$ & 288 & $x^3+y^2+y^7$ & $y^3+x+x^2$ & 12\\
+\bottomrule
+\end{tabular}
+\caption{Bivariate bicycle codes \cite{bravyi24gross}. Every check has weight $6$ and every qubit degree $6$ (three $X$, three $Z$); $H_XH_Z^{\mathsf T}=0$ and the values of $k$ were verified.}
+\label{tab:bb}
+\end{table}
+
+\paragraph{Layout and syndrome cycle.} The Tanner graph of a BB code has degree six and is \emph{not} planar, but it is the union of two edge-disjoint planar graphs \cite{bravyi24gross}: on a torus of $\ell\times m$ cells the $L$ qubits, $R$ qubits, $X$-checks and $Z$-checks occupy the four sites of each cell, four of the six edges of every check are nearest-neighbour and two are long-range (the $x^3$, $y^3$ or $x^7$ terms), which is what IBM's \emph{c-couplers} on the Loon processor are for \cite{ibm-blog25}. With one ancilla per check the syndrome cycle is seven CNOT layers deep, interleaving the $X$- and $Z$-check extraction so that a check qubit talks to its six data qubits while the data qubits are shared with the other type; a full cycle is depth $8$ with measurement and reset---the same depth as the surface code's despite the weight-six checks. Under circuit-level depolarising noise with BP+OSD decoding the family has a threshold near $0.8\%$, and at $p=10^{-3}$ the gross code's $288$ qubits hold $12$ logical qubits at a logical error that the surface code would need nearly $3{,}000$ qubits to match: the ``tenfold'' saving \cite{bravyi24gross}. IBM's later circuit and decoder work puts the gross code's idle error at $10^{-8.8}$ per $8$-timestep cycle for the whole block at $p=10^{-3}$, and the two-gross code's at $10^{-20}$ \cite{yoder25tour}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.8]
+\foreach \i in {0,...,4}{\foreach \j in {0,...,4}{
+  \node[circle,draw=black!70,fill=white,inner sep=0pt,minimum size=5pt] (L\i\j) at (\i*1.4,\j*1.4) {};
+  \node[circle,draw=black!70,fill=black!25,inner sep=0pt,minimum size=5pt] (R\i\j) at (\i*1.4+0.7,\j*1.4+0.7) {};
+  \node[rectangle,draw=cX!80!black,fill=cX!35,inner sep=0pt,minimum size=5pt] (X\i\j) at (\i*1.4+0.7,\j*1.4) {};
+  \node[rectangle,draw=cZ!80!black,fill=cZ!35,inner sep=0pt,minimum size=5pt] (Z\i\j) at (\i*1.4,\j*1.4+0.7) {};
+}}
+% X check of cell (1,1): A = x^3 + y + y^2 -> L cells (4,1),(1,2),(1,3); B = y^3 + x + x^2 -> R cells (1,4),(2,1),(3,1)
+\draw[cX!80!black,thick] (X11) -- (L12); \draw[cX!80!black,thick] (X11) -- (L13);
+\draw[cX!80!black,thick,dashed] (X11) .. controls (3.5,-0.6) .. (L41);
+\draw[cX!80!black,thick] (X11) -- (R21); \draw[cX!80!black,thick] (X11) -- (R31);
+\draw[cX!80!black,thick,dashed] (X11) .. controls (3.2,4.0) .. (R14);
+\node[font=\tiny,text=cX!80!black] at (3.4,-0.05) {$x^3$};
+\node[font=\tiny,text=cX!80!black] at (2.9,3.5) {$y^3$};
+\node[font=\tiny,text=cX!80!black] at (0.75,2.1) {$y,y^2$};
+\node[font=\tiny,text=cX!80!black] at (2.8,1.0) {$x,x^2$};
+\node[font=\scriptsize,anchor=west,text width=5.4cm] at (6.6,2.8) {One $X$ check (red square, cell $(1,1)$) of a BB code with $A=x^3+y+y^2$, $B=y^3+x+x^2$: three $L$ data qubits (open circles) at the monomials of $A$ and three $R$ data qubits (grey) at those of $B$. Four edges are nearest-neighbour, two (dashed) are long-range; the $Z$ checks (blue squares) use $B^{\mathsf T}$ and $A^{\mathsf T}$. Opposite edges of the $\ell\times m$ cell grid are identified.};
+\end{tikzpicture}
+\caption{The bivariate bicycle layout: four sites per unit cell on a torus, degree-six checks, two long-range couplers per check.}
+\label{fig:bb-layout}
+\end{figure}
+
+\paragraph{Decoding: belief propagation with ordered-statistics post-processing.}\label{sec:bposd}
+Quantum LDPC codes are decoded like classical ones, by message passing on the Tanner graph of $H_Z$ (for $X$ errors) and $H_X$ (for $Z$ errors) \cite{roffe20,panteleev-kalachev21bposd}:
+
+\begin{algorithm}[H]
+\caption{BP+OSD decoding (one check type; $H$ is $m\times n$, syndrome $s$, prior error rate $p$)}\label{alg:bposd}
+\begin{algorithmic}[1]
+\State initialise every variable-to-check message with the prior log-likelihood ratio $\lambda_0=\log\frac{1-p}{p}$
+\For{$t=1,\dots,T_{\max}$}\Comment{min-sum belief propagation}
+  \State check $i$ to variable $j$: $\mu_{i\to j}=(-1)^{s_i}\,\alpha\prod_{j'\in N(i)\setminus j}\mathrm{sgn}(\lambda_{j'\to i})\cdot\min_{j'\in N(i)\setminus j}|\lambda_{j'\to i}|$ (scaling $\alpha\approx0.8$)
+  \State variable $j$ to check $i$: $\lambda_{j\to i}=\lambda_0+\sum_{i'\in N(j)\setminus i}\mu_{i'\to j}$;\quad posterior $\Lambda_j=\lambda_0+\sum_{i'\in N(j)}\mu_{i'\to j}$
+  \State hard decision $\hat e_j=[\Lambda_j<0]$; \textbf{if} $H\hat e=s$ \textbf{return} $\hat e$
+\EndFor
+\State \textbf{OSD-0:} sort the columns of $H$ by increasing $\Lambda_j$ (most likely error first); Gaussian-eliminate in that order to pick an information set $S$ of $\rank H$ independent columns; solve $H_S\,e_S=s$ and set $e_j=0$ off $S$; \textbf{return} $e$
+\State \textbf{OSD-CS($\lambda$)} (optional): also try flipping each of the next $\lambda$ most-likely columns outside $S$, one or two at a time, re-solving each time, and keep the lowest-weight solution
+\end{algorithmic}
+\end{algorithm}
+
+Plain BP fails on quantum codes far more often than on classical ones because of degeneracy: two equally likely errors that differ by a stabiliser pull the marginals in opposite directions, the messages oscillate, and BP ends in a configuration that does not satisfy the syndrome. OSD repairs exactly that case, at the cost of an $O(n^3)$ elimination, which is why decoding \emph{speed} is the main engineering problem of qLDPC architectures. \Cref{fig:bposd} is a small BP+OSD-0 simulation of the gross code written for this document (code-capacity bit-flip noise, i.e.\ no measurement errors, which is far easier than circuit-level noise and only illustrates the decoder); IBM's answer to the speed problem is \textbf{Relay-BP} \cite{mueller25relaybp}: BP with \emph{disordered memory strengths} (each variable node mixes its new belief with its previous one by a node-dependent, partly negative weight, which damps the oscillations and breaks the symmetries that trap plain BP), run as a \emph{relay} of several short BP instances with different memory settings that hand their beliefs on, so that several valid corrections are found and the best kept. On BB codes under circuit noise it outperforms BP+OSD with combination sweep, on surface codes it matches MWPM, and it is a parallel message-passing algorithm that fits an FPGA or ASIC---IBM quotes a $5$--$10\times$ reduction in decoding resources \cite{ibm-blog25}. Cain et al.'s neutral-atom estimates use BP with \emph{localised statistics} decoding in the same spirit \cite{cain26}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{loglogaxis}[width=0.6\textwidth,height=0.42\textwidth,
+  xlabel={bit-flip probability $p$ per data qubit}, ylabel={logical failure per block (12 qubits)},
+  xmin=0.015,xmax=0.12,ymin=5e-4,ymax=1, grid=both,grid style={black!10},
+  legend style={font=\scriptsize,at={(0.03,0.97)},anchor=north west,cells={anchor=west}},
+  tick label style={font=\footnotesize},label style={font=\small},
+  xtick={0.02,0.03,0.05,0.1}, xticklabels={$2\%$,$3\%$,$5\%$,$10\%$}]
+\addplot[color=violet,mark=diamond*,mark size=2pt,thick] table[x=p,y=pL] {data/bb_bposd.dat}; \addlegendentry{gross code, min-sum BP ($60$ it.) + OSD-0}
+\addplot[color=black!50,dashed,domain=0.015:0.12] {x}; \addlegendentry{$p_L=p$ (pseudo-threshold)}
+\end{loglogaxis}
+\end{tikzpicture}
+\caption{BP+OSD-0 on the $\bits{144}{12}{12}$ gross code under independent $X$ errors (computed; $1{,}000$--$2{,}000$ trials per point, \code{scripts/bp\_osd\_gross.py}). The block fails when the residual error is outside the $X$-stabiliser group. Code-capacity noise only; the circuit-level numbers of \cite{bravyi24gross,yoder25tour} are orders of magnitude lower at $p=10^{-3}$.}
+\label{fig:bposd}
+\end{figure}
+
+\paragraph{Logical operations and IBM's bicycle architecture.} A BB code has no boundaries to merge, so lattice surgery is replaced by two mechanisms. First, the shifts $x$ and $y$ are \emph{automorphisms}: permuting the qubits by $x^ay^b$ maps the code to itself and acts as a logical Clifford on the $12$ logical qubits (together with the $L\leftrightarrow R$ ``ZX-duality'' that swaps $H_X$ and $H_Z$); IBM's instruction set has twelve such shift automorphisms, each a physical permutation (SWAP network) that costs $14$ timesteps \cite{yoder25tour}. Second, arbitrary logical Pauli measurements are made by \emph{generalised surgery} \cite{cohen22,cross24surgery}: to measure a logical $\bar P$ one attaches an auxiliary system of ancilla qubits whose checks, together with the code's, form a temporarily larger code in which $\bar P$ is a product of new stabilisers; measuring the enlarged code for $\approx d$ rounds measures $\bar P$ fault-tolerantly, and the ancillas are then released. IBM's improved construction needs only $\Theta(w)$ ancillas for a weight-$w$ logical and gives the gross code its \emph{logical processing unit} (LPU): $90$ extra qubits (158 for two-gross) wired to the code block through which any Pauli in a chosen generating set can be measured, with one of the twelve logical qubits used as a workspace, so that all logical Cliffords are reachable \cite{cross24surgery,yoder25tour}. A \emph{bicycle module} is then a code block ($288$ or $576$ qubits), its LPU, a $22$-qubit code-to-code adapter for inter-module joint measurements, and a magic-state factory ($454$ qubits at $p=10^{-3}$) with a $29$-qubit adapter; in-module logical measurements cost $120$ timesteps at $10^{-5.0}$ error (gross) or $216$ timesteps at $\approx10^{-11}$ (two-gross), $T$ injection is a joint $\bar Z_T\otimes\bar P$ measurement between factory and module followed by an $\bar X_T$ readout, and IBM estimates that for a given number of physical qubits the architecture runs circuits about ten times larger than a surface-code machine \cite{yoder25tour}. The roadmap built on it \cite{ibm-blog25,ibm-roadmap}: Loon (2025) tests the c-couplers; Kookaburra (2026) is the first module with a qLDPC memory and an LPU; Cockatoo (2027) entangles two modules through the adapter; Starling (2029) targets $200$ logical qubits and $10^8$ gates; Blue Jay ($2033$) $2{,}000$ logical qubits and $10^9$ gates. IBM's Quantum Learning course on error correction is the pedagogical companion to these papers \cite{ibm-learning-qec}.
+
+\subsubsection{Trapped ions: IonQ's walking-cat architecture}\label{sec:ionq-arch}
+Trapped ions have no fixed connectivity---ions are shuttled between zones---so the locality constraint that shapes the superconducting designs disappears, and IonQ's architecture \cite{walkingcat26} uses quantum LDPC codes with Shor-style syndrome extraction: a \emph{cat factory} continuously prepares and verifies GHZ (cat) states, which are physically transported (``walked'') to the code blocks and consumed to measure stabilisers and logical operators transversally, so that no ancilla ever couples to more than one data qubit and hook errors do not exist. Two codes are used: $\bits{70}{6}{9}$ for a \emph{fast} design and $\bits{102}{22}{9}$ (``Q102'', $102$ data and $102$ ancilla qubits) for a \emph{dense} one in which $110$ logical qubits live in $2{,}514$ physical qubits and about a million $T$ gates run per day. Combined with Clifford-frame tracking (\cref{sec:ft-clifford}) and a two-level CCZ factory in an LDPC code, this is the architecture of IonQ's ECDLP estimate---$1{,}457$ logical qubits and $39\times10^6$ Toffolis on $19{,}397$ physical qubits in $25.7$ days at $p_{2q}=10^{-4}$---examined in \cref{sec:physical} \cite{haener26}.
+
+\subsubsection{Asymptotically good quantum LDPC codes}
+Panteleev and Kalachev showed in 2021 that lifted-product codes over non-abelian groups can be \emph{good}---$k=\Theta(n)$ and $d=\Theta(n)$ with constant check weight---and Leverrier and Z\'emor's quantum Tanner codes gave a second, more explicit family \cite{panteleev-kalachev21good,leverrier-zemor22}; linear-time decoders that correct a constant fraction of the distance followed \cite{leverrier-zemor22dec,gu22}. These settle the theory (the Gilbert--Varshamov rate is achievable with sparse checks) but have large constants and expander-graph connectivity, and no architecture uses them yet; the practical frontier is the BB and lifted-product codes above.
+
+\subsection{Other codes in use}\label{sec:othercodes}
+\begin{itemize}[leftmargin=*]
+\item \textbf{Bacon--Shor and subsystem codes} \cite{bacon06}: the Shor code with its weight-two $X_iX_j$ and $Z_iZ_j$ face operators promoted to gauge operators. Only weight-two measurements are needed (the stabilisers are inferred as products), at the price of no threshold for the family; used in early trapped-ion demonstrations.
+\item \textbf{Concatenated codes}: the proof-of-concept of the threshold theorem and still the basis of several estimates; the Steane code concatenated with itself, or Knill's $C_4/C_6$ postselection scheme \cite{knill05}, reach thresholds near $10^{-3}$--$10^{-2}$ with large qubit overheads. Code switching between Steane and Reed--Muller (\cref{sec:codeswitch}) lives here \cite{anderson14,paetznick-reichardt13}.
+\item \textbf{Yoked surface codes} \cite{yoked23}: Google's proposal to concatenate surface-code patches with an outer parity-check code across patches, reducing the storage cost of idle logical qubits by a factor of two or three; used for the idle registers of the RSA-2048 estimate \cite{gidney25rsa}.
+\item \textbf{Bosonic codes}: a qubit stored in an oscillator. GKP codes \cite{gkp01} use grid states; \emph{cat qubits} \cite{guillaud19} use the two coherent states $\ket{\pm\alpha}$ of a two-photon-stabilised resonator, in which bit flips are suppressed exponentially in the photon number $|\alpha|^2$ while phase flips grow only linearly, so that a one-dimensional repetition code against phase flips suffices. Alice\,\&\,Bob's ECDLP estimate---$126{,}133$ cat qubits for a 256-bit discrete logarithm in nine hours with $19$ photons per cat and a $500$\,ns cycle---is the bosonic point of \cref{sec:physical} \cite{gouzien23}.
+\item \textbf{Detection codes} ($\bits{4}{2}{2}$, $\bits{8}{3}{2}$, iceberg codes): no correction, only post-selection, but transversal gates on many logical qubits; QuEra/Harvard's $48$-logical-qubit processor ran its largest circuits in these \cite{bluvstein24}, and its 2024 experiment distilled logical magic states in them \cite{rodriguez24distill}.
+\end{itemize}

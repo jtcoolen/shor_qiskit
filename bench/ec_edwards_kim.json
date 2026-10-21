@@ -1,5 +1,5 @@
 {
- "scope": "toy only (p = 5, n = 3 bits): Kim ePrint 2026/106 Sec 4.4 out-of-place mixed extended-Edwards addition with the three addend constants loaded by a coherent windowed QROM, inside a full Shor ECDLP circuit; compared with the ec_edwards controlled-Horner baseline. NOT Ed25519 scale, NOT the paper's QCSA/ProjectQ synthesis; same-task toy resource frontier only, not a cryptographic-scale Pareto claim",
+ "scope": "toy only (p = 5, n = 3 bits): Kim ePrint 2026/106 Sec 4.4 out-of-place mixed extended-Edwards addition with the three addend constants loaded by a coherent windowed QROM, inside a full Shor ECDLP circuit; compared with the ec_edwards_toy controlled-Horner baseline. NOT Ed25519 scale, NOT the paper's QCSA/ProjectQ synthesis; same-task toy resource frontier only, not a cryptographic-scale Pareto claim",
  "resource_convention": "toffoli_paper = Toffoli + AND + CSWAP of the whole oracle (ec_cost.count); 'toffoli' mode: ANDs and their uncompute both as ccx; 'and' mode: measurement-based AND-dagger; qubits = allocated circuit qubits incl. u, v, output",
  "like_for_like": "kim-qrom w=1, first_lookup=False performs the same 6 additions as horner (accumulator from identity); first_lookup=True replaces the first u window by a QROM load straight into the accumulator",
  "curve": {

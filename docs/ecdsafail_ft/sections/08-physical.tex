@@ -1,0 +1,69 @@
+\section{Physical-qubit estimates}\label{sec:physical}
+
+\subsection{From a logical circuit to a machine}
+A logical circuit is characterised by three numbers: its logical qubits $Q$, its non-Clifford gate count $T$ (Toffolis here), and its non-Clifford \emph{depth}. A fault-tolerant machine is characterised by its code, its physical error rate $p$, its cycle time $t_c$ and its reaction time $t_r$ (the classical latency from a measurement to the next basis choice). The estimate proceeds in four steps, which every published number in \cref{tab:external-phys} follows in some form \cite{fowler-gidney18,litinski19game,gidney-ekera21,gidney25rsa}:
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Error budget.} The run must succeed with reasonable probability, so the total logical error must be $O(1)$: with $Q'$ logical qubits (circuit plus workspace) alive for $R$ rounds, $Q'R\,p_L(d)\lesssim1$, where $R=t_{\rm run}/t_c$. For $Q'\approx1{,}300$ and a run of $10^9$ rounds this is $p_L\lesssim10^{-12}$; Model S below uses $10^{-15}$ per patch per round, i.e.\ $p_{\rm ok}\approx0.999$ for the fast circuits.
+\item \textbf{Distance.} From \cref{eq:plaw}, the smallest odd $d$ with $A(p/p_{\rm th})^{(d+1)/2}\le\varepsilon$; the footprint of a logical qubit is $2d^2-1$ physical qubits plus routing space, $2(d+1)^2$ in the layouts of \cite{gidney-ekera21,gidney25rsa}.
+\item \textbf{Magic-state supply.} Enough factories (or cultivation sites) to deliver $T$ states at the rate the circuit consumes them; their footprint is added to $Q'$.
+\item \textbf{Time.} The larger of the \emph{throughput} bound (gates $\times$ time per magic state) and the \emph{reaction} bound (non-Clifford depth $\times$ $t_r$, because each layer of $T$ gates must be decoded before the next basis is chosen, \cref{sec:frames}); then divide by the success probability and multiply by the expected number of shots.
+\end{enumerate}
+
+\subsection{Model S: a surface-code machine at $p=10^{-3}$}\label{sec:modelS}
+Model S is the superconducting surface-code model of \code{shor/shor\_qiskit/physical.py}, re-implemented in \code{scripts/physical\_estimates.py} so that the two agree to the qubit: $p=10^{-3}$, $t_c=1\,\mu$s, $t_r=10\,\mu$s, $A=0.1$ and $p_{\rm th}=1.22\%$ (the crossing of \cref{fig:threshold}), target $10^{-15}$ per patch per round $\Rightarrow d=25$, $1{,}352$ physical qubits per logical qubit, a compute block of $7\times18$ patches ($170{,}352$ physical qubits: six CCZ factories of the Gidney--Fowler type and three columns of workspace) delivering one $\ket{CCZ}$ every $25\,\mu$s, so that
+\begin{equation}\label{eq:modelS}
+\begin{aligned}
+N_{\rm phys}&=1{,}352\,Q+170{,}352, & t_{\rm run}&=\max\big(25\,\mu\mathrm{s}\times T,\ 10\,\mu\mathrm{s}\times\text{depth}\big),\\
+p_{\rm ok}&=(1-10^{-15})^{(Q+126)\,t_{\rm run}/t_c}.
+\end{aligned}
+\end{equation}
+The ripple-carry circuits of Part~I have a Toffoli depth of $0.8$--$0.95\times T$, so they are throughput-bound in this model (the reaction bound would need depth $<0.4\,T$), and the time is simply $25\,\mu$s per Toffoli. For the \ecdsafail{} rows the challenge's point-addition numbers are converted to a whole attack by \cref{eq:full-attack}: $28$ additions, each with its $3\cdot2^{16}$ lookup Toffolis, and $16$ window qubits added to $Q$.
+
+\begin{table}[H]
+\centering\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\input{data/modelS_table}
+\caption{Model S applied to the \ecdsafail{} circuits, to the published logical costs, and to the \code{shor/} circuits (computed, \code{scripts/physical\_estimates.py}; the logical inputs of each row are cited in \cref{tab:external} and \cref{sec:shor-impl}). ``expected'' divides the run time by $p_{\rm ok}$ (and multiplies by the expected number of shots where a source specifies more than one). The RSA-2048 row feeds Gidney's logical inputs through the same model; his published figure---under a million qubits, under a week---uses yoked storage for idle qubits and cultivation, which this model does not, so the row shows the model's conservatism rather than a discrepancy.}
+\label{tab:modelS}
+\end{table}
+
+Three things stand out. First, the \emph{physical} cost of every fast 256-bit ECDLP circuit in this model is $1.7$--$2.1$ million qubits and $12$--$40$ minutes: the $Q$ axis of the challenge moves the qubit count by at most $20\%$ because $Q$ is multiplied by one patch footprint, and the $T$ axis moves the time linearly. Second, the low-$Q$ track buys a $25\%$ smaller machine ($1.26$--$1.31$ million qubits) at the price of five to eight days and a success probability of $0.65$--$0.72$ per run, which is why no architecture paper optimises for $Q$ alone: in spacetime volume (qubits $\times$ seconds) the low-$Q$ circuits are $400\times$ more expensive. Third, the \ecdsafail{} frontier's $\QT$ is a reasonable proxy for this volume---$N_{\rm phys}\,t_{\rm run}\approx(1{,}352Q+170{,}352)\times25\,\mu\mathrm{s}\times28(T+3\cdot2^{16})$---but with a $170$k-qubit constant and a $3\cdot2^{16}$-Toffoli constant that the challenge metric omits, both of which favour the fast circuits more than the metric does.
+
+\subsection{Per-gate accounting}
+For the reader who wants to rebuild the table from the gate level, at $d=25$ and $p=10^{-3}$:
+\begin{itemize}[leftmargin=*]
+\item a \textbf{logical qubit} is a $25\times25$ data array with $624$ measure qubits, $1{,}249$ physical qubits, $1{,}352$ with its share of routing; it costs one cycle of $1\,\mu$s per round to keep alive at $\approx10^{-15}$ error;
+\item a \textbf{lattice-surgery CNOT} or Pauli product measurement occupies an ancilla region of the same width for $d=25$ rounds, $25\,\mu$s; a Hadamard with patch rotation about $3d$ rounds; Paulis and the Clifford frame are free;
+\item a \textbf{$T$ gate} consumes one magic state and one tick of $d$ rounds; a Litinski $(15\text{-to-}1)_{17,7,7}$ factory ($4{,}620$ qubits) delivers one state of error $4.5\times10^{-8}$ every $42.6$ cycles, the two-level factories of \cref{sec:distillation} deliver $10^{-10}$--$10^{-11}$ states in $43$--$47$k qubits every $60$--$130$ cycles, and cultivation delivers $2\times10^{-9}$ states for $\approx5\times10^4$ qubit-rounds each \cite{litinski19magic,cultivation24};
+\item a \textbf{Toffoli} is one $\ket{CCZ}$ (Model S: one every $25\,\mu$s from six factories) or four $T$ states plus the measurement-based uncomputation of \cref{sec:mbu}; the \ecdsafail{} 26-July circuit's $4.2\times10^7$ Toffolis are $1.7\times10^8$ $T$ gates, so the magic states must be below $\approx10^{-9}$ each---which the two-level factories and cultivation provide, and the single-level factory does not.
+\end{itemize}
+
+\subsection{The published estimates}
+\begin{table}[H]
+\centering\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}p{2.8cm}p{2.4cm}p{2.4cm}p{2.1cm}p{2.0cm}p{3.5cm}@{}}
+\toprule
+source & platform, code & logical cost & physical qubits & time & assumptions\\
+\midrule
+Google, Babbush et al.\ 2026 \cite{babbush26} & superconducting, surface code with yoked storage, cultivation & $<1{,}200$ Q, $<90$\,M Toffoli; or $<1{,}450$ Q, $<70$\,M & $<500{,}000$ & $\approx23$ / $18$\,min & $p=10^{-3}$, $1\,\mu$s cycle, $10\,\mu$s reaction $+50\%$ per Toffoli; $\approx25{,}000$ qubits for magic states; circuits withheld\\
+IonQ, H\"aner et al.\ 2026 \cite{haener26,walkingcat26} & trapped ions, $\bits{102}{22}{9}$ walking cat & $1{,}457$ Q, $39$\,M Toffoli & $19{,}397$ & $25.7$ days ($63\%$ success) & $p_{2q}=10^{-4}$, $p_{1q}=10^{-5}$, $29.5$\,ms per Toffoli layer; four $319$-qubit CCZ factories\\
+PsiQuantum, Litinski 2023 \cite{litinski23,litinski22active} & photonic, active-volume architecture & $\approx50$\,M Toffoli (title) & $6{,}000$ modules $\times1{,}152$ & one key per $10$\,min & non-local module connections; $38$\,h per key for a strictly 2D-local layout\\
+Alice\,\&\,Bob, Gouzien et al.\ 2023 \cite{gouzien23} & cat qubits, repetition code & (256-bit ECDLP, Shor) & $126{,}133$ cat qubits & $9$\,h & $\kappa_1/\kappa_2=10^{-5}$, $19$ photons, $500$\,ns cycle, lattice surgery, off-line Toffoli states\\
+Neutral atoms, Cain et al.\ 2026 \cite{cain26} & reconfigurable atoms, lifted-product $\bits{2610}{744}{\le16}$ memory, $\bits{248}{10}{\le18}$ processor & (P-256, Shor) & $\approx26{,}000$ (balanced $11{,}961$; space-efficient $9{,}739$) & ``a few days'' (fastest $\approx10$ days at $10$--$26$k) & $p=10^{-3}$ ($0.093\%$ for the fastest), $1$\,ms stabiliser cycle, cultivation $+$ $8T\!\to\!CCZ$; RSA-2048 $\approx100\times$ longer\\
+Kim et al.\ 2026 \cite{kim26} & surface code; or QLDPC (Pinnacle model) & P-256: $7{,}454$ Q, $1.39$\,B Toffoli (in-place) & $11.7$\,M (surface) / $765{,}234$ (QLDPC) & $23.9$\,min / $21.9$\,h & $p=10^{-3}$, $1\,\mu$s, $10\,\mu$s reaction; 15-to-1 distillation\\
+Iceberg, Pinnacle 2026 \cite{pinnacle26} & QLDPC & RSA-2048 & $<100{,}000$ & -- & $p=10^{-3}$, $1\,\mu$s, $10\,\mu$s reaction\\
+Google, Gidney 2025 \cite{gidney25rsa} & surface code, yoked storage, cultivation & RSA-2048: $\approx6.5$\,B Toffoli & $<1$\,M & $<1$ week & $p=10^{-3}$, $1\,\mu$s, $10\,\mu$s reaction\\
+Model S, this document & surface code, factories & 26-Jul \ecdsafail{} $+$ windows & $1.75$\,M & $17$\,min & \cref{eq:modelS}\\
+\bottomrule
+\end{tabular}
+\caption{Published physical estimates for 256-bit ECDLP (and the RSA-2048 points that use the same machinery), from the companies' and authors' arXiv/ePrint papers (\cref{app:sources}). ``Q'' is logical qubits. The platforms differ by two orders of magnitude in clock speed and in physical qubit count in opposite directions, which is why the time-to-key and the qubit count must be read together.}
+\label{tab:external-phys}
+\end{table}
+
+The ordering in \cref{tab:external-phys} is the ordering of \emph{clock speeds}: superconducting circuits at $1\,\mu$s per cycle run the $4\times10^7$-Toffoli circuit in minutes on $10^5$--$10^6$ qubits; trapped ions at $30$\,ms per Toffoli layer take weeks but need $20{,}000$ ions because high-rate codes and all-to-all connectivity shrink both the code and the factories; neutral atoms sit between, with $1$\,ms cycles and $10$--$26$k atoms; cat qubits use a biased-noise code that needs only a repetition code ($126$k cat qubits, nine hours). Google's half-million figure for the same logical circuit as Model S's two million comes from three choices this document's model does not make---storing idle logical qubits in yoked codes, which packs them two to three times denser, cultivating magic states instead of running factories ($25$k qubits instead of $170$k), and tuning the distance to the actual run length---and from reaction-limited rather than throughput-limited timing ($10\,\mu$s $\times1.5$ per Toffoli $\approx15\,\mu$s instead of $25\,\mu$s) \cite{babbush26}.
+
+\paragraph{An LDPC illustration.} IBM has published no ECDLP estimate, but its per-instruction numbers \cite{yoder25tour} allow an order-of-magnitude placement of the bicycle architecture. A two-gross module ($576$ code $+158$ LPU $+34$ adapter $+463$ factory at $p=10^{-3}$, $\approx1{,}230$ physical qubits) holds $12$ logical qubits with an in-module measurement error of $\approx10^{-11}$ per $216$ timesteps; $1{,}457$ logical qubits are $122$ modules, $\approx150{,}000$ physical qubits, and the $1.7\times10^8$ $T$ gates of the 26-July circuit would accumulate $\approx2\times10^{-3}$ logical error through their measurements. Each $T$ costs one $216$-timestep measurement; with the circuit's Toffoli depth close to its count the serial time is $\approx1.7\times10^8\times216\,\mu\mathrm{s}\approx10$ hours at a $1\,\mu$s timestep. This is \emph{not} IBM's number---it ignores inter-module routing (the $36$ inter-module measurements cost the same $216$ steps but have higher error on the gross code), the factory throughput and the fact that the gross code, not the two-gross, is the near-term target---but it shows the shape of the LDPC trade: an order of magnitude fewer qubits than the surface code at $p=10^{-3}$, and an order of magnitude more time, because logical operations on an LDPC block are serialised through its LPU rather than performed on all patches at once.
+
+\subsection{What the logical optimisations buy, physically}
+Translating Part~I's frontier through \cref{eq:modelS}: the $2{,}715\times3.96$\,M baseline of May is $3.9$\,M qubits and $49$\,min; the 26-July incumbent $1.75$\,M and $17$\,min; the 7-October frontier $1.87$\,M and $12$\,min. The six inversion architectures and the arithmetic levers together bought a factor of two in physical qubits and four in time in this model---the time coming almost entirely from the Toffoli count, the qubits from the width---and the remaining distance to Google's half-million is a matter of the \emph{physical} layer (yoked storage, cultivation), not of the logical circuit. On the trapped-ion side the same $39$\,M-Toffoli circuit costs $19{,}397$ ions and $26$ days, so a further halving of the Toffoli count (the frontier's $0.80$\,M per addition against IonQ's $1.39$\,M) would be worth two weeks there and five minutes on a superconducting machine.

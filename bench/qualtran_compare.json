@@ -1,0 +1,53 @@
+{
+  "n": 256,
+  "w": 16,
+  "qualtran_litinski_ecadd": {
+    "toffoli": 8346972,
+    "qubits": 1798,
+    "formula": "104*n**2 + 90*n*floor(n/4 + 3/4) + 169*n + 210*floor(n/4 + 3/4) - 36"
+  },
+  "ours": {
+    "[1128] dialog, exact arithmetic (MBU lookups, masks)": {
+      "toffoli": 5163617,
+      "qubits": 2104,
+      "clifford": 31811202,
+      "measurement": 4348679
+    },
+    "[1128] dialog, fused cmp77, schedule, PM": {
+      "toffoli": 2972327,
+      "qubits": 2251,
+      "clifford": 15118966,
+      "measurement": 2329131
+    },
+    "+ dedicated squarer": {
+      "toffoli": 2000864,
+      "qubits": 2251,
+      "clifford": 8225732,
+      "measurement": 1358180
+    },
+    "IonQ: cond.-inverted walk + replay, squarer": {
+      "toffoli": 1711194,
+      "qubits": 2251,
+      "clifford": 8923104,
+      "measurement": 1066910
+    },
+    "ECDSA.Fail ping-pong (704 rounds), squarer": {
+      "toffoli": 2117534,
+      "qubits": 2155,
+      "clifford": 16325172,
+      "measurement": 1921450
+    },
+    "space: dialog + register sharing + Fig. 1 packing, squarer": {
+      "toffoli": 2006184,
+      "qubits": 1873,
+      "clifford": 8234244,
+      "measurement": 1358180
+    }
+  },
+  "published": {
+    "Litinski 2023 (per addition, one instance)": 8340000.0,
+    "[1128] Schrottenloher": 2588962.9082608987,
+    "IonQ": 1392608.0,
+    "Babbush et al. (<=, low-gate variant)": 2100000.0
+  }
+}

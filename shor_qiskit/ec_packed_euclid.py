@@ -1,13 +1,39 @@
-"""Exact binary long division primitive for a future packed Euclidean walk.
+"""Reversible primitives for a future packed Euclidean walk.
 
 Luo et al. arXiv:2607.13816 Sec. 3.1 and Gu et al. SI II.2 scan quotient
-bits by comparing and subtracting shifted divisors. This module implements
-that arithmetic reversibly, but not their packed workspaces or point adder.
+bits by comparing and subtracting shifted divisors, and address work bits
+using coherent length counters. This module implements those primitives,
+but not their packed workspaces or point adder.
 Do not advertise it as an ECDLP backend until those circuits exist.
 """
 
 import ec_adders as A
 from ec_sim import Reg
+
+
+def swap_at(m, word, index, flag):
+    """Swap flag with the word bit addressed by a coherent binary index.
+
+    Out-of-range indices leave both unchanged. The index and temporary
+    selection bit are restored, even when the addressed word bit is occupied.
+    """
+    if not word or not index or 1 << len(index) < len(word):
+        raise ValueError("address must cover a nonempty word")
+    if len(set(word + index + [flag])) != len(word) + len(index) + 1:
+        raise ValueError("word, index and flag must be disjoint")
+    ctx = m.ctx
+    selected = m.anc(1, "selected")
+    for position, bit in enumerate(word):
+        for shift, address_bit in enumerate(index):
+            if not (position >> shift) & 1:
+                ctx.x(address_bit)
+        ctx.mcx(index, selected[0])
+        ctx.cswap(selected[0], flag, bit)
+        ctx.mcx(index, selected[0])
+        for shift, address_bit in enumerate(index):
+            if not (position >> shift) & 1:
+                ctx.x(address_bit)
+    m.free(selected)
 
 
 def binary_divmod(m, numerator, denominator, quotient, remainder):

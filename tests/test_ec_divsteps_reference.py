@@ -4,7 +4,8 @@ from math import gcd
 
 from _ec_util import ok, section
 from ec_divsteps_reference import State, decode, quotient, reverse_step, step, walk
-from ec_euclid_reference import binary_divmod, inverse as euclid_inverse
+from ec_euclid_reference import (binary_divmod, inverse as euclid_inverse,
+                                 pack_state, packed_trace, unpack_state)
 
 
 def main():
@@ -61,6 +62,27 @@ def main():
                 else:
                     raise AssertionError((w, p))
     ok("binary scans and signed Euclidean coefficients exact for toy inputs")
+
+    section("two-word packed boundary contract")
+    for t in range(8):
+        for q in range(4):
+            for rem in range(1, 8):
+                for prev_t in range(4):
+                    for next_rem in range(1, 4):
+                        values = (t, q, rem, prev_t, next_rem)
+                        assert unpack_state(pack_state(*values, 12)) == values
+    for p in (3, 5, 7, 11, 13, 17, 31, 61, 127):
+        for w in range(1, p):
+            for snapshot in packed_trace(w, p):
+                t, q, rem, prev_t, next_rem = unpack_state(snapshot)
+                assert snapshot.width == p.bit_length() + 3
+                assert t >= 0 and q >= 0 and rem >= 0
+                assert prev_t >= 0 and next_rem >= 0
+                assert snapshot.work1 < 1 << snapshot.width
+                assert snapshot.work2 < 1 << snapshot.width
+                assert snapshot.t_bits + 1 + snapshot.q_bits + snapshot.r_bits <= snapshot.width
+                assert snapshot.t_prev_bits + snapshot.r_next_bits <= snapshot.width
+    ok("all toy units fit two opposed-end packed words at each boundary")
 
 
 if __name__ == "__main__":

@@ -35,6 +35,16 @@
       "basis_cases": 16,
       "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
       "tvd": 0.032227
+    },
+    {
+      "label": "divsteps-decoded",
+      "qubits": 52,
+      "toffoli_paper": 27064,
+      "depth": 75505,
+      "t": 171520,
+      "basis_cases": 16,
+      "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+      "tvd": 0.032227
     }
   ],
   "metrics": [
@@ -44,14 +54,27 @@
   ],
   "frontier": [
     "kaliski",
-    "divsteps"
+    "divsteps",
+    "divsteps-decoded"
   ],
-  "additional_validation": {
-    "task": "affine arithmetic ECDLP p=7, order=5, k=4, m_bits=2",
-    "qubits": 63,
-    "shots": 4096,
-    "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
-    "tvd": 0.016602,
-    "tvd_limit": 0.041016
-  }
+  "additional_validation": [
+    {
+      "task": "affine arithmetic ECDLP p=7, order=5, k=4, m_bits=2",
+      "backend": "divsteps",
+      "qubits": 63,
+      "shots": 4096,
+      "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+      "tvd": 0.016602,
+      "tvd_limit": 0.041016
+    },
+    {
+      "task": "affine arithmetic ECDLP p=7, order=5, k=4, m_bits=3",
+      "backend": "divsteps-decoded",
+      "qubits": 55,
+      "shots": 4096,
+      "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+      "tvd": 0.039121,
+      "tvd_limit": 0.054082
+    }
+  ]
 }

@@ -27,7 +27,7 @@ def test_frontier():
 
     affine = json.loads((ROOT / "bench" / "ec_gu_affine.json").read_text())
     assert {row["label"] for row in affine["rows"]} == {
-        "kaliski", "kaliski-opt", "divsteps"}
+        "kaliski", "kaliski-opt", "divsteps", "divsteps-decoded"}
     assert affine["frontier"] == frontier(affine["rows"])
     assert all(row["basis_cases"] == 16 for row in affine["rows"])
     for row in affine["rows"]:
@@ -38,10 +38,12 @@ def test_frontier():
             assert row["aer"].startswith("Aer ")
     assert next(row for row in affine["rows"] if row["label"] == "divsteps")[
         "tvd"] is not None
-    extra = affine["additional_validation"]
-    assert extra["task"] == "affine arithmetic ECDLP p=7, order=5, k=4, m_bits=2"
-    assert extra["tvd"] <= extra["tvd_limit"]
-    assert extra["aer"].startswith("Aer ")
+    assert {row["backend"] for row in affine["additional_validation"]} == {
+        "divsteps", "divsteps-decoded"}
+    for extra in affine["additional_validation"]:
+        assert extra["task"].startswith("affine arithmetic ECDLP p=7")
+        assert extra["tvd"] <= extra["tvd_limit"]
+        assert extra["aer"].startswith("Aer ")
 
 
 if __name__ == "__main__":

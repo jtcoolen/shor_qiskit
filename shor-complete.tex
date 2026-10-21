@@ -3067,6 +3067,8 @@ fault-tolerance overhead priced in Part~III's bill.
 
 
 
+
+
 \clearpage
 \part*{Part VII --- The other Shor: elliptic-curve discrete logarithms}
 \addcontentsline{toc}{part}{Part VII --- The other Shor: elliptic-curve discrete logarithms}
@@ -4429,11 +4431,20 @@ claiming Gu's two-register packed layout. Exhaustive toy tests check Appendix~A'
 integer determinant, scaling, branch decoder and reverse recurrence; a
 separate binary-long-division Euclidean reference checks SI~II.2's quotient
 arithmetic. The latter is \emph{not} a packed-Euclidean quantum backend.
+\code{divsteps-decoded} reuses one pair of decision qubits across all rounds:
+each round erases its decisions from the updated quantum state and recovers
+them before that round is reversed. It retains one active/frozen bit per
+round. Because the circuit stores coefficient \emph{residues}, not the signed
+integer coefficients assumed in Appendix~A, its decoder is an exact
+round-specific finite-state lookup compiled from every unit of each toy
+field and the disabled control state, rather than the paper's scalable
+valuation-window arithmetic. Conflicting lookup keys are rejected at
+construction time; full-history \code{divsteps} remains available.
 
 The following \emph{separate affine frontier} holds the complete ECDLP task
-fixed at $p=5$, order $3$, $k=2$, and two control bits per scalar. All three
+fixed at $p=5$, order $3$, $k=2$, and two control bits per scalar. All four
 affine oracles pass every one of their $16$ arithmetic basis-state checks.
-Only divsteps fits this run's Aer CPU limit of $63$ qubits; its $1\,024$-shot full superposition/QFT/measurement
+On Aer CPU (limit $63$ qubits), the full-history divsteps circuit's $1\,024$-shot full superposition/QFT/measurement
 run on $60$
 qubits recovers $k=2$ and has TVD $0.032$ against an exact-distribution
 shot-noise bound $0.078$.
@@ -4442,6 +4453,11 @@ scalar, the $63$-qubit complete affine divsteps ECDLP circuit
 recovers $k=4$ over $4\,096$ Aer shots (TVD $0.017$ against
 $0.041$). This is a second end-to-end validation, \emph{not} another
 point on the $p=5$ frontier.
+The decoded circuit also recovers $k=4$ on the $p=7$ curve with
+$3$ control bits per scalar and $55$
+qubits (TVD $0.039$ against $0.054$);
+the different control count keeps this validation out of the p=5
+resource comparison.
 The \code{kaliski} and \code{kaliski-opt} rows have \emph{not} been sampled on Aer for this task. The last column reports three-metric resource nondominance, not
 end-to-end Aer certification for the unsampled rows:
 \begin{center}\footnotesize\setlength{\tabcolsep}{4pt}
@@ -4452,12 +4468,13 @@ affine inverse & qubits & Toffoli & depth & Aer sampling & frontier\\
 kaliski & $67$ & $10\,976$ & $46\,911$ & not sampled & yes\\
 kaliski-opt & $71$ & $13\,336$ & $51\,421$ & not sampled & no\\
 divsteps & $60$ & $26\,872$ & $75\,109$ & TVD $0.032$ & yes\\
+divsteps-decoded & $52$ & $27\,064$ & $75\,505$ & TVD $0.032$ & yes\\
 \bottomrule
 \end{tabular}
 \end{center}
 The p=5 affine task is not comparable with the p=7 windowed frontier above.
-The toy branch-history circuit does \emph{not} yet implement Gu's
-history-compressed branch decoder, two-register packed layout, specialised
+The toy finite-state decoder does \emph{not} implement Gu's
+scalable arithmetic branch decoder, two-register packed layout, specialised
 packed-Euclidean circuit, fused coordinate arithmetic or bounded-error
 256-bit schedule; no cryptographic-size resource claim follows.
 The Aer measurement above ran on CPU/MPS, not CUDA GPU; rerun on a CUDA host remains pending.

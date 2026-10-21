@@ -245,25 +245,31 @@ def facts():
     f["gu_width"] = gu["qubits"]
     f["gu_tvd"] = f"{gu['tvd']:.3f}"
     f["gu_bound"] = f"{GU_AFFINE['tvd_limit']:.3f}"
-    p7 = GU_AFFINE["additional_validation"]
+    p7 = next(row for row in GU_AFFINE["additional_validation"]
+              if row["backend"] == "divsteps")
     f["gu_p7_shots"] = num(p7["shots"])
     f["gu_p7_width"] = p7["qubits"]
     f["gu_p7_tvd"] = f"{p7['tvd']:.3f}"
     f["gu_p7_bound"] = f"{p7['tvd_limit']:.3f}"
+    p7_decoded = next(row for row in GU_AFFINE["additional_validation"]
+                      if row["backend"] == "divsteps-decoded")
+    f["gu_p7_decoded_width"] = p7_decoded["qubits"]
+    f["gu_p7_decoded_bits"] = p7_decoded["task"].rsplit("=", 1)[-1]
+    f["gu_p7_decoded_tvd"] = f"{p7_decoded['tvd']:.3f}"
+    f["gu_p7_decoded_bound"] = f"{p7_decoded['tvd_limit']:.3f}"
     skipped = [row["label"] for row in GU_AFFINE["rows"]
                if row["tvd"] is None]
     skipped_names = " and ".join("\\code{" + label + "}" for label in skipped)
     f["gu_sampling"] = (
-        f"Only divsteps fits this run's Aer {GU_AFFINE['device']} limit "
-        f"of ${GU_AFFINE['aer_limit']}$ qubits; its"
-        if len(skipped) == 2 else
-        f"On Aer {GU_AFFINE['device']}, the divsteps circuit's"
+        f"On Aer {GU_AFFINE['device']} (limit "
+        f"${GU_AFFINE['aer_limit']}$ qubits), the full-history "
+        "divsteps circuit's"
     )
     f["gu_unsampled"] = (
         f"The {skipped_names} "
         f"{'row has' if len(skipped) == 1 else 'rows have'} "
         "\\emph{not} been sampled on Aer for this task."
-        if skipped else "All three rows were sampled on Aer for this task."
+        if skipped else "All affine rows were sampled on Aer for this task."
     )
     f["gu_device_note"] = (
         "The Aer measurement above ran on CPU/MPS, not CUDA GPU; rerun "

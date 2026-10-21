@@ -7,6 +7,7 @@ implement the paper's Appendix A history-free decoder or packed wire layout.
 import ec_adders as A
 import ec_modarith as MA
 from ec_divsteps_reference import walk
+import ec_divsteps_codec as codec
 
 
 def _signed_neg(m, ctrl, reg):
@@ -120,7 +121,7 @@ def _round(m, z, f, g, fv, gv, p, record):
     ctx.cx(g[-2], g[-1])
 
 
-def mod_inv(m, x, out, p, ctrl=None):
+def mod_inv(m, x, out, p, ctrl=None, history="full"):
     """XOR the exact inverse of nonzero x into out; clean every ancilla.
 
     Limited to toy primes: the fixed schedule is exhaustively determined at
@@ -130,6 +131,8 @@ def mod_inv(m, x, out, p, ctrl=None):
     if (n != p.bit_length() or p < 3 or p > 127 or
             any(p % d == 0 for d in range(2, int(p ** 0.5) + 1))):
         raise ValueError("divsteps circuit requires a toy prime <= 127")
+    if history not in ("full", "decoded"):
+        raise ValueError(f"unknown divsteps history mode {history!r}")
     rounds = max(walk(w, p)[1] for w in range(1, p))
     width = n + 1
     z_width = (rounds + 1).bit_length() + 1
@@ -147,13 +150,24 @@ def mod_inv(m, x, out, p, ctrl=None):
     else:
         m.ctx.cx(ctrl, gv[0])
 
+    shared = (m.anc(1, "swap"), m.anc(1, "odd")) if history == "decoded" else None
+    layout = (z, f, g, fv, gv)
+    tables = codec.tables(p, tuple(map(len, layout)) + (1,)) if shared else None
     start = m.begin()
     records = []
-    for _ in range(rounds):
-        record = tuple(m.anc(1, label) for label in ("active", "swap", "odd"))
+    bodies = []
+    for index in range(rounds):
+        active = m.anc(1, "active")
+        record = (active, *shared) if shared else (
+            active, m.anc(1, "swap"), m.anc(1, "odd"))
+        mark = m.begin()
         _round(m, z, f, g, fv, gv, p, record)
+        if shared:
+            bodies.append(m.since(mark))
+            codec.toggle(m, (*layout, active), (record[1][0], record[2][0]),
+                         tables[index])
         records.append(record)
-    body = m.since(start)
+    body = m.since(start) if not shared else None
 
     inverse = m.anc(n, "inverse")
     for a, b in zip(fv, inverse):
@@ -171,7 +185,14 @@ def mod_inv(m, x, out, p, ctrl=None):
     for a, b in zip(fv, inverse):
         m.ctx.cx(a, b)
     m.free(inverse)
-    m.undo(body)
+    if shared:
+        for index in range(rounds - 1, -1, -1):
+            record = records[index]
+            codec.toggle(m, (*layout, record[0]), (shared[0][0], shared[1][0]),
+                         tables[index])
+            m.undo(bodies[index])
+    else:
+        m.undo(body)
 
     A.encode_const(m.ctx, f, p, ctrl)
     for src, dst in zip(x, g):
@@ -183,4 +204,9 @@ def mod_inv(m, x, out, p, ctrl=None):
         m.ctx.x(gv[0])
     else:
         m.ctx.cx(ctrl, gv[0])
-    m.free(z, f, g, fv, gv, *(bit for record in records for bit in record))
+    if shared:
+        m.free(z, f, g, fv, gv, shared[0], shared[1],
+               *(record[0] for record in records))
+    else:
+        m.free(z, f, g, fv, gv,
+               *(bit for record in records for bit in record))

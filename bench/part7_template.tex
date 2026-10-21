@@ -946,9 +946,18 @@ claiming Gu's two-register packed layout. Exhaustive toy tests check Appendix~A'
 integer determinant, scaling, branch decoder and reverse recurrence; a
 separate binary-long-division Euclidean reference checks SI~II.2's quotient
 arithmetic. The latter is \emph{not} a packed-Euclidean quantum backend.
+\code{divsteps-decoded} reuses one pair of decision qubits across all rounds:
+each round erases its decisions from the updated quantum state and recovers
+them before that round is reversed. It retains one active/frozen bit per
+round. Because the circuit stores coefficient \emph{residues}, not the signed
+integer coefficients assumed in Appendix~A, its decoder is an exact
+round-specific finite-state lookup compiled from every unit of each toy
+field and the disabled control state, rather than the paper's scalable
+valuation-window arithmetic. Conflicting lookup keys are rejected at
+construction time; full-history \code{divsteps} remains available.
 
 The following \emph{separate affine frontier} holds the complete ECDLP task
-fixed at $p=5$, order $3$, $k=2$, and two control bits per scalar. All three
+fixed at $p=5$, order $3$, $k=2$, and two control bits per scalar. All four
 affine oracles pass every one of their $16$ arithmetic basis-state checks.
 @@gu_sampling@@ $@@gu_shots@@$-shot full superposition/QFT/measurement
 run on $@@gu_width@@$
@@ -959,6 +968,11 @@ scalar, the $@@gu_p7_width@@$-qubit complete affine divsteps ECDLP circuit
 recovers $k=4$ over $@@gu_p7_shots@@$ Aer shots (TVD $@@gu_p7_tvd@@$ against
 $@@gu_p7_bound@@$). This is a second end-to-end validation, \emph{not} another
 point on the $p=5$ frontier.
+The decoded circuit also recovers $k=4$ on the $p=7$ curve with
+$@@gu_p7_decoded_bits@@$ control bits per scalar and $@@gu_p7_decoded_width@@$
+qubits (TVD $@@gu_p7_decoded_tvd@@$ against $@@gu_p7_decoded_bound@@$);
+the different control count keeps this validation out of the p=5
+resource comparison.
 @@gu_unsampled@@ The last column reports three-metric resource nondominance, not
 end-to-end Aer certification for the unsampled rows:
 \begin{center}\footnotesize\setlength{\tabcolsep}{4pt}
@@ -971,8 +985,8 @@ affine inverse & qubits & Toffoli & depth & Aer sampling & frontier\\
 \end{tabular}
 \end{center}
 The p=5 affine task is not comparable with the p=7 windowed frontier above.
-The toy branch-history circuit does \emph{not} yet implement Gu's
-history-compressed branch decoder, two-register packed layout, specialised
+The toy finite-state decoder does \emph{not} implement Gu's
+scalable arithmetic branch decoder, two-register packed layout, specialised
 packed-Euclidean circuit, fused coordinate arithmetic or bounded-error
 256-bit schedule; no cryptographic-size resource claim follows.
 @@gu_device_note@@

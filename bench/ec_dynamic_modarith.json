@@ -1,0 +1,327 @@
+{
+ "source": "Gidney, arXiv:2507.23079v1 (2025), Figs. 2-4, 6, Eq. 8",
+ "status": "component + selectable toy hybrid oracle; NOT a Pareto/E2E resource claim: only 4 of 11 point-add steps are constant additions, and the dynamic circuits are not invertible by Machine.emit_inverse",
+ "finding": "the dynamic modadd trades gates for space: 3 clean + n-1 borrowed dirty qubits vs 3n+1 clean ancillas, but ~9n-9 dirty-target Toffolis vs the AND-based unitary's ~5n toffoli_paper (its ANDs are uncomputed by measurement, so it is the cheaper-in-T baseline at these sizes)",
+ "workspace": "modadd: 3 clean (2 vent carries + 1 flag) + n-1 dirty",
+ "python": "3.14.6",
+ "literal_adder": [
+  {
+   "n": 4,
+   "formula_classical_d0_1": 5,
+   "classical_odd": {
+    "toffoli": 5,
+    "vents": 3
+   },
+   "controlled_odd": {
+    "toffoli": 7,
+    "vents": 4
+   }
+  },
+  {
+   "n": 8,
+   "formula_classical_d0_1": 17,
+   "classical_odd": {
+    "toffoli": 17,
+    "vents": 7
+   },
+   "controlled_odd": {
+    "toffoli": 19,
+    "vents": 8
+   }
+  },
+  {
+   "n": 16,
+   "formula_classical_d0_1": 41,
+   "classical_odd": {
+    "toffoli": 41,
+    "vents": 15
+   },
+   "controlled_odd": {
+    "toffoli": 43,
+    "vents": 16
+   }
+  },
+  {
+   "n": 32,
+   "formula_classical_d0_1": 89,
+   "classical_odd": {
+    "toffoli": 89,
+    "vents": 31
+   },
+   "controlled_odd": {
+    "toffoli": 91,
+    "vents": 32
+   }
+  }
+ ],
+ "modadd": [
+  {
+   "p": 3,
+   "n": 2,
+   "k": 1,
+   "unitary": {
+    "toffoli_paper": 10,
+    "t_and_mode": 43,
+    "toffoli_toffoli_mode": 19,
+    "ancilla_qubits": 8,
+    "peak_live_ancilla": 8
+   },
+   "dynamic": {
+    "toffoli": 9,
+    "clean_ancilla": 3,
+    "dirty_borrowed": 1,
+    "peak_live_clean": 3,
+    "vent_measurements": 7,
+    "t_if_7_per_toffoli": 63,
+    "branches_per_input": 128,
+    "verified_inputs": 12,
+    "phase_signature_constant": true
+   }
+  },
+  {
+   "p": 3,
+   "n": 2,
+   "k": 2,
+   "unitary": {
+    "toffoli_paper": 10,
+    "t_and_mode": 43,
+    "toffoli_toffoli_mode": 19,
+    "ancilla_qubits": 8,
+    "peak_live_ancilla": 8
+   },
+   "dynamic": {
+    "toffoli": 5,
+    "clean_ancilla": 3,
+    "dirty_borrowed": 1,
+    "peak_live_clean": 3,
+    "vent_measurements": 4,
+    "t_if_7_per_toffoli": 35,
+    "branches_per_input": 16,
+    "verified_inputs": 12,
+    "phase_signature_constant": true
+   }
+  },
+  {
+   "p": 5,
+   "n": 3,
+   "k": 1,
+   "unitary": {
+    "toffoli_paper": 15,
+    "t_and_mode": 63,
+    "toffoli_toffoli_mode": 29,
+    "ancilla_qubits": 10,
+    "peak_live_ancilla": 10
+   },
+   "dynamic": {
+    "toffoli": 18,
+    "clean_ancilla": 3,
+    "dirty_borrowed": 2,
+    "peak_live_clean": 3,
+    "vent_measurements": 11,
+    "t_if_7_per_toffoli": 126,
+    "branches_per_input": 2048,
+    "verified_inputs": 40,
+    "phase_signature_constant": true
+   }
+  },
+  {
+   "p": 5,
+   "n": 3,
+   "k": 4,
+   "unitary": {
+    "toffoli_paper": 15,
+    "t_and_mode": 63,
+    "toffoli_toffoli_mode": 29,
+    "ancilla_qubits": 10,
+    "peak_live_ancilla": 10
+   },
+   "dynamic": {
+    "toffoli": 12,
+    "clean_ancilla": 3,
+    "dirty_borrowed": 2,
+    "peak_live_clean": 3,
+    "vent_measurements": 8,
+    "t_if_7_per_toffoli": 84,
+    "branches_per_input": 256,
+    "verified_inputs": 40,
+    "phase_signature_constant": true
+   }
+  },
+  {
+   "p": 7,
+   "n": 3,
+   "k": 1,
+   "unitary": {
+    "toffoli_paper": 15,
+    "t_and_mode": 63,
+    "toffoli_toffoli_mode": 29,
+    "ancilla_qubits": 10,
+    "peak_live_ancilla": 10
+   },
+   "dynamic": {
+    "toffoli": 18,
+    "clean_ancilla": 3,
+    "dirty_borrowed": 2,
+    "peak_live_clean": 3,
+    "vent_measurements": 11,
+    "t_if_7_per_toffoli": 126,
+    "branches_per_input": 2048,
+    "verified_inputs": 56,
+    "phase_signature_constant": true
+   }
+  },
+  {
+   "p": 7,
+   "n": 3,
+   "k": 6,
+   "unitary": {
+    "toffoli_paper": 15,
+    "t_and_mode": 63,
+    "toffoli_toffoli_mode": 29,
+    "ancilla_qubits": 10,
+    "peak_live_ancilla": 10
+   },
+   "dynamic": {
+    "toffoli": 14,
+    "clean_ancilla": 3,
+    "dirty_borrowed": 2,
+    "peak_live_clean": 3,
+    "vent_measurements": 8,
+    "t_if_7_per_toffoli": 98,
+    "branches_per_input": 256,
+    "verified_inputs": 56,
+    "phase_signature_constant": true
+   }
+  },
+  {
+   "p": 11,
+   "n": 4,
+   "k": 1,
+   "unitary": {
+    "toffoli_paper": 20,
+    "t_and_mode": 83,
+    "toffoli_toffoli_mode": 39,
+    "ancilla_qubits": 12,
+    "peak_live_ancilla": 12
+   },
+   "dynamic": {
+    "toffoli": 27,
+    "clean_ancilla": 3,
+    "dirty_borrowed": 3,
+    "peak_live_clean": 3,
+    "vent_measurements": 14,
+    "t_if_7_per_toffoli": 189,
+    "branches_per_input": 16384,
+    "verified_inputs": 176,
+    "phase_signature_constant": true
+   }
+  },
+  {
+   "p": 11,
+   "n": 4,
+   "k": 10,
+   "unitary": {
+    "toffoli_paper": 20,
+    "t_and_mode": 83,
+    "toffoli_toffoli_mode": 39,
+    "ancilla_qubits": 12,
+    "peak_live_ancilla": 12
+   },
+   "dynamic": {
+    "toffoli": 23,
+    "clean_ancilla": 3,
+    "dirty_borrowed": 3,
+    "peak_live_clean": 3,
+    "vent_measurements": 11,
+    "t_if_7_per_toffoli": 161,
+    "branches_per_input": 2048,
+    "verified_inputs": 176,
+    "phase_signature_constant": true
+   }
+  },
+  {
+   "p": 13,
+   "n": 4,
+   "k": 1,
+   "unitary": {
+    "toffoli_paper": 20,
+    "t_and_mode": 83,
+    "toffoli_toffoli_mode": 39,
+    "ancilla_qubits": 12,
+    "peak_live_ancilla": 12
+   },
+   "dynamic": {
+    "toffoli": 27,
+    "clean_ancilla": 3,
+    "dirty_borrowed": 3,
+    "peak_live_clean": 3,
+    "vent_measurements": 14,
+    "t_if_7_per_toffoli": 189,
+    "branches_per_input": 16384,
+    "verified_inputs": 208,
+    "phase_signature_constant": true
+   }
+  },
+  {
+   "p": 13,
+   "n": 4,
+   "k": 12,
+   "unitary": {
+    "toffoli_paper": 20,
+    "t_and_mode": 83,
+    "toffoli_toffoli_mode": 39,
+    "ancilla_qubits": 12,
+    "peak_live_ancilla": 12
+   },
+   "dynamic": {
+    "toffoli": 21,
+    "clean_ancilla": 3,
+    "dirty_borrowed": 3,
+    "peak_live_clean": 3,
+    "vent_measurements": 11,
+    "t_if_7_per_toffoli": 147,
+    "branches_per_input": 2048,
+    "verified_inputs": 208,
+    "phase_signature_constant": true
+   }
+  }
+ ],
+ "oracle": {
+  "curve": "CLASSIQ p=7 a=5 b=4",
+  "order": 5,
+  "m_bits": 2,
+  "kaliski": {
+   "qubits_dynamic": 67,
+   "qubits_unitary": 67,
+   "toffoli_dynamic": 10968,
+   "toffoli_unitary": 11000,
+   "vent_measurements": 108,
+   "basis_inputs_verified": 16,
+   "all_branch_phase_constant": true,
+   "scratch_clean_all_branches": true
+  },
+  "divsteps": {
+   "qubits_dynamic": 63,
+   "qubits_unitary": 63,
+   "toffoli_dynamic": 31456,
+   "toffoli_unitary": 31488,
+   "vent_measurements": 108,
+   "basis_inputs_verified": 16,
+   "all_branch_phase_constant": true,
+   "scratch_clean_all_branches": true
+  },
+  "aer_e2e": {
+   "inversion": "divsteps",
+   "qubits": 63,
+   "device": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+   "shots": 1024,
+   "seconds": 788.0,
+   "k_true": 4,
+   "top_candidate": 4,
+   "tvd": 0.0479,
+   "tvd_null_9999": 0.0791,
+   "pass": true,
+   "note": "kaliski oracle is 67 qubits, above Aer's 63-qubit MPS coupling-map limit; it is basis/branch-verified only"
+  }
+ }
+}

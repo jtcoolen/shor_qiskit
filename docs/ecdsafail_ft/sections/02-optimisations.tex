@@ -1,0 +1,432 @@
+\section{The optimisations of \ecdsafail{}}\label{sec:opts}
+
+\subsection{Where the cost sits: the six-stage pipeline of \code{8e9c9a2}}\label{sec:pipeline}
+
+The best product-score circuit at the data cutoff, submission \code{8e9c9a2} (source commit \code{60d61859fa69}, $Q=1{,}151$, $T=1{,}299{,}453$, $\QT=1{,}495{,}670{,}403$), executes the seven steps of \cref{tab:seven-steps} as six source-level stages (\cref{fig:pipeline}). The two multiplicative steps, stages~2 and~5, share one engine---a recorded Euclidean walk whose transcript is replayed on the coefficient pair---and between them account for the great majority of the Toffolis and for the qubit peak; everything else is a modular add/sub of a classical constant or a specialised square. Reading the pipeline left to right is the quickest way to see which optimisation family acts where.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[x=1cm,y=1cm,font=\small]
+  % buses
+  \node[anchor=east] at (0.2,3.4) {window $\ket{u_j}$};
+  \draw[wire] (0.3,3.4) -- (15.8,3.4);
+  \node[anchor=east] at (0.2,1.3) {$X:\ \ket{x_R}$};
+  \node[anchor=east] at (0.2,0.5) {$Y:\ \ket{y_R}$};
+  \draw[wire] (0.3,1.3) -- (15.8,1.3); \draw[wire] (0.3,0.5) -- (15.8,0.5);
+  \node[blko,text width=24mm] (QA) at (1.9,3.4) {QROM look/unlook\\$A=(x_A,y_A)$};
+  \node[blko,text width=24mm] (Q3) at (7.3,3.4) {QROM look/unlook\\$3x_A\bmod p$};
+  \node[blko,text width=24mm] (QB) at (14.4,3.4) {QROM look/unlook\\$A=(x_A,y_A)$};
+  \node[stage,text width=22mm,minimum height=16mm] (S1) at (1.9,0.9) {\textbf{1 differences}\\$X\gets x_R-x_A$\\$Y\gets y_R-y_A$};
+  \node[stage,fill=addviolet,text width=22mm,minimum height=16mm] (S2) at (4.6,0.9) {\textbf{2 dialog-GCD division}\\$Y\gets d_y/d_x=\lambda$};
+  \node[stage,text width=22mm,minimum height=16mm] (S3) at (7.3,0.9) {\textbf{3 prepare}\\$X\gets d_x+3x_A$};
+  \node[stage,fill=lookorange,text width=22mm,minimum height=16mm] (S4) at (10.0,0.9) {\textbf{4 square}\\$X\gets X-\lambda^2$};
+  \node[stage,fill=addviolet,text width=22mm,minimum height=16mm] (S5) at (12.7,0.9) {\textbf{5 replay multiply}\\$Y\gets\lambda X$};
+  \node[stage,fill=outgreen,text width=18mm,minimum height=16mm] (S6) at (15.0,0.9) {\textbf{6 recover}\\$Y\gets Y-y_A$\\$X\gets x_A-X$};
+  \draw[wire] (QA.south) -- (S1.north); \draw[wire] (Q3.south) -- (S3.north); \draw[wire] (QB.south) -- (S6.north);
+  \node[note,anchor=west] at (15.9,1.3) {$x_{R'}$}; \node[note,anchor=west] at (15.9,0.5) {$y_{R'}$};
+  % live state
+  \foreach \x/\a/\b in {1.9/{x_R-x_A}/{y_R-y_A},4.6/{d_x}/{\lambda},7.3/{x_R+2x_A}/{\lambda},10.0/{x_A-x_{R'}}/{\lambda},12.7/{x_A-x_{R'}}/{\lambda(x_A-x_{R'})},15.0/{x_{R'}}/{y_{R'}}}{
+     \node[note] at (\x,-0.55) {$X=\a$}; \node[note] at (\x,-0.95) {$Y=\b$};}
+  \node[note,anchor=east] at (0.2,-0.55) {live:};
+  % source names
+  \foreach \x/\s in {1.9/{tlm\_coord\_x\_sub, \_y\_sub},4.6/{tlm\_inverse},7.3/{tlm\_coord\_add3x},10.0/{tlm\_square},12.7/{tlm\_forward\_multiply},15.0/{tlm\_coord\_*\_final}}{
+     \node[note,font=\tiny\ttfamily] at (\x,-1.5) {\s};}
+\end{tikzpicture}}
+\caption{The six source-level stages of \code{8e9c9a2} and the live contents of the two coordinate registers after each (Supplemental Note~D). In the challenge, $x_A,y_A$ are classical bits; the QROM boxes are what a windowed Shor circuit must add (\cref{sec:windowed}). Stages 2 and 5 are the same Jump-2 dialog-GCD engine run in the ``inverse'' and ``forward'' directions.}
+\label{fig:pipeline}
+\end{figure}
+
+\paragraph{Nine families.} Supplemental Note~B classifies the $400$ scored source commits of the public competition (to 26~July) into nine optimisation families, six of which have classical-compiler names and three of which are specifically reversible: \emph{windowing}, \emph{algorithmic substitution}, \emph{dead-code and redundancy elimination}, \emph{register and scratch allocation}, \emph{codec/encoding}, \emph{fusion}, \emph{strength reduction}, \emph{constant propagation / classical specialisation}, and \emph{uncompute strategy} \cite{ecdsafail26}. \Cref{tab:census} gives the counts and the share of the realised score reduction each family receives in the paper's bookkeeping. Because the taxonomy is organised by \emph{what a commit did}, while a reader wants to know \emph{how the circuit works}, the rest of this section is organised by circuit component instead---inversion, arithmetic, qubits, uncomputation, post-passes, windowing---and names the family of each lever as it comes up.
+
+\begin{table}[H]
+\centering\footnotesize
+\begin{tabular}{@{}p{4.1cm}rrrp{6.2cm}@{}}
+\toprule
+family & commits & \% & $\Delta$ share & typical levers\\
+\midrule
+dead-code / redundancy elimination & 244 & 61.0 & 39\% & width truncation (149), iteration/threshold tuning (37), fold/carry truncation (37), dead-gate strips (21)\\
+register and scratch allocation & 50 & 12.5 & 21\% & ancilla-lifetime / venting (30), scratch reuse (17), in-place mutation (3)\\
+uncompute strategy & 22 & 5.5 & 8\% & measurement-based uncompute (all 22)\\
+constant propagation / classical specialisation & 19 & 4.8 & $\approx0$ & classical $3x_A$, $(2-q)x_A$, forced-branch prefixes, SAT-proven rows\\
+strength reduction & 14 & 3.5 & -- & fast-adder reroute (9), Solinas/NAF folds (5)\\
+fusion & 12 & 3.0 & 18\% & gate/op fusion (7), boundary cswap-merge (5)\\
+windowing & 8 & 2.0 & 13\% & the Jump-2 inversion base, windowed Solinas shift\\
+codec / encoding & 7 & 1.8 & $\approx0$ & base-5 / K5 transcript codecs (low-$Q$ branch)\\
+algorithmic substitution & 2 & 0.5 & small & Karatsuba squarer swaps\\
+\midrule
+verifier search (nonce rerolls) and other & 22 & 5.5 & -- & identity-tail nonce changes, padding\\
+\bottomrule
+\end{tabular}
+\caption{The census of the $400$ scored competition commits to 26~July 2026 (Supplemental Notes~B and C of \cite{ecdsafail26}). ``$\Delta$ share'' is the fraction of the gross frontier reduction attributed to the $69$ largest improvements that a family receives; the four structural families (allocation, fusion, windowing, uncompute) take $\approx60\%$ of it across only $26$ commits, whereas dead-code elimination is frequent but incremental. The wiki's diff-level re-audit of the $180$ later commits (to 7~Oct.) adds a change-type ``inversion/division algorithm swap'' for the three architecture changes of \cref{sec:inversions} \cite{ecdsafail-wiki}.}
+\label{tab:census}
+\end{table}
+
+\subsection{Six ways to divide: the inversion architectures}\label{sec:inversions}
+
+Every frontier circuit computes $\lambda=d_y/d_x$ and later multiplies by $x_A-x_{R'}$ with a \emph{binary extended-Euclidean walk} of one kind or another; the choice of walk is the single biggest determinant of both $Q$ and $T$, and the competition replaced it five times (\cref{tab:inversions}). The common skeleton is: (i) a forward walk on the pair $(u,v)=(p,\,d)$ that drives it to $(1,0)$ or to a fixed point, recording its branch decisions coherently (they depend on the superposed $d$ and cannot be measured); (ii) a \emph{replay} of the same decisions as linear updates on a coefficient pair seeded with the numerator, which turns $y$ into $y\cdot d^{-1}$ (division) or $y\cdot d$ (multiplication, replay in the opposite direction); (iii) a backward walk that consumes the record and restores $d$. Only the walk rule, what is recorded, and how the record is stored differ.
+
+\begin{table}[H]
+\centering\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}p{2.1cm}p{2.5cm}p{2.5cm}p{2.7cm}p{2.5cm}p{3.2cm}@{}}
+\toprule
+& Kaliski & dialog GCD & TrailMix Jump-2 & ping-pong & Skywalk / Leapfrog\\
+\midrule
+dates (frontier) & 29 May--2 Jun & 2--19 Jun & 19 Jun--21 Aug & 21 Aug--29 Sep & 29 Sep--7 Oct / 7 Oct--\\
+rule & qrisp/HJNRS almost-inverse & Stein's binary GCD & Stein, two halvings per step & fixed alternation, no compare & Stein, even rail halves / 3 add-halves + barrel\\
+coefficients & $(r,s)$ carried live & replayed from record & replayed, fused into walks & replayed, fused & replayed, fused\\
+record per step & $3$ bits ($f,a,b$) & $2$ bits ($b_0,b_0b_1$) & $5$ symbols in $7$ qubits/$3$ steps & $1$ sign bit & trit ($1.6$ q) / $5$ qubits\\
+steps per walk & $\approx 397$--$404$ & $399\to259$ (K=2) & $258$--$261$ & $\approx700$ & $\approx393$ / $139$\\
+$(Q,T)$ at hand-over & $2006\times2.55$M & $1168\times1.43$M & $1150\times1.285$M & $1250\times0.889$M & $1174\times0.945$M / $1244\times0.798$M\\
+\bottomrule
+\end{tabular}
+\caption{The inversion architectures that held the \ecdsafail{} frontier, in order; dates and operating points from the wiki's concept pages and the 7~Oct.\ leaderboard snapshot \cite{ecdsafail-wiki}.}
+\label{tab:inversions}
+\end{table}
+
+\subsubsection{Kaliski's almost-inverse (the baseline, 29 May--2 June)}
+
+The organisers' reference circuit ($2{,}715$ qubits, $3{,}942{,}753$ Toffolis unpadded) computed $\lambda$ with two runs of the reversible Kaliski/Montgomery almost-inverse in the form of H\"aner et al.\ \cite{hjnrs20}: state $(u,v_w,r,s)$ initialised to $(p,d_x,0,1)$, a termination flag $f$, one history qubit per iteration, and the straight-line iteration (qrisp step numbers)
+\begin{center}\small
+\begin{tabular}{@{}ll@{}}
+STEP 0 & $\mathit{is\_zero}=[v_w=0]$ (an OR chain); $m_i\mathrel{\oplus}=f\cdot\mathit{is\_zero}$; $f\mathrel{\oplus}=m_i$\\
+STEP 1--2 & branch flags $a_f,b_f$ from $u_0,v_{w,0}$ and $\ell=[u>v_w]$\\
+STEP 3 & cswap$(a_f)$: $(u,v_w)$ and $(r,s)$\\
+STEP 4 & $\mathit{add}_f=f\wedge\neg b_f$; $v_w\mathrel{-}=\mathit{add}_f\cdot u$; $s\mathrel{+}=\mathit{add}_f\cdot r$\\
+STEP 6--8 & $v_w\gets v_w/2$ (free relabel); $r\gets 2r\bmod p$\\
+STEP 9--10 & cswap$(a_f)$ back; $a_f\mathrel{\oplus}=\neg s_0$
+\end{tabular}
+\end{center}
+run a fixed number of times, then backwards, with $2^{\text{iters}}$ removed by modular halvings. The Kaliski era already contains four of the recurring moves in embryo \cite{ecdsafail-wiki}: \textbf{boundary cswap merges} (STEP 9 of iteration $k$ and STEP 3 of $k+1$ swap the same registers and $\mathrm{cswap}(a)\,\mathrm{cswap}(b)=\mathrm{cswap}(a\oplus b)$, so one width-$n$ Fredkin row is deleted per iteration at the cost of a one-qubit ``frame'' carrying $a_k$ across the boundary: $-274{,}327$ and $-260{,}517$ Toffolis for the two channels), \textbf{in-place $v$ with borrowed carries} (use the live $x$ register as $v_w$, and take the adders' carry ancillas from history slots that are provably still $\ket0$: $2{,}708\to2{,}310$ qubits), \textbf{width truncation} (an envelope fitted to $80{,}000$ sample inputs clips every operation to the bits that can be non-zero at iteration $i$, worth $\approx4{,}300$ Toffolis per margin bit), and \textbf{carry-tail truncation} (above the top set bit of $c=2^{32}+977$ a carry can only propagate, so the chain is cut at $33+W$). By 2~June the frontier stood at $2{,}006\times2{,}552{,}687$, and then the whole inverter was replaced.
+
+\begin{figure}[H]
+\centering
+\begin{quantikz}[column sep=5pt,row sep=4pt,font=\small]
+\lstick{$a_k$}      & \ctrl{1}            & \ctrl{2} & \ctrl{1} &                 &  \\
+\lstick{$u$}        & \swap{1}            &          & \swap{1} & \gate[2]{\text{iteration }k{+}1} & \\
+\lstick{$v_w$}      & \targX{}            &          & \targX{} &                 & \\
+\end{quantikz}
+\hspace{4mm}$\Longrightarrow$\hspace{4mm}
+\begin{quantikz}[column sep=5pt,row sep=4pt,font=\small]
+\lstick{$a_k$}         & \ctrl{3}  &          &  & & \\
+\lstick{$a_{k+1}$}     &           & \ctrl{2} & \ctrl{2}   &  & \\
+\lstick{$u$}           &           &          & \swap{1} & \gate[2]{\text{iteration }k{+}1} & \\
+\lstick{$v_w$}         & \targ{}   & \targ{}  & \targX{} & & \\
+\end{quantikz}
+\caption{Boundary cswap-merge (fusion family). Left: the step-9 un-swap of iteration $k$ and the step-3 swap of iteration $k+1$ act on the same pair. Right: the identity $\mathrm{cswap}(a_k)\mathrm{cswap}(a_{k+1})=\mathrm{cswap}(a_k\oplus a_{k+1})$ replaces two width-$n$ Fredkin rows ($2n$ Toffolis) by one row driven by a parity formed with a free CNOT into a one-qubit frame (shown schematically; the frame qubit is cleared at the boundary that set it, so it is never live at the step-4 peak). Commits \code{d35d6e7}/\code{9bcc27d} and \code{36a2989}/\code{112d5a4} \cite{ecdsafail26,ecdsafail-wiki}.}
+\label{fig:cswap-merge}
+\end{figure}
+
+\subsubsection{The dialog GCD: record the walk, replay it (2--19 June)}\label{sec:dialog}
+
+Schrottenloher's construction \cite{schrottenloher26} (following the ``record and replay'' idea of \cite{khattar25}) drops the B\'ezout coefficients from the walk altogether. Run Stein's binary GCD on $(u,v)=(p,a)$ alone,
+\begin{equation}\label{eq:dialog-step}
+b_0\gets v_0;\qquad b_{01}\gets b_0\wedge[u>v];\qquad \text{if } b_{01}:\ \mathrm{swap}(u,v);\qquad \text{if } b_0:\ v\gets v-u;\qquad v\gets v/2 ,
+\end{equation}
+and keep only the two decision bits per step---the \emph{dialog}. Each step is a linear map $M_i$ on $(u,v)$; the product $M=M_L\cdots M_1$ sends $(p,a)\mapsto(1,0)$. Over $\F_p$ the constant $p$ is $0$, so replaying the same decisions on the pair $(0,y)$ gives $(y/a,\,0)$: \emph{the record of the walk on $a$ is a program for dividing by $a$}, and the identical program read in the other direction (doublings instead of halvings) multiplies by $a$. The replay of one step is
+\[
+\mathrm{cswap}(b_{01},x,y);\qquad y\gets y-b_0\,x \bmod p;\qquad y\gets y/2\bmod p ,
+\]
+so the only quantum data it touches are the two coefficient registers and the two recorded bits; it never looks at $a$ again. Since $(b_0,b_{01})=(0,1)$ cannot occur, three steps carry $3^3=27<32$ states and fit in five qubits instead of six, giving an asymptotic $2.355n$ qubits for the record in place of $2n$ for $(r,s)$---and, unlike the Kaliski design, the record is only consumed at the very end, so its lifetime is the whole circuit, which is what the later codecs and the register-sharing of \cref{sec:regshare} address. The first dialog submission, \code{cddd5df} (2~June, $1{,}698\times2{,}447{,}846$), replaced both inversions at once; by 18~June (\code{ba3efc1}) the route stood at $1{,}168\times1{,}431{,}621$, almost entirely by tuning its truncations: step count ($399\to393$, then $259$ under K=2), the width envelope $\mathrm{active\_width}(s)=\lceil 256-s\cdot\mathrm{slope}+\mathrm{margin}\rceil_{\mathrm{even}}$ with slope $0.7075\to1.017$ and margin $37\to10$, per-step compare widths from a baked table of observed maxima of $w-\mathrm{msb}(u\oplus v)$, body trims, apply-pass chunking, and fold windows \cite{ecdsafail-wiki}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1cm,y=1cm,font=\small]
+  \node[blkv,text width=30mm,minimum height=14mm] (W) at (0,2.2) {forward walk on $(u,v)=(p,d_x)$\\ Jump-2 steps, $261$ of them};
+  \node[blko,text width=30mm,minimum height=14mm] (C) at (4.6,2.2) {dialog codec $\tau$\\ base-5: $3$ symbols $\to7$ qubits};
+  \node[blkv,text width=34mm,minimum height=14mm] (A) at (4.6,0) {apply $M^{-\mathsf T}$ to $(Y,Z)$ from the \emph{live} symbols\\ $(0,d_y)\mapsto(d_y/d_x,0)$};
+  \node[blkg,text width=30mm,minimum height=14mm] (R) at (9.4,2.2) {reverse walk: decode and consume $\tau$, restore $X=d_x$};
+  \draw[flow] (W) -- (C); \draw[flow] (C) -- (R); \draw[flow] (W.south east) -- node[note,above,sloped]{live controls} (A.north west);
+  \node[note,text width=12cm] at (4.6,-1.6) {Stage 2 (division). The same engine with the replay fused into the \emph{reverse} walk and $M^{\mathsf T}$ instead of $M^{-\mathsf T}$ is stage 5 (multiplication): $(0,\lambda)\mapsto(\lambda(x_A-x_{R'}),0)$. The transcript is a quantum register entangled with $d_x$; it is grown as the active widths of $u,v$ shrink and is returned to $\ket0$ by the reverse walk.};
+\end{tikzpicture}
+\caption{Dialog-GCD division as implemented in \code{8e9c9a2} (Supplemental Note~D, pp.\,7 and 14 redrawn). Every halving, swap and subtraction of the walk is a linear update $M$ of $(u,v)$; the same controls apply the coefficient update $M^{-\mathsf T}$ to the pair $(Y,Z)$, so while the walk reduces $(p,d_x)\to(1,0)$ the numerator $d_y$ becomes $d_yd_x^{-1}=\lambda$.}
+\label{fig:dialog}
+\end{figure}
+
+\subsubsection{Jump-2 and the base-5 codec (TrailMix, 19 June--21 August)}\label{sec:jump2}
+
+Trail of Bits' ``TrailMix'' port \cite{ecdsafail26} (submission \code{bdb1d22}) reorders the step so that the halving comes first and allows a \emph{second} halving when the first leaves $v$ even:
+\begin{equation}\label{eq:jump2}
+\begin{aligned}
+&v\gets v/2;\qquad s_2=[v\text{ even}];\qquad \text{if } s_2:\ v\gets v/2;\qquad b=v_0;\\
+&s=b\wedge[v<u]_{\text{top }k\text{ bits}};\qquad \text{if } s:\ \mathrm{swap}(u,v);\qquad \text{if } b:\ v\gets v-u .
+\end{aligned}
+\end{equation}
+Every macro-step ends with $v$ even (the subtraction of odd $u$ from odd $v$ is even; if $b=0$, $v$ was even already), so the next unconditional halving is always valid: Jump-2 is an \emph{exact retiming} of the binary GCD that makes about $0.95$ bits of progress per recorded symbol instead of $0.71$, which is why the fixed budget fell from $393$ to $258$--$261$ macro-steps (non-convergence $2.839\times10^{-4}$ at $258$, $2.86\times10^{-5}$ at $261$ over $10^7$ inputs). The symbol $\sigma=(b,s,s_2)$ has three bits but only five reachable values---$s_2=0\Rightarrow b=1$ and $b=0\Rightarrow s=0$---so it is a base-5 digit $d=\phi(\sigma)\in\{0,\dots,4\}$, and three digits pack as $z=d_0+5d_1+25d_2\le124<2^7$: seven qubits for nine raw bits, by a reversible permutation of basis states (no decision is measured or discarded). For $261$ symbols the tape is $2+86\cdot7+5=609$ qubits instead of $783$ (\cref{fig:codec}). The windowing family's largest entry is exactly this re-blocking of the Euclidean loop (its landing is the competition's second-largest single frontier move), and the codec family is its storage \cite{ecdsafail26}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1cm,y=1cm,font=\small]
+  \foreach \x/\s in {0/{100},1.3/{110},2.6/{001},3.9/{101},5.2/{111}} {\node[draw,fill=gateblue,minimum width=11mm,minimum height=6mm] at (\x,2.6) {$\s$};}
+  \node[note,anchor=west] at (6.2,2.6) {the five reachable $(b,s,s_2)$};
+  \node at (2.6,1.75) {$\phi:\{\sigma\}\to\{0,1,2,3,4\},\qquad z=d_0+5d_1+25d_2\in[0,124]\subset[0,2^7)$};
+  \draw[decorate,decoration={brace,amplitude=4pt}] (-0.6,1.2) -- (5.8,1.2) node[midway,below=4pt,note]{$3\times3=9$ raw qubits $\to$ $7$};
+  \node[note,text width=12.5cm] at (2.6,-0.2) {tape for $261$ steps: $\underbrace{2}_{\text{step 0}}+\underbrace{86\cdot 7}_{\text{triple blocks}}+\underbrace{5}_{\text{final pair}}=609$ qubits versus $261\cdot3=783$ raw; the encoder is \code{compress\_2sym\_fast}, a normaliser table and a \code{MERGE25} gate list, exact on the reachable support \cite{ecdsafail-supp,ecdsafail-wiki}.};
+\end{tikzpicture}
+\caption{The base-5 transcript codec of the Jump-2 route (codec/encoding family; Supplemental Note~D, p.\,9). In the earlier June route the same idea appeared as the K2-pair ($6\to5$), K5 ($15\to12$), head-11 and tail-3 block codecs \cite{ecdsafail-wiki}.}
+\label{fig:codec}
+\end{figure}
+
+\paragraph{Width scheduling.} The walk operates on shrinking registers: at step $i$ only the active $w_i=\code{SCHED\_J2}[i]$ low bits of $u,v$ are touched, the comparator looks only at $\code{GAP\_J2}[i]$ top bits, and the freed high lanes host the growing tape. Note~D's live-width model for stage 2,
+\begin{equation}\label{eq:livewidth}
+Q_i\approx\underbrace{512}_{\text{B\'ezout pair}}+\underbrace{|\tau_i|}_{\text{compressed dialog}}+\underbrace{2w_i}_{u_i,v_i}+\underbrace{q_{\mathrm{work},i}}_{\text{compare, carry, control}},
+\end{equation}
+states the scheduling objective: make the decrease of $2w_i$ absorb the growth of $|\tau_i|$, while hosting and measurement-based cleanup keep $q_{\mathrm{work},i}$ below the same peak. The known bits $u_0=1$ and $v_0=0$ are ``parked'' while dormant and their lanes lent out; chunked adders borrow already-live registers as dirty vent space; every borrowed value is restored before its owner is active again.
+
+\subsubsection{Ping-pong: fixed-depth signed binary division (21 August--29 September)}\label{sec:pingpong}
+
+Submission \code{897dda2} (teddyjfpender) replaced the GCD by a divider that needs no comparison at all. Two \emph{odd signed} registers in a $259$-bit two's-complement envelope take turns being halved in a fixed order:
+\begin{equation}\label{eq:pingpong}
+\mathrm{sign}=\mathrm{target}_1\oplus\mathrm{source}_1,\qquad \mathrm{target}\gets\frac{\mathrm{target}+(-1)^{\mathrm{sign}}\,\mathrm{source}}{2},
+\end{equation}
+where the sign is chosen so that the sum is $\equiv2\pmod4$ and the result is odd again; roles alternate with the round parity, which is known at build time, so no data-dependent swap is needed. The pair $(u,v)=(p,d)$ converges to a fixed point $(\pm1,\pm1)$; one tape qubit per round records the sign; the replay runs the same signed halvings modulo $p$ on $(\mathrm{coefficient},\mathrm{numerator})=(0,c)$ and ends at $(\pm c/a,\pm c/a)$, after which the terminal signs make the two registers equal and a row of CNOTs clears one of them. Each replay round is one fused cell: a chunked add with measured boundary carries, a fold by one of $\{-f,0,+f,+2f\}$ with $f=2^{32}+977$ restricted to a window, and a measured overflow flag repaired by a truncated compare. The walk is cheaper per round ($257$ Toffolis in Julian's reconstruction, \cref{sec:shor-impl}) but takes $\approx700$ rounds, and its $700$-bit tape sets the peak: the memory note's plateau is
+\[
+700\ (\text{tape})+256+256\ (\text{coefficient pair})+2\ (\text{terminal signs})+86\ (\text{chunk carry ladder})=1{,}300 ,
+\]
+which the follow-ups brought down to $1{,}250$ by lending the $16$ known terminal wires (the sign copies in bits $1..7$ of each $9$-wire register and the constant bit $0$), interleaving the replay with the walk so that early replay rounds share the machine with only part of the tape, and sizing every carry ladder against a peak cap (\code{PP\_WALK\_MAX\_QUBITS}) \cite{ecdsafail-wiki}. Against the TrailMix frontier the swap cost $171$ qubits and saved $332$k Toffolis ($1{,}321\times952{,}707$ against $1{,}150\times1{,}284{,}776$), the largest single score delta of the extension census.
+
+\subsubsection{Skywalk: Stein's GCD with a trit history (29 September--7 October)}\label{sec:skywalk}
+
+\code{8ee337c} (mochimodev) returned to Stein's rule but removed its comparison by a change of representation: keep the pair as the unordered magnitudes $\{u+v,u\}$, exactly one of which is even; call it $E$ and the other $O$; the next state is $\{E/2,|O-E/2|\}$. One \emph{rail tick} is
+\begin{enumerate}[nosep]
+\item $c=R_1[0]$; Fredkin-swap $R_1[i]\leftrightarrow R_2[i]$ on $c$ for $i\ge1$ and $R_2[0]\mathrel{\oplus}=c$, so that the even rail is in $R_1$;
+\item $E/2=R_1[1..]$ is a relabelling (no gates);
+\item $R_2\gets R_2\mp E/2$, subtracting when the signs agree (signs are kept, not absolute values);
+\item the wire $c$ leaves the rail as the tape's orientation bit $\mathrm{typ}_t=\mathrm{typ}_{t-1}\oplus c_t$, and the add's sign-flip wire becomes $s_t$.
+\end{enumerate}
+The pair $(\mathrm{typ},s)$ takes three legal values, a \emph{trit}, and five trits pack into eight qubits ($3^5=243\le256$), i.e.\ $1.6$ qubits per tick; about $393$ ticks suffice where ping-pong needed $\approx700$, so the history is shorter and $Q$ fell $1{,}250\to1{,}174$, while $T$ rose $6.4\%$ because every tick pays a full-width Fredkin row on the rails and every payload cell a conditional $256$-bit route swap \cite{ecdsafail-wiki}. The payload is carried as a sum/difference (``butterfly'') pair $(\Sigma,\Delta)$ with the division cell $\Sigma\gets(\Sigma-(-1)^{g}\Delta)/2\bmod p$, $g=\mathrm{typ}_t$, followed by a swap if $s$; seeded with $(2N,0)$ it parks at $\Sigma=\Delta=N/d$, so the endpoint $\Delta\mathrel{\oplus}=\Sigma$ costs no Toffoli.
+
+\subsubsection{Leapfrog: a route-free multi-step 2-adic walk (from 7 October)}\label{sec:leapfrog}
+
+\code{86221ad} (BitWonka) makes much bigger steps. Two odd rails $R_0,R_1$ in two's complement; at tick $t$ the target $T=R_{t\bmod2}$ is updated from the source $B=R_{1-t\bmod2}$ by
+\begin{enumerate}[nosep]
+\item two \emph{forced} add-halves, letters $s_0,s_1$: $T\gets(T+(-1)^sB)/2$ with $s=T_1\oplus B_1$ (so the sum is $\equiv2\bmod4$ and $T$ stays odd; the sign costs two CNOTs);
+\item one \emph{choice} add-halve, letter $s_3$: of $T\pm B$, exactly one is $\equiv0\bmod4$ (the \emph{deep} candidate $D$); take it when $D\bmod32\neq0$ (so its extra zeros $e=v_2(D)-1\le3$) and the step is not the rail-growing ``$e=1$ with equal signs'' case (rule \emph{sign2}); with \code{LF\_W1} the excluded case is reopened when $|T|>4|B|$ on a $K$-bit window of the top bits;
+\item a \emph{barrel}, letters $k_1=e\,\&\,1$, $k_2=e\gg1$: an arithmetic right shift of the rail by $e$ (the $e$ known-zero low wires rotate to the top and are sign-filled, $1.5w-2$ Toffolis) and, on the payload, a controlled multiplication by $2^{-e}\bmod p$: with $m=P\bmod 2^e$ and $f-1\equiv0\bmod16$, $P\cdot2^{-e}\equiv\mathrm{rotr}_e\big(P-m(f-1)\big)$---one fold ladder whose addend bits are AND-monomials of the three bits of $m$, then a rotation \code{rot4} built from three controlled reflections ($1.5n-2$ Fredkins).
+\end{enumerate}
+Each tick removes $3+e$ low bits of the target, so $139$ ticks suffice (Skywalk $\approx393$, ping-pong $\approx700$); the letter is five raw qubits with no codec ($695$ tape qubits), the payload work per tick is three replay cells and one barrel ($\approx556$ cell-equivalents per pass against Skywalk's $393$ cells $+393$ route swaps), and because the target is fixed by the tick's parity there is no routing at all. The width envelope (\code{env\_w1\_peel139.txt}) is a greedy \emph{peeling} fit over $1.92$\,M walks that drops the walks that never park and then repeatedly lowers whichever position saves the most priced Toffoli per walk sacrificed; the author reports $\lambda=14.4\pm0.4$ under the inherited $19.5$ cap. The landing went $1{,}172\times945{,}335\to1{,}243\times804{,}160$ ($999{,}570{,}880$, the first score below $10^9$), and three same-day follow-ups reached $1{,}244\times797{,}905$ \cite{ecdsafail-wiki}. The repository head on 11~October (\code{c672dda}) still runs Leapfrog, with walk caps of $1{,}235$--$1{,}237$ in its ``spookyfrog'' recipe variants \cite{ecdsafail-repo}.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[x=1cm,y=1cm,font=\footnotesize]
+  \node[blkv,text width=23mm,minimum height=13mm] (a) at (0,0) {forced add-halve\\$T\gets(T\pm B)/2$\\letter $s_0$};
+  \node[blkv,text width=23mm,minimum height=13mm] (b) at (2.9,0) {forced add-halve\\letter $s_1$};
+  \node[blko,text width=25mm,minimum height=13mm] (c) at (5.9,0) {choice add-halve\\deep $D\equiv0\ (4)$ or flat\\letter $s_3$ (window compare)};
+  \node[blkg,text width=23mm,minimum height=13mm] (d) at (9.0,0) {barrel $\gg e$, $e\le3$\\letters $k_1,k_2$\\payload $\times2^{-e}\bmod p$};
+  \node[blk,text width=21mm,minimum height=13mm] (e) at (11.8,0) {tape: $5$ qubits\\$(s_0,s_1,s_3,k_1,k_2)$};
+  \draw[flow] (a)--(b); \draw[flow] (b)--(c); \draw[flow] (c)--(d); \draw[flow] (d)--(e);
+  \node[note,text width=12.5cm,anchor=north] at (5.9,-2.05) {one Leapfrog tick on rail $T=R_{t\bmod2}$ from $B=R_{1-t\bmod 2}$: $3+e$ low bits of $T$ removed; $139$ ticks per walk, four rail traversals and two payload passes per point addition; on the reverse tick $s_0,s_1$ are recomputed with CNOTs and $s_3,k_1,k_2$ are erased by measurement.};
+\end{tikzpicture}}
+\caption{The Leapfrog tick (\cite{ecdsafail-wiki}, concept page \emph{leapfrog}).}
+\label{fig:leapfrog}
+\end{figure}
+
+\begin{keybox}[title={Why the walks matter for fault tolerance}]
+A point addition is four rail traversals and two payload passes of a sequential walk; the walk's steps are \emph{inherently serial} (each depends on the previous one) and are built from ripple adders. In the challenge metric only the Toffoli count is priced, but on a fault-tolerant machine the \emph{depth} is what the reaction time multiplies (\cref{sec:physical}): Julian's measurements in \cref{sec:shor-impl} put the Toffoli depth of a point addition at $0.8$--$0.95\times$ its Toffoli count for every ripple-based construction. Fewer, fatter steps (Leapfrog) therefore also shorten the critical path.
+\end{keybox}
+
+\subsection{The arithmetic layer: where the Toffolis are}\label{sec:arith}
+
+Almost every Toffoli in any of these circuits sits inside a ripple-carry adder, and the levers of the \emph{strength reduction}, \emph{fusion}, \emph{dead-code} and \emph{uncompute} families mostly act there. The building blocks, in the order they were introduced into the frontier:
+
+\subsubsection{Temporary-AND adders, Cuccaro bridges, and the carry trade}\label{sec:adders}
+
+The frontier's register-plus-register adder is Gidney's temporary-logical-AND ripple adder \cite{gidney18add}: at position $i$ the carry is $c_{i}=\MAJ(a_i,b_i,c_{i-1})$, computed by folding the previous carry into both operands with two CNOTs, writing the AND into a \emph{fresh} wire with one Toffoli and XOR-ing the previous carry in. When the sum is done, each carry wire is erased with $\Hmr$ and a classically-conditioned CZ on the two operands---zero Toffolis (\cref{sec:mbu}). The textbook Cuccaro adder \cite{cuccaro04} keeps the carry inside the operand (MAJ then UMA) at $\approx2n$ Toffolis and one ancilla. The two sit at opposite ends of one trade:
+\begin{center}\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+$n$-bit adder & Toffolis & owned carry wires\\
+\midrule
+temporary-AND ripple, with carry-out (``vented'') & $n$ & $n-1$\\
+temporary-AND ripple, wrapped mod $2^n$ & $n-1$ & $n-2$\\
+Cuccaro MAJ/UMA & $\approx2n$ & $\approx1$\\
+one Cuccaro ``bridge'' stage inside a measured ripple & $+1$ per stage & $-1$ per stage\\
+\bottomrule
+\end{tabular}
+\end{center}
+``Bridges'' (\code{bridge.rs}) are single Cuccaro stages spliced into a measured ripple where the live count would otherwise exceed the cap: each trades one extra CCX for one fewer carry wire, and the number of bridges per replay cell is a per-round profile (\code{I35\_PROFILE}) tuned against the peak. For a \emph{classical} addend $c$ the carry out of position $i$ is identically zero below the first position that can generate one, so \code{add\_const} emits $n-2-\mathrm{ctz}(c)$ Toffolis (dead-low carry elision, exact); two call sites can prove the first carry zero and save more \cite{ecdsafail-wiki}.
+
+\begin{figure}[H]
+\centering
+\begin{quantikz}[column sep=6pt,row sep=5pt,font=\small]
+\lstick{$c_{i-1}$} & \ctrl{1} & \ctrl{2} &          & \ctrl{3} & \ \ldots\ &          &          & \ctrl{1}  & \ctrl{2} & \\
+\lstick{$a_i$}     & \targ{}  &          & \ctrl{2} &          & \ \ldots\ &          & \ctrl{2} & \targ{}   &          & \\
+\lstick{$b_i$}     &          & \targ{}  & \ctrl{1} &          & \ \ldots\ & \gate{\text{sum}} & \control{} &  & \targ{}  & \\
+\lstick{$\ket0$}   &          &          & \targ{}  & \targ{}  & \ \ldots\ & \gate{H} & \meter{}\wire[u][1]{c} & \setwiretype{n} & & \\
+\end{quantikz}
+\caption{One slice of a temporary-AND ripple adder \cite{gidney18add}. Left: $c_i=\MAJ(a_i,b_i,c_{i-1})$ is written into a clean wire with one Toffoli (the AND of the CNOT-modified operands) and one CNOT. Right: once the sum bit has been used, the carry wire is measured in the $X$ basis ($H$ then measure---the challenge's $\Hmr$); outcome $m=1$ leaves the phase $(-1)^{a_i'b_i'}$ on the two controls, which a CZ conditioned on $m$ (the classical wire going up) removes; the CNOTs are then undone. Net: one Toffoli per carry instead of two.}
+\label{fig:and-adder}
+\end{figure}
+
+\subsubsection{Chunked adders and measured carry erasure}\label{sec:chunked}
+
+A full ladder keeps $\approx n$ carry wires live. When they do not fit under the cap the add is cut into chunks; each chunk unwinds its own carries before the next starts, so only one chunk's ladder is live at a time, and the carry left on the boundary wire between chunks is \emph{erased by measurement and repaired by a comparison}: the carry out of $\mathrm{sum}=\mathrm{acc}+\mathrm{addend}$ is exactly $[\mathrm{sum}<\mathrm{addend}]$, so after $\Hmr$ on the boundary carry, on outcome $1$ a \emph{phase oracle} $(-1)^{[\mathrm{sum}<\mathrm{addend}]}$ computed on the top $k$ bits of the two operands cancels the kickback (\code{compare::erase\_with\_compare}, \code{cmp\_lt\_phase\_conditioned}). If the whole chunk is compared and its carry-in is known the erase is exact; if only the top $k$ bits are compared it is wrong exactly when both operands agree on all $k$ bits, probability $\approx2^{-k}$ per call---and since the oracle runs only on the $m=1$ shots, a comparator bit costs about $0.5$ \emph{executed} Toffolis. Chunking saves qubits and costs Toffolis; moving from two chunks to three is ``a step worth hundreds of Toffoli'' \cite{ecdsafail-wiki}. The same phase-oracle erase clears the modular adder's overflow flag (\code{ERASE\_COMPARE}) and the replay cell's flag (\code{flag\_compare}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1cm,y=1cm,font=\small]
+  \draw[wire] (0,0) rectangle (11,0.7);
+  \foreach \x in {3.7,7.4} {\draw[wire] (\x,0) -- (\x,0.7);}
+  \node at (1.85,0.35) {chunk 0}; \node at (5.55,0.35) {chunk 1}; \node at (9.2,0.35) {chunk 2};
+  \node[note] at (3.7,-0.35) {$c_0$}; \node[note] at (7.4,-0.35) {$c_1$}; \node[note] at (11.2,-0.35) {overflow};
+  \node[note,anchor=west] at (0,1.2) {ripple $\to c_0\to$ ripple $\to c_1\to$ ripple; each chunk's ladder is unwound before the next starts};
+  \node[note,text width=11cm,anchor=north west] at (0,-0.7) {once chunk 1 has consumed $c_0$: $\Hmr(c_0)$; if the outcome is $1$, apply the phase $(-1)^{[\,\mathrm{sum}_{<\mathrm{cut}}\,<\,\mathrm{addend}_{<\mathrm{cut}}\,]}$ recomputed on the top $k$ bits of chunk 0 (and uncompute it); free $c_0$. Exact if $k$ covers the chunk, else wrong with probability $\approx2^{-k}$.};
+\end{tikzpicture}
+\caption{Chunked addition with measured boundary carries (concept pages \emph{adders-and-carries}, \emph{comparator-and-width-truncation} of \cite{ecdsafail-wiki}).}
+\label{fig:chunked}
+\end{figure}
+
+\subsubsection{Truncated comparators and width schedules}\label{sec:truncation}
+
+This is the most frequent change-type of the whole competition ($184$ of $584$ accepted commits by the wiki's count). Two cases recur. (a) A comparator that exists only to clean up a carry or flag (above) is narrowed to the top $k$ bits; the error is a top-$k$ tie. (b) A register that provably shrinks during the walk is narrowed round by round: ping-pong's \code{PP\_WIDTH\_SCHEDULE} (``259,258x19,257x5,\dots,8x9,8x2''), TrailMix's \code{SCHED\_J2}/\code{GAP\_J2}, Skywalk's and Leapfrog's envelope files. A trimmed top wire is a CNOT from the wire below it followed by a free---valid only if it was a sign copy. The schedules are \emph{fitted}, not proved: \code{b5796ce} gave each round the smallest width whose violation count stayed within a $\lambda$ budget of about $1.5$ per draw. Per-round \emph{shapes} then equalise the per-site error, since minimising total bits at fixed total error means equal error per site (\code{PP\_CHUNK\_SHAPE} ``64:0,38:1,25:-3,0:-4'', \code{PP\_FLAG\_SHAPE}). Two things distinguish an \emph{exact} truncation (narrowing to a proven-non-zero prefix, e.g.\ the Kaliski invariant $\bitlen u+\bitlen v_w\le2n-i$) from a \emph{probabilistic} one: the former adds no hard inputs; the latter is a ``sell'' of Toffolis for $\lambda$ that must be ``bought'' back somewhere else to stay under the cap \cite{ecdsafail-wiki}.
+
+\subsubsection{Pseudo-Mersenne folds}\label{sec:fold}
+
+Because $p=2^{256}-f$ with $f=2^{32}+977$, $2^{256}\equiv f\pmod p$: anything that spills past bit $256$ is reduced by adding the spill times $f$ into the low bits. A modular add/sub (\code{mod\_addsub}) is: integer add with the top carry vented onto an $\mathit{overflow}$ wire; a constant add of $f$ into the low $fs=33+\code{FOLD\_GUARD}$ bits controlled by that wire; erase the wire with a measured compare. The dropped carry off the top of the window is the whole approximation, with error $\approx2^{-(\code{FOLD\_GUARD}+1)}$ per call (a carry escapes only through $\code{FOLD\_GUARD}+1$ consecutive ones). Narrowing a window is one of the commonest Toffoli levers and the commonest \emph{qubit} lever inside the replay (``the cell's fold is the widest thing alive in the trailing batch''). The replay cell folds by one of $\{-f,0,+f,+2f\}$ selected by the sign, the parity of the sum and the overflow, without building an operand register (\code{fold\_selected}); the square's high limb is folded with $f$ written in non-adjacent form $f=1+2^4-2^6+2^{10}+2^{32}$ (five signed terms, the \emph{signed-digit constant decomposition} of the strength-reduction family) \cite{ecdsafail26,ecdsafail-wiki}.
+
+\subsubsection{Karatsuba squaring with pseudo-Mersenne modulo (stage 4)}\label{sec:square}
+
+Stage 4 computes $X\gets X-\lambda^2$. Writing $\lambda=L+\beta H$ with $\beta=2^{128}$ and $U=L^2$, $V=H^2$, $W=(L+H)^2$,
+\begin{equation}\label{eq:karatsuba}
+\lambda^2=U+\beta(W-U-V)+\beta^2V\equiv U+\beta(W-U-V)+fV\pmod p ,
+\end{equation}
+so three half-size squares replace one full square, the $2^{256}V$ limb folds to $fV$, and the five signed terms of $f$ turn $fV$ into shifted additions. Squaring is cheaper than multiplying because the cross products $y_iy_j$ are symmetric (each is needed once) and the diagonal terms $y_i^2=y_i$ cost nothing: the three squares have $24{,}512$ unordered cross products, $24.9\%$ fewer than a direct $256$-bit symmetric square ($32{,}640$). The circuit-level specialisations are what make it cheap (\cref{fig:square}): each of $W,U,V$ is built in a $2|x|$-bit register, its signed contribution is applied straight into $X$, and it is unbuilt before the next is built, so no $512$-bit square is ever live; leaf squares are triangles of add-or-subtract rows selected by $x_i$ (a complement frame, no controlled gates; \code{square\_addsub\_vented}, $-43{,}467$ T at \code{422f21d}); the split recurses while a half is at least $64$--$65$ bits (break-even near $60$ bits by the cost model $B(m)=m(m-1)/2+4m-3$ vs.\ $K(m)=B(a)+B(b)+B(b+1)+a+7b+1$), limited by the qubit peak rather than the Toffoli count \cite{ecdsafail26,ecdsafail-wiki}. The identity is exact; every approximation lives in the fold windows.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[x=1cm,y=1cm,font=\footnotesize]
+  \node[blk,text width=36mm] (s1) at (0,0) {1. split $Y=\lambda$ into $L,H$;\\build $S=L+H$ ($129$ bits) in $H$'s wires $+1$ carry};
+  \node[blkv,text width=36mm] (s2) at (4.3,0) {2. build $W=S^2$; apply $X\gets X-\beta W$; unbuild $W$};
+  \node[blk,text width=36mm] (s3) at (8.6,0) {3. build $U=L^2$; apply $X\gets X-U+\beta U$; unbuild};
+  \node[blkv,text width=36mm] (s4) at (12.9,0) {4. build $V=H^2$; apply $X\gets X+\beta V-fV$; unbuild};
+  \draw[flow] (s1)--(s2); \draw[flow] (s2)--(s3); \draw[flow] (s3)--(s4);
+  \node[blkg,text width=70mm] (s5) at (6.45,-1.6) {5. reverse the addition $S=L+H$; all work registers are $\ket0$; $Y=\lambda$ untouched, $X=x_R+2x_A-\lambda^2=x_A-x_{R'}$};
+  \draw[flow] (s4.south) |- (s5.east);
+\end{tikzpicture}}
+\caption{The build--apply--unbuild schedule of the symmetry-aware streamed Karatsuba square (Supplemental Note~D, p.\,13).}
+\label{fig:square}
+\end{figure}
+
+\subsubsection{Constants, strength reduction, and fusion}\label{sec:fusion}
+
+\emph{Classical specialisation} (constant propagation family): since $x_A$ is classical, $3x_A\bmod p$ is computed on the host and loaded, so stage 3 is one modular addition instead of two additions, a doubling and a halving (\code{662e267}); the final $x_A-X$ is $\overline X+(x_A+1)$ with the pseudo-Mersenne correction (\cref{fig:pipeline}, stage 6); H\"aner et al.'s $x\mathrel{-}=(2-q)x_2$ is the same idea with a control. A \emph{guaranteed-prefix} specialisation runs the first $304$ Kaliski iterations with a branch-free body because the sum invariant proves they cannot terminate ($-158{,}254$ T, $3.6\%$). \emph{Strength reduction}: inlining the add-$c$/branch/parity pattern of the Solinas reduction into Kaliski's step 8 ($-2{,}090{,}712$ T); $acc-X\equiv acc+(p-X)$ so the cheaper conditional \emph{adder} drives the inner loop ($-256{,}016$ T); Litinski's add-subtract schoolbook rows ($n-1$ instead of $2n-1$ Toffolis per row); rerouting five call sites to the carry-ancilla adder where there is local headroom ($-17{,}400$ T for $+21$ qubits). \emph{Fusion} merges exactly two adjacent operations to delete one load/unload boundary: a self-inverse comparator called twice (compute a flag, body, uncompute the flag) collapses to one MAJ sweep, read, body, read, inverse sweep ($2n$ instead of $4n$ Toffolis; $-2{,}096{,}640$ and $-2{,}087{,}232$ T for the two comparators of Kaliski's step 2); two conditional Cuccaro calls sharing an operand share one \code{tmp} ($-524{,}288$); the Solinas reduction's unconditional add of $c$ followed by a conditional un-subtract collapses to one conditional add once the post-shift overflow bit is recognised as the control ($-655{,}864$); and the boundary cswap merge of \cref{fig:cswap-merge} \cite{ecdsafail26}. The windowed Solinas shift (windowing family) replaces $22$ consecutive no-op modular doublings between bit $9$ and bit $32$ of $c$ by one classical shift-by-$22$ into a spill register, one sparse correction and one conditional subtract, with the reverse shift replaying the same flags against the same qubits---an earlier attempt that recomputed an independent inverse failed the phase check.
+
+\subsection{The qubit layer: owning the peak}\label{sec:qubits}
+
+\subsubsection{Peak owners, co-binders, and budgets}\label{sec:peak}
+
+$Q$ is a single moment: the instant when the most wires are live. Making a phase cheaper does not lower $Q$ unless that phase is where the maximum is, and the maximum is usually shared by several \emph{co-binders}---in the ping-pong era the replay ladder and the square ladder both reached $1{,}278$, so a one-qubit win meant lowering both budgets in the same commit. Modern builders size their scratch against a \emph{cap} (\code{TLM\_TARGET\_Q}, \code{SUB4\_PP\_PEAK}, \code{PP\_WALK\_MAX\_QUBITS}): each adder, comparator and fold looks at $\mathrm{cap}-\mathrm{active}$ and picks the widest (cheapest) layout that fits, so the cap is a dial that trades qubits for Toffolis, and a trade pays exactly when
+\begin{equation}\label{eq:exchange}
+(Q+\Delta Q)(T+\Delta T)<QT\iff \Delta T<-\Delta Q\cdot\frac{T}{Q+\Delta Q},
+\end{equation}
+i.e.\ one qubit is worth $T/Q$ Toffolis: $\approx1{,}130$ T in late July ($1{,}151\times1.30$M) and $\approx800$ T at the October frontier. Many commits are nothing but such retunes (\code{f5ff95b}: cap $1{,}150\to1{,}158$ for $-9{,}147$ T, net $-1.48$M score; \code{087cafa}: owners $1{,}278\to1{,}275$ for $+1{,}491$ T, net $-0.85$M) \cite{ecdsafail-wiki}.
+
+\subsubsection{Venting, wire loans, parking, recompute-later}\label{sec:venting}
+
+\emph{Freeing early} lowers the high-water mark because the builder's allocator hands freed indices out again (LIFO). \emph{Loans} lend a wire whose value is known to the peak-binding code: a duplicated bit (after the fixed ping-pong walk $u,v\in\{\pm1\}$, so bits $1..7$ of each $9$-wire register are sign copies: $16$ wires, $1{,}317\to1{,}301$ at \code{152fbe0}), a constant (the odd operands' bit $0$, cleared with an $X$), a provable zero (the square's top cross bits), or a reconstructible value (erase a retained AND with $\Hmr+$CZ, lend, rebuild with a Toffoli). A loan costs two CNOTs: \code{cx(sign,q); release\_clean(q); body; reacquire(q); cx(sign,q)}. \emph{Parking} hosts a temporary inside a live wire whose value can be restored (the adder's final carry written straight into the top output bit; the Karatsuba sum kept in the input's high half: $-6$ qubits for $+2{,}372$ T at \code{51c6c31}). \emph{Recompute-later} erases a bit in the $X$ basis before the peak and rebuilds it afterwards from live state, cancelling the measurement phase with $Z^m$ (\code{5526766}: $-2$ Q for $+112$ T; \code{265a9e9}: a tape sign rebuilt with CNOTs alone from a linear walk invariant, $-1$ Q at $0$ T). \emph{Rescheduling} shortens lifetimes with no new identity (erase each boundary carry as soon as the next chunk has used it; interleave walk and replay). In the census all of these are \emph{register and scratch allocation}; their condition for exactness is the same every time: the claimed value holds on every input when the loan starts, its source is not touched inside the body, the wire comes back at $\ket0$, and the repayment uses the relation that cleared it \cite{ecdsafail26,ecdsafail-wiki}.
+
+\subsubsection{Register-shared Euclid and the 825-qubit circuit}\label{sec:regshare}
+
+The lowest-width admitted circuit at the cutoff, \code{b6f2b0a} ($Q=825$, $T=489{,}161{,}900$), is a different architecture: TrailMix's \emph{shrunken Proos--Zalka} route, a register-shared extended Euclidean algorithm of the kind described by Luo et al.\ \cite{luo26}, with no dialog transcript at all (Supplemental Note~E). The remainders shrink while the B\'ezout coefficients grow, so the two pairs are packed into two $259$-lane banks with movable boundaries,
+\[
+\begin{aligned}
+W_1&=t\,\Vert\,q\,\Vert\,r, & \bitlen t+1+\bitlen q+\bitlen r&\le259,\\
+W_2&=\rot_{\ell_s}(t'\,\Vert\,r'), & \bitlen t'+\bitlen r'&\le259,
+\end{aligned}
+\]
+length metadata $\ell_t,\ell_q,\ell_{t'},\ell_{r'},\ell_s$ addresses the active fields, and a fixed schedule of $1{,}479$ reversible microsteps performs the restoring divisions $r\gets r\mp2^{\ell_s}r'$, $t'\gets t'\mp2^{\ell_s}t$ with the quotient bits built and consumed inside one round (\cref{fig:lowq}). The circuit carries the complete packed Euclidean state and \emph{reverses the scheduled gate sequence} to clean it; the price is high $T$ ($92.15\%$ of the circuit's Toffolis are in the two EEA stages), the benefit is the peak equation
+\begin{equation}\label{eq:peak825}
+\underbrace{259+259+257+37}_{812\text{ persistent}}+\underbrace{13}_{\text{largest scheduled scratch}}=825 ,
+\end{equation}
+where $257$ is the passenger coordinate $d_y$ and $37=9_{\ell_t}+1_{\ell_{t'}}+7_{\ell_q}+8_{\ell_s}+8_{\ell_{r'}}+4_{\rm control}$ is the metadata. The Q826$\to$Q825 step removed one persistent $\ell_q$ lane by reconstructing its high bit only where it is consumed: for a $259$-bit source with bit length $L$, $h_7=[128\le L\le255]=Z_{256}\oplus Z_{128}$ where $Z_k$ is the zero-prefix predicate on positions $\ge k-1$, computed as a reversible predicate, used as a control and uncomputed---a recomputation-for-storage trade licensed on the benchmark support ($\max\ell_q=22$ observed over $18{,}048$ inversion factors), not an all-input proof. Three disjoint Q826 host windows (an inactive $t'$ lane hosting remainder-update scratch, an inactive $\ell_s$ lane hosting a coefficient carry, another $t'$ lane hosting the rotated-swap scratch) and \emph{dynamic cursors} (the length register itself is decremented during a scan and restored by the reverse scan, so no copied cursor is live) are the other named mechanisms. \ecdsafail{}'s low-$Q$ track continued after the cutoff: $813$ (\code{b4a51d2}) and, on the 7~October leaderboard, $792$ qubits at $656.6$\,M Toffolis (\code{10177cd}) \cite{ecdsafail-wiki}.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[x=1cm,y=1cm,font=\footnotesize]
+  % banks
+  \draw[fill=lookorange,draw=black!60] (0,2.2) rectangle (3.2,2.9); \draw[fill=addviolet,draw=black!60] (3.2,2.2) rectangle (4.6,2.9); \draw[fill=gateblue,draw=black!60] (4.6,2.2) rectangle (8.0,2.9);
+  \node at (1.6,2.55) {$t$ grows $1\to p$}; \node at (3.9,2.55) {$q$}; \node at (6.3,2.55) {$r$ shrinks $p\to1$};
+  \node[note,anchor=south] at (4,2.95) {$W_1$ ($259$ lanes)};
+  \draw[fill=lookorange,draw=black!60] (8.8,2.2) rectangle (12.6,2.9); \draw[fill=gateblue,draw=black!60] (12.6,2.2) rectangle (16.0,2.9);
+  \node at (10.7,2.55) {$t'$ grows $0\to t'_{\rm term}$}; \node at (14.3,2.55) {$r'$ shrinks $x_0\to0$};
+  \node[note,anchor=south] at (12.4,2.95) {$W_2$ ($259$ lanes, rotated by $\ell_s$)};
+  % pipeline
+  \foreach \x/\lab/\q/\col in {0.9/{1 differences}/788/gateblue,3.9/{2 forward divide}/825/addviolet,6.9/{3 zero, square}/789/gateblue,9.9/{4 new differences}/788/gateblue,12.9/{5 cancel divide}/825/addviolet,15.4/{6 restore}/789/outgreen}{
+    \node[draw=black!70,fill=\col,rounded corners=1pt,text width=24mm,minimum height=9mm,align=center] at (\x,0.9) {\lab\\ peak $Q=\q$};}
+  \node[note,text width=16cm] at (8,-0.4) {Stage 2 forms $\lambda=d_yd_x^{-1}$ by one EEA traversal, a canonical multiply and the reversed traversal. Stage 5 erases $\lambda$ with a \emph{fresh} witness: after stage 4, $d'_x=x_A-x_{R'}$ and $d'_y=\lambda d'_x=y_{R'}+y_A$, so a second EEA on $d'_x$ recomputes $q=d'_y(d'_x)^{-1}=\lambda$ and resolves a \emph{ghosted} copy of $\lambda$ (\cref{sec:ghost}); no history of the first inversion is retained.};
+\end{tikzpicture}}
+\caption{The low-$Q$ circuit \code{b6f2b0a}: the two packed banks of the register-shared EEA and the six stages with their peak widths (Supplemental Note~E, pp.\,4, 8 and 14).}
+\label{fig:lowq}
+\end{figure}
+
+\subsubsection{Ghosting: measurement-based release and later recomputation}\label{sec:ghost}
+
+The low-$Q$ route frees a whole $257$-lane field register during the reverse EEA without losing coherence. If a reversible computation has produced $\sum_x\alpha_x\ket x\ket{f(x)}_D$, measuring each lane of $D$ in the $X$ basis yields a classical string $m$ and leaves $\sum_x\alpha_x(-1)^{m\cdot f(x)}\ket x$; the lanes of $D$ are released (\cref{fig:ghost}). Later the same Boolean function is recomputed lane by lane into a fresh register ($d_y=\lambda d_x$ after $d_x$ has been restored) and $Z^{m_j}$ on each rebuilt lane contributes $(-1)^{m\cdot f(x)}$ a second time, so $(-1)^{2m\cdot f(x)}=1$ and the explicit $\ket{d_y}$ is recovered exactly. Luo et al.\ use exactly this to run their point addition on three field registers \cite{luo26}; it is valid whenever the later register holds the same function as the measured one---it is not erasure, and it does not assume $d_y$ is classical.
+
+\begin{figure}[H]
+\centering
+\resizebox{0.95\textwidth}{!}{%
+\begin{quantikz}[column sep=6pt,row sep=5pt,font=\small]
+\lstick{$\ket x$}     & \gate[2]{\text{compute }f} & & \gate{\text{reverse EEA}} & \gate[2]{\text{recompute }f} &              & \gate[2]{\text{use}} & \\
+\lstick{$\ket{0}_D$}  &                             & \gate{H}\meter{} & \setwiretype{n} & \setwiretype{q} & \gate{Z^{m}} &  & \\
+\end{quantikz}}
+\caption{Ghosting (Supplemental Note~E, p.\,12; \cite{luo26}). The register holding $f(x)$ is $X$-measured ($\Hmr$, outcome string $m$) and freed; the phase $(-1)^{m\cdot f(x)}$ it leaves is cancelled by $Z^{m}$ on a later, independently recomputed copy of $f(x)$.}
+\label{fig:ghost}
+\end{figure}
+
+\subsection{Measurement-based uncomputation, in general}\label{sec:mbu}
+
+Every scratch value must return to $\ket0$ with no residual phase (the reversibility and phase checks of \cref{sec:challenge}), so the question is never \emph{whether} to uncompute but \emph{how}. The textbook way---run the computation backwards---costs as many Toffolis as the computation. The alternative is the pattern already used three times above: measure the wire in the $X$ basis, which resets it but leaves a known phase $(-1)^{m\cdot f}$ depending on the random outcome $m$; then cancel that phase with gates conditioned on $m$. The whole family (census: \emph{uncompute strategy}, $22$ commits, all ``measurement uncompute'') differs only in how cheap the fix-up is \cite{ecdsafail26,ecdsafail-wiki}:
+\begin{itemize}[nosep]
+\item $f$ is an AND of two live wires, or any \emph{quadratic} function of live wires: the fix-up is CZ/Z gates only, $0$ Toffolis. Examples: the AND-uncompute of \cref{fig:and-adder} (\code{clear\_and}, \code{measured\_and\_clear}); the \emph{from-zero} adders (\code{5b834ba}: if an operand bit is provably $\ket0$ on entry the MAJ step leaves exactly $\mathrm{AND}(x,y)$ in it, so the UMA Toffoli becomes $\Hmr+$\code{cz\_if}); the \emph{known-output receivers} (\code{add\_known}, \code{known\_stream}: when the adder's result is already known as an affine function of live wires---a reverse pass restoring a value---each carry is rebuilt with CNOTs as $c_i=a_i\oplus b_i\oplus s_i$ and then $X$-measured; written in terms of the sum bit and the incoming carry each carry is quadratic, so the repair is Z/CZ: an adder with \emph{zero} Toffolis, valid on the subspace where the output really is known); the \emph{phase-only comparator tops} (a borrow $\MAJ(q,a,x)=qa\oplus qx\oplus ax$ needs only its phase, three CZs instead of a Toffoli).
+\item $f$ is a comparison (a chunk carry-out, an overflow flag): the fix-up is a phase oracle (compute, $Z$, uncompute) under \code{push\_condition(m)}, executed on half the shots---so its \emph{executed} Toffoli cost is half its static cost, and truncating it to $k$ bits makes it approximate (\cref{sec:chunked}).
+\item the opposite choice, \emph{deferred coherent uncompute} (\code{b788efc}): keep the square's chunk carries live until the inverse pass recomputes them into the held wires (exact, no conditioned compare), paying with loans of provably-zero wires.
+\end{itemize}
+Two things break the idiom: a control that changes after the AND was built (the CZ then applies the wrong phase), and an approximate fix-up. A systematic error shows up as \code{PHASE GARBAGE} with near certainty; a rare one adds hard inputs to the phase channel. The simulator models $\Hmr$ as: draw $m$ from the Fiat--Shamir stream, store it, $\mathrm{phase}\mathrel{\oplus}=q\wedge m$, $q\gets0$; a plain reset $R$ does the same but discards $m$, which is why freeing a dirty wire is never safe. $\Hmr$ cannot be replayed by \code{emit\_inverse}, so any backward pass containing it is written by hand.
+
+\begin{figure}[H]
+\centering
+\begin{quantikz}[column sep=7pt,row sep=5pt,font=\small]
+\lstick{$x$}        & \ctrl{2} & \gate[2]{\text{use }w} & \ctrl{1}   & \\
+\lstick{$y$}        & \ctrl{1} &                        & \control{} & \\
+\lstick{$\ket0$}    & \targ{}  &                        & \gate{H}\meter{}\wire[u][1]{c} & \setwiretype{n} \rstick{$m$}\\
+\end{quantikz}
+\hspace{8mm}
+\begin{minipage}{0.48\textwidth}\small
+compute: $w\gets x\wedge y$ (one Toffoli; four $T$ gates fault-tolerantly)\\
+uncompute: $\Hmr(w\to m)$ leaves $(-1)^{m\,xy}$; apply $\mathrm{CZ}(x,y)$ iff $m=1$\\
+cost of the uncompute: $0$ Toffolis, one measurement, one feed-forward bit\\
+condition: $w$ must still equal $x\wedge y$ of the \emph{current} controls
+\end{minipage}
+\caption{Gidney's temporary logical AND with measurement-based uncomputation \cite{gidney18add}, the primitive behind the ``uncompute strategy'' family. The challenge counts the compute Toffoli and not the uncompute, which is why its $T$ is ``executed Toffolis''.}
+\label{fig:and-gadget}
+\end{figure}
+
+\subsection{Post-passes, census strips, and the nonce economy}\label{sec:postpasses}
+
+After the circuit is emitted and before the nonce tail is appended, \code{build()} runs passes over the op stream. \emph{Exact} ones: self-inverse pair cancellation (a CCX followed by the same CCX with nothing touching its operands in between), constant propagation of $\{0,1,?\}$ and affine relations (drop a CCX with a known-$0$ control, turn one with a known-$1$ control into a CX), the target-fanout identity $\mathrm{CCX}(a,b\to t);\mathrm{CX}(t\to u);\mathrm{CCX}(a,b\to t)=\mathrm{CX}(t\to u);\mathrm{CCX}(a,b\to u)$ looped to closure, the four simplifiers \code{product}, \code{affine}, \code{quadratic}, \code{truth} that re-derive Boolean support facts from the stream, and \emph{SAT-proven CCX$\to$CX rows}: an offline solver proves that a specific Toffoli's product equals a fixed XOR of other wires at that point of the stream, and the gate is replaced by a CNOT chain (the October frontier ships $105$ such rows, $102$ of them in the square). \emph{Empirical} ones: a \emph{fire census} simulates the stream on $10^8$--$10^9$ random inputs, records which Toffolis ever fired and which had an implied second control, and deletes or downgrades the rest, admitted in ascending risk until a $\lambda$ budget is spent (\code{DEAD\_KEYS}/\code{DOWNGRADE\_KEYS}, identity-keyed so that an upstream edit cannot mis-address them, after a positional strip once caused $7{,}535/9{,}024$ mismatches). As of 1~October the frontier's build ran no census strip, only the exact chain and the SAT rows \cite{ecdsafail-wiki}. Finally, \emph{verifier search}: a nonce-only change moves the score by a few Toffolis because the average is over a different sample ($-5$, $-9$, $-24$ T in three admitted commits), and every real change forces a re-hunt whose expected cost grows like $e^{\lambda}$: around $\lambda\approx8$ a hunt is minutes to hours on GPUs, at $15$--$20$ it needs a pre-filter and many GPU-hours, beyond that it is infeasible even when the Toffoli count looks better. The measured $\lambda\approx15.7$ of one tree (9.5 classical, 6.2 phase) gave one clean draw in $\approx29{,}000$ rather than the naive $e^{-15.7}\approx1/6.8$\,M, because classical and phase failures are correlated \cite{ecdsafail-wiki}.
+
+\subsection{Making the circuit window-compatible}\label{sec:windowed}
+
+In the challenge $A$ arrives as classical bits; in Shor's algorithm it is \emph{selected coherently} by a $w$-qubit address $J$. Supplemental Note~F adapts \code{8e9c9a2} to the interface $U_{\rm win}:\ket J\ket R\ket0_W\mapsto\ket J\ket{R+A_J}\ket0_W$: the circuit exposes $X,Y,J$ and $3\cdot2^{w}$ classical table columns ($x_j$, $y_j$, $3x_j\bmod p$, with row $0$ encoding $\mathcal O$ as zeros), conditions every payload CNOT on the runtime table bits, and \emph{replays} each lookup after use (\cref{fig:windowed}). The lookup is an XOR, $L_c:\ket j\ket z\mapsto\ket j\ket{z\oplus c_j}$, implemented by a reversible address traversal (unary iteration over the $w$ address bits with AND ancillas) that applies a classically conditioned CNOT to each payload bit whose table bit is one; applying it twice clears the payload exactly, $\ket j\ket{c_j}\mapsto\ket j\ket0$, and the traversal's routing ANDs are removed by measurement with phase correction. Stage 3 uses a $K=2$ QROAM \cite{lks18}: with $j=2h+\ell$ the high-address traversal loads two adjacent rows into banks $B_0,B_1$ and $\ell$-controlled swaps select the requested one. The identity row is handled by a coherent predicate $b=[J\ne0]$ that controls the square-subtract of stage 4 and the negation of stage 6, so $R+\mathcal O=R$ without measuring $J$. Cost: $Q=1{,}162$ ($+11$, because the payload banks are cleared before the dialog-GCD peak), $T=1{,}683{,}828$ ($+29.6\%$; the three traversal pairs cost $328{,}180$ executed Toffolis), serialised operations $25.21\times$ more (table-payload CNOTs), error rate $0.1950\%$ against the baseline's $0.1920\%$ on a shared $100{,}000$-input corpus---statistically indistinguishable \cite{ecdsafail-supp}.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[x=1cm,y=1cm,font=\footnotesize]
+  \node[anchor=east] at (0,2.2) {$\ket J$}; \node[anchor=east] at (0,1.2) {$\ket R$}; \node[anchor=east] at (0,0.2) {$\ket0_W$};
+  \draw[wire] (0.1,2.2)--(12.4,2.2); \draw[wire] (0.1,1.2)--(12.4,1.2); \draw[wire] (0.1,0.2)--(12.4,0.2);
+  \node[blko,minimum width=26mm,minimum height=13mm] (l) at (2.3,1.2) {runtime-table QROM\\$A_J\gets\mathcal T[J]$};
+  \node[blk,minimum width=30mm,minimum height=13mm] (a) at (6.3,1.2) {in-place arithmetic\\$R\gets R+A_J$};
+  \node[blkv,minimum width=28mm,minimum height=13mm] (u) at (10.2,1.2) {reverse lookup (replay)\\and clear payload};
+  \draw[wire] (2.3,2.2)--(l.north); \draw[wire] (10.2,2.2)--(u.north);
+  \node[anchor=west] at (12.5,2.2) {$\ket J$}; \node[anchor=west] at (12.5,1.2) {$\ket{R+A_J}$}; \node[anchor=west] at (12.5,0.2) {$\ket0_W$};
+  \node[note,text width=12.4cm] at (6.3,-0.8) {stage-local schedule: load $x_J,y_J$ (shared traversal) $\to$ stage 1 $\to$ replay-unload $\to$ stage 2 $\to$ load $3x_J$ ($K{=}2$ QROAM) $\to$ stage 3 $\to$ unload $\to$ stage 4 (controlled by $[J\neq0]$) $\to$ stage 5 $\to$ load $y_J,x_J$ $\to$ stage 6 $\to$ unload. No payload is live across the dialog-GCD peaks.};
+\end{tikzpicture}}
+\caption{The runtime-table window interface of the window-compatible \code{8e9c9a2} (Supplemental Note~F, Figs.\,1--2).}
+\label{fig:windowed}
+\end{figure}

@@ -1,0 +1,138 @@
+\section{Fault-tolerant Clifford gates}\label{sec:ft-clifford}
+
+A logical gate is only useful if it does not undo the code's work. The requirement, formalised in the threshold theorem, is that a gadget be \emph{fault tolerant}: $s$ faults inside it produce at most $s$ errors on each code block it touches, so that a distance-$d$ code still corrects whatever a sub-threshold number of faults did. The enemy is \emph{propagation}: a CNOT copies an $X$ error from its control to its target and a $Z$ error from its target to its control, so a single fault inside a circuit that couples qubits of one block can become a weight-two or weight-three error on that block. Everything in this section is a way of coupling blocks without coupling the qubits inside a block more than the code can bear.
+
+\subsection{Transversal gates and their limits}\label{sec:transversal}
+A gate is \emph{transversal} if it acts as a tensor product of single-qubit gates, or of two-qubit gates each touching the $i$-th qubit of one block and the $i$-th qubit of another. Transversal gates are fault tolerant by construction: no gate acts on two qubits of the same block.
+\begin{itemize}[leftmargin=*]
+\item \textbf{CNOT, every CSS code.} $\mathrm{CNOT}^{\otimes n}$ between two blocks maps $X$-stabilisers of the control block onto products with the target's $X$-stabilisers and $Z$-stabilisers the other way; since both blocks have the same $X$- and $Z$-check matrices the stabiliser group is preserved, and $\bar X_1\mapsto\bar X_1\bar X_2$, $\bar Z_2\mapsto\bar Z_1\bar Z_2$: a logical CNOT. This is why the surface, colour, bicycle, hypergraph-product and Reed--Muller codes all have a free logical CNOT \emph{between} blocks---the problem is always the gates \emph{within} a block or between patches that cannot be stacked.
+\item \textbf{$H$ and $S$, self-dual doubly-even CSS codes} (Steane, 2D colour codes, $\bits{4}{2}{2}$): $H^{\otimes n}$ swaps the $X$- and $Z$-checks, which coincide, and $S^{\otimes n}$ maps $X$-checks to $X\cdot Z$ products that are stabilisers when every check weight is divisible by four (\cref{sec:colour}). The whole Clifford group is transversal.
+\item \textbf{$T$, triply-even codes} ($\bits{15}{1}{3}$, 3D colour codes): \cref{sec:smallcodes}. These lose the transversal $H$.
+\item \textbf{The $\bits{5}{1}{3}$ code} has a transversal order-three Clifford ($SH$ up to Paulis, cycling $X\to Y\to Z$) and nothing more.
+\end{itemize}
+Two theorems say this list cannot be completed. Eastin and Knill \cite{eastin-knill09}: for any code that detects at least one error, the set of logical gates implementable transversally is a finite group, hence not universal---because a transversal gate set would be a continuous group acting locally, and a code detecting single-qubit errors cannot distinguish infinitesimal local rotations from the identity. Bravyi and K\"onig \cite{bravyi-koenig13}: for a topological stabiliser code in $D$ dimensions, any gate implementable by a constant-depth local circuit lies in level $D$ of the Clifford hierarchy, so 2D codes get at most Cliffords (level 2) and a transversal $T$ (level 3) needs three dimensions. The architectures of \cref{sec:physical} therefore all have the same shape: a 2D (or LDPC) code for memory and Clifford operations, plus a separate mechanism---magic states, code switching---for the one non-Clifford gate.
+
+\subsection{Fault-tolerant syndrome extraction}\label{sec:ftsyndrome}
+Measuring a weight-$w$ check with one ancilla (\cref{fig:checks}) is not fault tolerant on its own: an ancilla fault halfway through propagates to $\lfloor w/2\rfloor$ data qubits. The classical remedies are \cite{shor96ft,steane97,knill05,chao-reichardt18}:
+\begin{description}[leftmargin=*,style=nextline]
+\item[Shor-style (cat states).] Prepare a $w$-qubit GHZ state $\ket{0^w}+\ket{1^w}$, verify it (measure a few $Z_iZ_j$ parities and discard on failure), then couple ancilla qubit $i$ to data qubit $i$ only; measure all ancillas in the $X$ basis and take the parity. Every data qubit talks to its own ancilla, so a single fault cannot spread within the block; a measurement fault can still give a wrong syndrome bit, so each check is repeated until two consecutive rounds agree. This is the mechanism of IonQ's architecture, where the cat states are prepared in a factory and shuttled to the data \cite{walkingcat26}.
+\item[Steane-style (encoded ancilla).] Prepare a whole ancilla block in $\ket{+_L}$ (fault-tolerantly, by verifying it against a second block), apply a transversal CNOT from data to ancilla, and measure every ancilla qubit in $Z$: the outcomes give \emph{all} $Z$-type checks of the data at once, and the transversality keeps propagation at bay. A second block in $\ket{0_L}$ and a reversed CNOT reads the $X$-type checks. Only for CSS codes.
+\item[Knill-style (teleportation).] Prepare an encoded Bell pair $\ket{\Phi_L}$ and Bell-measure the data block against one half of it: the outcomes give every stabiliser and the logical state is teleported into the other half, a fresh block---error correction and a new block in one step. Knill's $C_4/C_6$ scheme reaches a threshold near $1\%$ with this \cite{knill05}.
+\item[Flag qubits.] Chao and Reichardt showed that one or two extra qubits suffice for any distance-three code \cite{chao-reichardt18}: a \emph{flag} ancilla is coupled to the syndrome ancilla before and after the middle CNOTs, so that an ancilla fault that would propagate a hook error also flips the flag; a raised flag tells the decoder which correlated error to expect, and a lookup table indexed by (flag, syndrome) corrects it (\cref{fig:flag}). Flags are what made the small-code trapped-ion and neutral-atom experiments fault tolerant with few ancillas.
+\item[Repetition in time.] The surface and bicycle codes use one ancilla per check and \emph{no} verification; instead the syndrome is measured $\approx d$ times and the decoder works on the space-time graph of \cref{fig:matching}, so that measurement faults and hook errors are just more edges. The circuit's CNOT ordering is chosen so that no single fault reduces the effective distance (\cref{fig:surface-cycle}); for the gross code IBM verified the same property numerically \cite{bravyi24gross}.
+\end{description}
+
+\begin{figure}[H]
+\centering
+\begin{quantikz}[column sep=6pt,row sep=4pt,font=\small]
+\lstick{syndrome $\ket0$} & \qw & \targ{} & \ctrl{1} & \targ{} & \targ{} & \ctrl{1} & \targ{} & \qw & \meter{} \\
+\lstick{flag $\ket+$} & \qw & \qw & \targ{} & \qw & \qw & \targ{} & \qw & \gate{H} & \meter{} \\
+\lstick{$q_1$} & \qw & \ctrl{-2} & \qw & \qw & \qw & \qw & \qw & \qw & \qw \\
+\lstick{$q_2$} & \qw & \qw & \qw & \ctrl{-3} & \qw & \qw & \qw & \qw & \qw \\
+\lstick{$q_3$} & \qw & \qw & \qw & \qw & \ctrl{-4} & \qw & \qw & \qw & \qw \\
+\lstick{$q_4$} & \qw & \qw & \qw & \qw & \qw & \qw & \ctrl{-5} & \qw & \qw
+\end{quantikz}
+\caption{A weight-four $Z$ check with one flag qubit \cite{chao-reichardt18}. An $X$ fault on the syndrome qubit between the second and third data CNOT would propagate to $q_3q_4$ (a hook); it also passes through the second flag CNOT and flips the flag's $X$-basis outcome, so the decoder learns that a weight-two error of a known shape has occurred and corrects it. Without a fault the flag measures $+1$.}
+\label{fig:flag}
+\end{figure}
+
+\subsection{Lattice surgery: the surface code's logical Cliffords}\label{sec:surgery}
+Surface-code patches cannot be stacked for a transversal CNOT in a planar chip, and the code has no transversal $H$ or $S$. Horsman, Fowler, Devitt and Van Meter's \emph{lattice surgery} \cite{horsman12} replaces gates by \emph{joint measurements of logical Paulis}, which the code performs natively:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.62]
+% three stages: separate patches, merged, split
+\foreach \k/\lab in {0/{(a) two patches, gap of one row},1/{(b) merge: $d$ rounds with the strip's $Z$ faces on},2/{(c) split: strip measured in $X$}}{
+  \begin{scope}[xshift=\k*7.4cm]
+  \fill[gateblue,draw=black!60] (0,0) rectangle (3,3);
+  \fill[gateblue,draw=black!60] (3.6,0) rectangle (6.6,3);
+  \node[font=\scriptsize] at (1.5,1.5) {$\ket{\psi_1}$}; \node[font=\scriptsize] at (5.1,1.5) {$\ket{\psi_2}$};
+  \draw[cZ!80!black,line width=1.6pt] (0,0.6) -- (3,0.6); \node[font=\tiny,text=cZ!80!black] at (1.5,0.95) {$\bar Z_1$};
+  \draw[cZ!80!black,line width=1.6pt] (3.6,0.6) -- (6.6,0.6); \node[font=\tiny,text=cZ!80!black] at (5.1,0.95) {$\bar Z_2$};
+  \ifnum\k=1 \fill[cZ!30,draw=cZ!80!black] (3,0) rectangle (3.6,3); \draw[cZ!80!black,line width=1.6pt] (3,0.6) -- (3.6,0.6); \fi
+  \ifnum\k=2 \fill[white,draw=black!40,dashed] (3,0) rectangle (3.6,3); \fi
+  \node[font=\scriptsize,align=center,text width=4.3cm] at (3.3,-0.9) {\lab};
+  \end{scope}}
+\end{tikzpicture}
+\caption{Measuring $\bar Z_1\bar Z_2$ by lattice surgery. The two patches' $Z$ boundaries face each other across a one-qubit-wide strip prepared in $\ket+$; switching on the strip's $Z$ faces for $d$ rounds measures them, and their product (times already-known boundary checks) is $\bar Z_1\bar Z_2$, read as the parity of the new outcomes; the merged object is a single wider patch encoding one qubit. Measuring the strip in $X$ splits it again, leaving $\ket{\psi_1\psi_2}$ projected onto the $\bar Z_1\bar Z_2=\pm1$ eigenspace, up to a known Pauli frame update. $\bar X_1\bar X_2$ is the same with the $X$ boundaries.}
+\label{fig:surgery}
+\end{figure}
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{$M_{ZZ}$, $M_{XX}$} (\cref{fig:surgery}): $d$ rounds each, because the new checks must themselves be measured $d$ times to be trusted. The outcome has a logical error of order $p_L(d)$ and the patches keep their distance throughout.
+\item \textbf{CNOT} $=$ an ancilla patch $\ket{+_L}$, $M_{ZZ}$ between control and ancilla, $M_{XX}$ between ancilla and target, then $M_Z$ of the ancilla, with Pauli corrections from the three outcomes: $2d$ rounds plus the single-qubit measurement, three patches of space. Equivalently, teleport through the ancilla \cite{horsman12,fowler-gidney18}.
+\item \textbf{Hadamard}: transversal $H$ on a patch swaps its $X$ and $Z$ boundaries; to restore the standard orientation the patch is \emph{rotated} by growing it into an adjacent ancilla region and shrinking back ($\approx3d$ rounds), or the orientation is simply remembered.
+\item \textbf{$S$ and $S^\dagger$}: a $\bar Y$ measurement, which lattice surgery provides through a \emph{twist defect} on the patch boundary, or $M_{ZZ}$ with an ancilla in $\ket{Y_L}$ (a stabiliser state, preparable once and reused: $S=M_{ZZ}$ with $\ket Y$ followed by a Pauli correction) \cite{litinski19game}.
+\item \textbf{Multi-qubit Pauli product measurements}: an ancilla region touching several patches measures $\bar P_1\otimes\cdots\otimes\bar P_k$ in one shot of $d$ rounds; Litinski's layouts arrange patches in rows with one row of ancilla space so that any product is reachable \cite{litinski19game}.
+\end{itemize}
+
+\paragraph{Pauli and Clifford frames.}\label{sec:frames} No Pauli correction is ever applied to the qubits: the decoder's output is a classical \emph{Pauli frame} that is updated and consulted when a measurement outcome is interpreted, because Paulis commute or anticommute with everything else in a known way \cite{knill05}. Litinski's \emph{game of surface codes} \cite{litinski19game} extends this to Cliffords: any Clifford$+T$ circuit is rewritten as a sequence of $\pi/8$ Pauli-product rotations $e^{-i\frac\pi8P_j}$ (one per $T$ gate, with $P_j$ a multi-qubit Pauli) followed by a final layer of Pauli measurements, by commuting every Clifford to the end of the circuit and absorbing it into the measurement basis. Each $\pi/8$ rotation is then one Pauli product measurement $P_j\otimes\bar Z$ against a magic state (\cref{sec:magic}), a Clifford correction $e^{\pm i\frac\pi4P_j}$ that is itself pushed to the end, and the final Pauli measurements are read in whatever basis the accumulated Clifford dictates. Logical Clifford gates thus cost \emph{nothing} in physical time; the entire runtime is the sequence of Pauli product measurements, one \emph{tick} of $d$ cycles each in the ``fast'' layout---the ``reaction-limited'' regime of \cref{sec:physical}, where the time per $T$ is the classical reaction time (decode, update the frame, choose the next measurement basis) and not the gate time. IonQ's \emph{Clifford frame} is the same idea applied to a trapped-ion LDPC machine: only Pauli measurements and non-Clifford state injections are physically executed, and the Cliffords---including the transversal ones the codes do have---are classical bookkeeping \cite{walkingcat26,haener26}. This is also why Part~I's cost model counts Toffolis and nothing else: Cliffords are free at the logical level, and a Toffoli is four non-Clifford rotations.
+
+\paragraph{Clifford gates on LDPC codes.} With no boundaries to merge, bicycle codes get their Cliffords from automorphisms (qubit permutations that preserve the code, each a logical Clifford on all $12$ qubits at once) and from the generalised surgery of their LPU (\cref{sec:bb}), where a logical Pauli product is measured by attaching an ancilla system for $\approx d$ rounds; IBM's instruction set contains $12$ automorphisms ($14$ timesteps), $15$ in-module and $36$ inter-module Pauli measurements ($120$ timesteps for the gross code), and the frame does the rest \cite{yoder25tour,cross24surgery}. Colour-code machines (Quantinuum, Google's 2024 experiment) use transversal $H$, $S$ and CNOT directly and lattice surgery between colour-code patches for the rest \cite{ryan-anderson24,lacroix24color}; neutral-atom arrays move whole blocks on top of one another for transversal CNOTs between any two blocks \cite{bluvstein24}.
+
+\section{Fault-tolerant $T$ gates}\label{sec:ft-t}
+
+\subsection{Why $T$ is the expensive gate}
+Clifford circuits are classically simulable (Gottesman--Knill), so a universal machine needs one gate outside the Clifford group; $T=\mathrm{diag}(1,e^{i\pi/4})$ is the standard choice because it is the cheapest member of the third level of the Clifford hierarchy and because Toffoli $=$ CCZ $+$ Hadamards $=$ seven $T$ gates in the textbook decomposition, four with measurement-based uncomputation (\cref{sec:mbu}). By Eastin--Knill and Bravyi--K\"onig no 2D code has a transversal $T$, so the $T$ gate is \emph{teleported in} from a resource state:
+\begin{equation}\label{eq:magic}
+\ket T=T\ket+=\tfrac1{\sqrt2}\big(\ket0+e^{i\pi/4}\ket1\big),
+\end{equation}
+by the gadget of \cref{fig:tgadget}: a CNOT from the data to the magic state and a $Z$ measurement of the magic state apply $T$ to the data up to a Clifford $S$ correction that depends on the outcome---and that correction goes into the Clifford frame. In lattice-surgery form the gadget is one $M_{ZZ}$ between the data patch and the magic-state patch followed by $M_X$ of the magic patch, i.e.\ one tick. So the cost of a $T$ gate is the cost of one $\ket T$ of sufficient quality, and the whole subject reduces to producing $\ket T$ states with error far below $1/(\text{number of }T\text{ gates})$: for the \ecdsafail{} circuits, $4\times28\times1.5\times10^6\approx1.7\times10^8$ $T$ gates per run, i.e.\ a per-state error of order $10^{-10}$.
+
+\begin{figure}[H]
+\centering
+\begin{quantikz}[column sep=8pt,row sep=5pt,font=\small]
+\lstick{$\ket\psi$} & \ctrl{1} & \qw & \gate{S^{m}} & \qw\rstick{$T\ket\psi$} \\
+\lstick{$\ket T$} & \targ{} & \meter{m} \setwiretype{c} & \ctrl{-1} &
+\end{quantikz}
+\hspace{12mm}
+\begin{quantikz}[column sep=8pt,row sep=5pt,font=\small]
+\lstick{$\ket\psi$} & \gate[2]{M_{ZZ}} & \qw & \gate{S^{m\oplus m'}}\qw & \qw\rstick{$T\ket\psi$ (frame)} \\
+\lstick{$\ket{T_L}$} & & \meter{M_X} &
+\end{quantikz}
+\caption{$T$-gate teleportation. Left: with outcome $m=0$ the data is $T\ket\psi$; with $m=1$ it is $\omega\,T^\dagger\ket\psi$ and $S\,T^\dagger=T$ fixes it ($\omega=e^{i\pi/4}$). Right: the lattice-surgery version, a joint $Z\otimes Z$ measurement (outcome $m$) and an $X$ measurement of the magic patch (outcome $m'$); the $S$ correction is never applied, only recorded.}
+\label{fig:tgadget}
+\end{figure}
+
+\subsection{Magic-state injection and distillation}\label{sec:magic}\label{sec:distillation}
+\paragraph{Injection.} A physical $\ket T$ is prepared by a single-qubit rotation on one data qubit of a $d=1$ patch, which is then grown to distance $d$ by switching on checks around it; during the first rounds the state is unprotected, so the injected logical state has an error of order $p$ (a few $10^{-3}$ for $p=10^{-3}$, $\approx1\%$ in Google's colour-code experiment before post-selection) \cite{lacroix24color}. Injected states are therefore \emph{distilled}.
+
+\paragraph{15-to-1 distillation.} Bravyi and Kitaev's protocol \cite{bravyi-kitaev05} uses the $\bits{15}{1}{3}$ code's transversal $T$ (\cref{sec:smallcodes}). First note that any noisy $\ket T$ can be \emph{twirled} (randomly conjugated by the Clifford $SX$, which fixes $\ket T$) into the form $(1-\epsilon)\ket T\!\bra T+\epsilon\,Z\ket T\!\bra T Z$: a magic state with error is a magic state with a $Z$ error of probability $\epsilon$. Then:
+\begin{algorithm}[H]
+\caption{15-to-1 magic-state distillation}\label{alg:15to1}
+\begin{algorithmic}[1]
+\State prepare $\ket{+_L}$ of the $\bits{15}{1}{3}$ Reed--Muller code (a stabiliser state: $\ket+^{\otimes15}$ projected by the ten $Z$-checks, \cref{sec:encoding})
+\State apply $T$ transversally by teleporting $15$ noisy $\ket T$ states, one into each qubit, with the gadget of \cref{fig:tgadget} ($15$ $S$ corrections tracked)---the block is now $\bar T^\dagger\ket{+_L}=\ket{T^\dagger_L}$ up to $Z$ errors at the positions of the faulty input states
+\State measure the four $X$-type stabilisers; \textbf{if} any is $-1$ \textbf{reject} (a $Z$ error of weight $\le2$ has been detected)
+\State decode: measure the fourteen non-data qubits so as to map $\ket{T^\dagger_L}$ to a single qubit (the inverse of the encoder of \cref{alg:encoder}, or a direct $Z$-basis readout of the code with the logical value extracted), apply $S^\dagger$ to turn $\ket{T^\dagger}$ into $\ket T$
+\end{algorithmic}
+\end{algorithm}
+A $Z$ error passes undetected only if it is a $Z$-logical of the code, and the lightest $Z$-logicals have weight three: there are $35$ of them (the lines of the projective space $PG(3,2)$), so the output error is $35\epsilon^3+O(\epsilon^4)$ with acceptance probability $1-15\epsilon+O(\epsilon^2)$. From $\epsilon=10^{-3}$ one round gives $3.5\times10^{-8}$ and two rounds $1.5\times10^{-21}$; in practice the \emph{implementation} of the protocol in the surface code is itself noisy, and that is what sets the floor. Bravyi and Haah's $(3k+8)$-to-$k$ protocols \cite{bravyi-haah12} distil $k$ states at once with output error $(3k+1)\epsilon^2$---quadratic, not cubic, but with far better yield---and are used as second stages. Litinski's surface-code \emph{factories} \cite{litinski19magic} spell out the cost: at $p=10^{-3}$ a single-level $(15\text{-to-}1)_{17,7,7}$ factory occupies $4{,}620$ physical qubits and produces one $\ket T$ of error $4.5\times10^{-8}$ every $42.6$ cycles; a two-level $(15\text{-to-}1)^6_{13,5,5}\times(20\text{-to-}4)_{23,11,13}$ factory, $43{,}300$ qubits, one state of error $1.4\times10^{-10}$ every $130$ cycles; and $(15\text{-to-}1)^6_{13,7,7}\times(8\text{-to-CCZ})_{25,15,15}$, $47{,}000$ qubits, one $\ket{CCZ}$ of error $5.2\times10^{-11}$ every $60$ cycles, where the subscripts are the code distances of the two levels. Gidney and Fowler's CCZ factory with the catalysed $\ket{CCZ}\to2\ket T$ conversion \cite{gidney-fowler19ccz} is the design behind the ``one CCZ per $150$ cycles per factory'' of Model S in \cref{sec:physical}: a Toffoli is then \emph{one} magic state, not four.
+
+\paragraph{Cultivation.} Gidney, Shutty and Jones \cite{cultivation24} replaced the first distillation level by \emph{magic state cultivation}: prepare $\ket T$ in a small colour code ($d=3$, then $5$) where $T$ is transversal, repeatedly \emph{check} the state by measuring the transversal $\bar T$-conjugated stabilisers and post-select, then ``escape'' into a surface code of distance $15$ by growing the patch. The whole thing fits in one patch, costs about as many physical gates as a lattice-surgery CNOT of the same reliability, and gives $\ket T$ states at $2\times10^{-9}$ for $p=10^{-3}$ ($4\times10^{-11}$ at $p=5\times10^{-4}$)---an order of magnitude fewer qubit-rounds than distillation to the same error, and enough that the authors suggest distillation may no longer be needed in practice. Google's RSA-2048 and ECDLP-256 estimates both use it ($\approx5\times10^4$ qubit-rounds per $T$, $\approx25{,}000$ qubits devoted to magic states) \cite{gidney25rsa,babbush26}; the neutral-atom estimate cultivates in surface-code patches of $\approx500$ qubits and then distils $8T\to CCZ$ inside bicycle-code factories to reach $\le10^{-10}$ per CCZ \cite{cain26}; IonQ's two-level CCZ factory produces states below $10^{-9}$ in $319$ qubits each, four of them making a CCZ in under $28$\,ms \cite{haener26}.
+
+\paragraph{Experiments.} Logical magic-state preparation and distillation have been demonstrated: QuEra/Harvard distilled logical magic states in $\bits{5}{1}{3}$ and $\bits{7}{1}{3}$ codes on a neutral-atom array in 2024 \cite{rodriguez24distill}; Google injected magic states into a colour code at $>99\%$ fidelity with post-selection \cite{lacroix24color}.
+
+\subsection{Code switching and gauge fixing}\label{sec:codeswitch}
+The alternative to magic states is to carry the logical qubit into a code where $T$ \emph{is} transversal and back. Anderson, Duclos-Cianci and Poulin \cite{anderson14} gave the fault-tolerant conversion between the Steane code (transversal Cliffords) and the $\bits{15}{1}{3}$ Reed--Muller code (transversal $T$): the two are gauge fixings of one $\bits{15}{7}{3}$ subsystem code, and one converts by measuring the stabilisers that the target code has and the source does not (the weight-four $Z$-checks of \cref{sec:smallcodes} when going to Reed--Muller, weight-four $X$-type operators when coming back), correcting with Paulis chosen from the outcomes, and repeating the measurements to make them fault tolerant \cite{paetznick-reichardt13}. Bomb\'in's gauge colour codes do the same in a topological setting (\cref{sec:colour}): the 3D code's face operators are gauge degrees of freedom, fixing them as $Z$-type stabilisers gives transversal $T$, fixing them as $X$-type gives transversal Cliffords, and the switch is a measurement of the operators being fixed \cite{bombin15}. Code switching avoids factories but needs 3D codes ($n\sim d^3$) or small concatenated codes with low thresholds, which is why no large-scale estimate to date uses it; its cost per $T$ is a full syndrome-extraction cycle of the larger code rather than a magic state.
+
+\subsection{What a Toffoli costs, by architecture}
+\begin{table}[H]
+\centering\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}p{3.6cm}p{3.5cm}p{3.6cm}p{4.8cm}@{}}
+\toprule
+architecture & non-Clifford resource & per-Toffoli time & qubits for magic states\\
+\midrule
+surface code, superconducting, Model S (\cref{sec:physical}) & $\ket{CCZ}$ from distillation factories \cite{gidney-fowler19ccz} & $150$ cycles per factory; $6$ factories $\Rightarrow25\,\mu$s & six factories inside the $7\times18$-patch compute block ($170{,}352$ physical qubits with workspace)\\
+surface code, Google 2025--26 \cite{gidney25rsa,babbush26} & cultivation \cite{cultivation24}, $\approx5\times10^4$ qubit-rounds per $T$ & reaction-limited: $\approx10\,\mu$s reaction $\times$ $1.5$ per Toffoli & $\approx25{,}000$\\
+bicycle architecture, IBM \cite{yoder25tour} & factory in a bicycle module & $T$ injection $=$ one inter-module measurement, $120$ timesteps & $454$ per module at $p=10^{-3}$ ($810$ at $10^{-4}$)\\
+walking cat, IonQ \cite{walkingcat26,haener26} & two-level CCZ factory in an LDPC code, $<10^{-9}$ & $29.5$\,ms (one measurement layer) & $4\times319=1{,}276$\\
+neutral atoms, Cain et al.\ \cite{cain26} & cultivation $+$ $8T\to CCZ$ in $\bits{248}{10}{18}$ factories, $\le10^{-10}$ & $\ge4d$ stabiliser cycles of $1$\,ms & $\approx500$ per cultivation site plus factory codes\\
+cat qubits, Alice\,\&\,Bob \cite{gouzien23} & off-line Toffoli-state preparation by projective measurements & $500$\,ns cycle; $9$\,h total & included in $126{,}133$\\
+\bottomrule
+\end{tabular}
+\caption{The non-Clifford gate across the architectures compared in \cref{sec:physical}.}
+\label{tab:toffoli-arch}
+\end{table}

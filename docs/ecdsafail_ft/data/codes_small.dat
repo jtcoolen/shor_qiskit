@@ -1,0 +1,6 @@
+n k d delta rate family label
+5 1 3 0.60000 0.20000 small {[[5,1,3]]}
+7 1 3 0.42857 0.14286 small {[[7,1,3]] Steane/colour}
+9 1 3 0.33333 0.11111 small {[[9,1,3]] Shor / Bacon--Shor}
+15 1 3 0.20000 0.06667 small {[[15,1,3]] Reed--Muller}
+23 1 7 0.30435 0.04348 small {[[23,1,7]] Golay}

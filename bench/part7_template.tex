@@ -940,7 +940,9 @@ and coefficient updates on toy primes up to $127$, with a fixed-length schedule
 chosen by enumerating toy-field units. Branch decisions are retained on
 qubits; the modular result is halved once for each recorded active step to
 remove the $2^t$ factor, then the gate walk is reversed to clean the
-history and arithmetic ancillas. Exhaustive toy tests check Appendix~A's
+history and arithmetic ancillas. Exact low-space CDKM arithmetic and temporary
+reuse of the already-zero terminal remainder reduce the toy peak without
+claiming Gu's two-register packed layout. Exhaustive toy tests check Appendix~A's
 integer determinant, scaling, branch decoder and reverse recurrence; a
 separate binary-long-division Euclidean reference checks SI~II.2's quotient
 arithmetic. The latter is \emph{not} a packed-Euclidean quantum backend.
@@ -952,6 +954,11 @@ affine oracles pass every one of their $16$ arithmetic basis-state checks.
 run on $@@gu_width@@$
 qubits recovers $k=2$ and has TVD $@@gu_tvd@@$ against an exact-distribution
 shot-noise bound $@@gu_bound@@$.
+Separately, on the $p=7$, order-five toy curve with two control bits per
+scalar, the $@@gu_p7_width@@$-qubit complete affine divsteps ECDLP circuit
+recovers $k=4$ over $@@gu_p7_shots@@$ Aer shots (TVD $@@gu_p7_tvd@@$ against
+$@@gu_p7_bound@@$). This is a second end-to-end validation, \emph{not} another
+point on the $p=5$ frontier.
 @@gu_unsampled@@ The last column reports three-metric resource nondominance, not
 end-to-end Aer certification for the unsampled rows:
 \begin{center}\footnotesize\setlength{\tabcolsep}{4pt}

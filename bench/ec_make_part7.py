@@ -245,6 +245,11 @@ def facts():
     f["gu_width"] = gu["qubits"]
     f["gu_tvd"] = f"{gu['tvd']:.3f}"
     f["gu_bound"] = f"{GU_AFFINE['tvd_limit']:.3f}"
+    p7 = GU_AFFINE["additional_validation"]
+    f["gu_p7_shots"] = num(p7["shots"])
+    f["gu_p7_width"] = p7["qubits"]
+    f["gu_p7_tvd"] = f"{p7['tvd']:.3f}"
+    f["gu_p7_bound"] = f"{p7['tvd_limit']:.3f}"
     skipped = [row["label"] for row in GU_AFFINE["rows"]
                if row["tvd"] is None]
     skipped_names = " and ".join("\\code{" + label + "}" for label in skipped)

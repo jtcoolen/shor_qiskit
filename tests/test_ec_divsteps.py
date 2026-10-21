@@ -1,6 +1,6 @@
 """Toy reversible divsteps: controlled inverse, phase, and clean ancillas."""
 
-from _ec_util import ok, section
+from _ec_util import aer_e2e, ok, section
 from qiskit import QuantumCircuit, transpile
 from qiskit_aer import AerSimulator
 
@@ -126,6 +126,8 @@ def main():
     assert candidates[0][0] == 2 and tvd <= bound
     ok(f"{info['qubits']}-qubit circuit on {info['aer']}: "
        f"k=2, TVD {tvd:.3f} <= {bound:.3f}")
+    aer_e2e("divsteps p7 affine", inversion="divsteps",
+            m_bits=2, shots=4096)
 
 
 if __name__ == "__main__":

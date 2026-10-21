@@ -38,6 +38,10 @@ def test_frontier():
             assert row["aer"].startswith("Aer ")
     assert next(row for row in affine["rows"] if row["label"] == "divsteps")[
         "tvd"] is not None
+    extra = affine["additional_validation"]
+    assert extra["task"] == "affine arithmetic ECDLP p=7, order=5, k=4, m_bits=2"
+    assert extra["tvd"] <= extra["tvd_limit"]
+    assert extra["aer"].startswith("Aer ")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,374 @@
+{
+  "scope": "toy only; standard complete extended twisted-Edwards (HWCD 2008 add-2008-hwcd-3 / RFC 8032 5.1.4) a=-1; NOT Kim ePrint 2026/106 Sec 4.4 (unverified, PDF inaccessible); NOT Ed25519 scale; no Pareto claim",
+  "curve": {
+    "p": 5,
+    "a": -1,
+    "d": 3,
+    "points": 8,
+    "P": [
+      1,
+      2
+    ],
+    "Q": [
+      4,
+      3
+    ],
+    "k": 5,
+    "order": 8,
+    "m_bits": 3
+  },
+  "components": {
+    "controlled extended add (out of place, input retained)": {
+      "qubits": 46,
+      "toffoli": 1364,
+      "gates": 5466,
+      "retained_qubits": 12
+    },
+    "controlled affine add (in place, input uncomputed)": {
+      "qubits": 49,
+      "toffoli": 7440,
+      "gates": 29304,
+      "retained_qubits": 0
+    }
+  },
+  "oracles": [
+    {
+      "style": "inplace",
+      "mode": "toffoli",
+      "oracle_qubits": 54,
+      "peak_live": 48,
+      "toffoli": 45528,
+      "toffoli_paper": 45528,
+      "gates": 178201,
+      "retained_projective_qubits_peak": 0,
+      "basis_verified_all_64": true,
+      "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+      "circuit_qubits": 54,
+      "shots": 4000,
+      "recovered_k": 5,
+      "scratch_qubits_measured": 42,
+      "scratch_all_zero_shots": 4000,
+      "tvd": 0.0165,
+      "tvd_noise_bound": 0.035
+    },
+    {
+      "style": "inplace",
+      "mode": "and",
+      "oracle_qubits": 54,
+      "peak_live": 48,
+      "toffoli": 680,
+      "toffoli_paper": 23104,
+      "gates": 178201,
+      "retained_projective_qubits_peak": 0,
+      "basis_verified_all_64": true,
+      "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+      "circuit_qubits": 54,
+      "shots": 4000,
+      "recovered_k": 5,
+      "scratch_qubits_measured": 42,
+      "scratch_all_zero_shots": 4000,
+      "tvd": 0.0122,
+      "tvd_noise_bound": 0.035
+    },
+    {
+      "style": "bennett",
+      "mode": "toffoli",
+      "oracle_qubits": 117,
+      "peak_live": 105,
+      "toffoli": 18026,
+      "toffoli_paper": 18026,
+      "gates": 71252,
+      "retained_projective_qubits_peak": 72,
+      "basis_verified_all_64": true,
+      "aer": "unsampled: 117 oracle qubits > 63-qubit Aer limit (basis-verified only)"
+    },
+    {
+      "style": "bennett",
+      "mode": "and",
+      "oracle_qubits": 117,
+      "peak_live": 105,
+      "toffoli": 246,
+      "toffoli_paper": 9136,
+      "gates": 71252,
+      "retained_projective_qubits_peak": 72,
+      "basis_verified_all_64": true,
+      "aer": "unsampled: 117 oracle qubits > 63-qubit Aer limit (basis-verified only)"
+    }
+  ],
+  "baseline": {
+    "curve": "y^2 = x^3 + 4x + 4 over F_5 (birationally isomorphic)",
+    "arith_oracles_m_bits_1_3": {
+      "affine": [
+        "no offset keeps all reachable additions in the generic domain"
+      ],
+      "windowed w=1..3": [
+        "no offset keeps all reachable additions in the generic domain"
+      ]
+    },
+    "table_lookup_reference": {
+      "note": "classical-table lookup oracle, not arithmetic: distribution reference only, not a cost baseline",
+      "qubits": 12,
+      "recovered_k": 5,
+      "tvd": 0.0112
+    }
+  },
+  "histogram_measured_vs_exact": {
+    "0,0": [
+      0.1375,
+      0.125
+    ],
+    "0,1": [
+      0.0,
+      0.0
+    ],
+    "0,2": [
+      0.0,
+      0.0
+    ],
+    "0,3": [
+      0.0,
+      0.0
+    ],
+    "0,4": [
+      0.0,
+      0.0
+    ],
+    "0,5": [
+      0.0,
+      0.0
+    ],
+    "0,6": [
+      0.0,
+      0.0
+    ],
+    "0,7": [
+      0.0,
+      0.0
+    ],
+    "1,0": [
+      0.0,
+      0.0
+    ],
+    "1,1": [
+      0.0,
+      0.0
+    ],
+    "1,2": [
+      0.0,
+      0.0
+    ],
+    "1,3": [
+      0.0,
+      0.0
+    ],
+    "1,4": [
+      0.0,
+      0.0
+    ],
+    "1,5": [
+      0.12325,
+      0.125
+    ],
+    "1,6": [
+      0.0,
+      0.0
+    ],
+    "1,7": [
+      0.0,
+      0.0
+    ],
+    "2,0": [
+      0.0,
+      0.0
+    ],
+    "2,1": [
+      0.0,
+      0.0
+    ],
+    "2,2": [
+      0.125,
+      0.125
+    ],
+    "2,3": [
+      0.0,
+      0.0
+    ],
+    "2,4": [
+      0.0,
+      0.0
+    ],
+    "2,5": [
+      0.0,
+      0.0
+    ],
+    "2,6": [
+      0.0,
+      0.0
+    ],
+    "2,7": [
+      0.0,
+      0.0
+    ],
+    "3,0": [
+      0.0,
+      0.0
+    ],
+    "3,1": [
+      0.0,
+      0.0
+    ],
+    "3,2": [
+      0.0,
+      0.0
+    ],
+    "3,3": [
+      0.0,
+      0.0
+    ],
+    "3,4": [
+      0.0,
+      0.0
+    ],
+    "3,5": [
+      0.0,
+      0.0
+    ],
+    "3,6": [
+      0.0,
+      0.0
+    ],
+    "3,7": [
+      0.1215,
+      0.125
+    ],
+    "4,0": [
+      0.0,
+      0.0
+    ],
+    "4,1": [
+      0.0,
+      0.0
+    ],
+    "4,2": [
+      0.0,
+      0.0
+    ],
+    "4,3": [
+      0.0,
+      0.0
+    ],
+    "4,4": [
+      0.1265,
+      0.125
+    ],
+    "4,5": [
+      0.0,
+      0.0
+    ],
+    "4,6": [
+      0.0,
+      0.0
+    ],
+    "4,7": [
+      0.0,
+      0.0
+    ],
+    "5,0": [
+      0.0,
+      0.0
+    ],
+    "5,1": [
+      0.1185,
+      0.125
+    ],
+    "5,2": [
+      0.0,
+      0.0
+    ],
+    "5,3": [
+      0.0,
+      0.0
+    ],
+    "5,4": [
+      0.0,
+      0.0
+    ],
+    "5,5": [
+      0.0,
+      0.0
+    ],
+    "5,6": [
+      0.0,
+      0.0
+    ],
+    "5,7": [
+      0.0,
+      0.0
+    ],
+    "6,0": [
+      0.0,
+      0.0
+    ],
+    "6,1": [
+      0.0,
+      0.0
+    ],
+    "6,2": [
+      0.0,
+      0.0
+    ],
+    "6,3": [
+      0.0,
+      0.0
+    ],
+    "6,4": [
+      0.0,
+      0.0
+    ],
+    "6,5": [
+      0.0,
+      0.0
+    ],
+    "6,6": [
+      0.1275,
+      0.125
+    ],
+    "6,7": [
+      0.0,
+      0.0
+    ],
+    "7,0": [
+      0.0,
+      0.0
+    ],
+    "7,1": [
+      0.0,
+      0.0
+    ],
+    "7,2": [
+      0.0,
+      0.0
+    ],
+    "7,3": [
+      0.12025,
+      0.125
+    ],
+    "7,4": [
+      0.0,
+      0.0
+    ],
+    "7,5": [
+      0.0,
+      0.0
+    ],
+    "7,6": [
+      0.0,
+      0.0
+    ],
+    "7,7": [
+      0.0,
+      0.0
+    ]
+  },
+  "tvd_noise_bound": 0.035
+}

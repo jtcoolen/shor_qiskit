@@ -48,14 +48,17 @@ Backend selection
 -----------------
 `multiplier` may be `reference`, `montgomery-qcsa`, or `montgomery-lookup`;
 `inversion` may be `kaliski`, `kaliski-opt`, `divsteps`,
-`divsteps-decoded`, or `divsteps-arithmetic`. Montgomery multiplication
+`divsteps-decoded`, `divsteps-arithmetic`, or `packed-euclid`. Montgomery multiplication
 converts the ordinary field residues at its boundary, so the point-adder
 formula remains unchanged. The optimized inverse likewise converts its
 Montgomery-scaled result back to an ordinary residue.
 The toy-width `divsteps` inverter stores all branch decisions;
 `divsteps-decoded` reuses its decision qubits via an exact toy-state lookup;
 `divsteps-arithmetic` uses the signed coefficients and arithmetic bit-window
-decoder of Gu Appendix A. None is Gu's packed-Euclidean circuit.
+decoder of Gu Appendix A. None of those is Gu's packed-Euclidean circuit;
+`packed-euclid` is: Luo et al. Algorithms 1-3 (Gu SI II.2) with opposed-end
+Work1/Work2 words, coherent boundary and shift counters and a fixed
+4 ceil(1.5795 n)-step schedule, uncomputed by running it backwards.
 """
 
 import ec_adders as A
@@ -65,6 +68,7 @@ import ec_kaliski_opt as KO
 import ec_modarith as MA
 import ec_montgomery as MG
 import ec_mult as MU
+import ec_packed_euclid as PE
 
 
 def _csub_2x2_or_x2(m, q, x, x2, p):
@@ -160,10 +164,13 @@ def _modmul_add(m, x, y, acc, p, multiplier, word_size):
 def _moddiv(m, q, x, y, out, p, multiplier, word_size, inversion):
     n = len(x)
     if inversion not in ("kaliski", "kaliski-opt", "divsteps",
-                         "divsteps-decoded", "divsteps-arithmetic"):
+                         "divsteps-decoded", "divsteps-arithmetic",
+                         "packed-euclid"):
         raise ValueError(f"unknown inversion backend {inversion!r}")
 
     def build_inverse(machine, src, dst, modulus, ctrl):
+        if inversion == "packed-euclid":
+            return PE.mod_inv(machine, src, dst, modulus, ctrl)
         if inversion in ("divsteps", "divsteps-decoded", "divsteps-arithmetic"):
             D.mod_inv(machine, src, dst, modulus, ctrl,
                       history={"divsteps": "full",

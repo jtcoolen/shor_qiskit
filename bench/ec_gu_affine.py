@@ -18,7 +18,7 @@ from ec_sim import run as run_basis
 
 OUT = pathlib.Path(__file__).with_suffix(".json")
 BACKENDS = ("kaliski", "kaliski-opt", "divsteps",
-            "divsteps-decoded", "divsteps-arithmetic")
+            "divsteps-decoded", "divsteps-arithmetic", "packed-euclid")
 
 
 def measure(shots=1024, seed=5):
@@ -72,7 +72,8 @@ def measure(shots=1024, seed=5):
     k7 = next(i for i in range(order7) if p7.mul(i, base7) == double7)
     shots7 = 4096
     validations = []
-    for backend, bits in (("divsteps", mb7), ("divsteps-decoded", 3)):
+    for backend, bits in (("divsteps", mb7), ("divsteps-decoded", 3),
+                          ("packed-euclid", mb7)):
         qc7, _ = S.ecdlp_circuit(
             p7, base7, double7, order7, oracle="arith",
             m_bits=bits, inversion=backend)

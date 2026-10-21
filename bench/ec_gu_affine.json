@@ -55,6 +55,16 @@
       "basis_cases": 16,
       "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
       "tvd": 0.032227
+    },
+    {
+      "label": "packed-euclid",
+      "qubits": 57,
+      "toffoli_paper": 3522984,
+      "depth": 3524181,
+      "t": 24649248,
+      "basis_cases": 16,
+      "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+      "tvd": 0.032227
     }
   ],
   "metrics": [
@@ -85,6 +95,15 @@
       "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
       "tvd": 0.039121,
       "tvd_limit": 0.054082
+    },
+    {
+      "task": "affine arithmetic ECDLP p=7, order=5, k=4, m_bits=2",
+      "backend": "packed-euclid",
+      "qubits": 57,
+      "shots": 4096,
+      "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+      "tvd": 0.016602,
+      "tvd_limit": 0.041016
     }
   ]
 }

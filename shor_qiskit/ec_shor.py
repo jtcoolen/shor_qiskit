@@ -146,7 +146,8 @@ def ecdlp_circuit(curve, P, Q, order, oracle="table", offset=None, m_bits=None,
     `multiplier` for affine arithmetic: reference, Montgomery/QCSA, or lookup
     `inversion` for affine arithmetic: Kaliski, optimized Kaliski, or toy
           divsteps with full history, finite-state lookup, or Appendix A
-          arithmetic bit-window decoding of signed coefficients
+          arithmetic bit-window decoding of signed coefficients, or
+          "packed-euclid" (Luo Alg. 1-3 / Gu SI II.2 packed Euclidean walk)
     `word_size` for a Montgomery multiplier; defaults to a divisor of the field width
     `gcd` for windowed arithmetic: "dialog" ([1128] Alg. 3), "pingpong"
           (the comparison-free walk of ECDSA.Fail Sec 5.3.3), "jump2" or
@@ -172,7 +173,8 @@ def ecdlp_circuit(curve, P, Q, order, oracle="table", offset=None, m_bits=None,
     if multiplier not in ("reference", "montgomery-qcsa", "montgomery-lookup"):
         raise ValueError(f"unknown multiplier backend {multiplier!r}")
     if inversion not in ("kaliski", "kaliski-opt", "divsteps",
-                         "divsteps-decoded", "divsteps-arithmetic"):
+                         "divsteps-decoded", "divsteps-arithmetic",
+                         "packed-euclid"):
         raise ValueError(f"unknown inversion backend {inversion!r}")
     if arithmetic == "windowed" and (
             multiplier != "reference" or inversion != "kaliski"):

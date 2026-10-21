@@ -3217,6 +3217,7 @@ fault-tolerance overhead priced in Part~III's bill.
 
 
 
+
 \clearpage
 \part*{Part VII --- The other Shor: elliptic-curve discrete logarithms}
 \addcontentsline{toc}{part}{Part VII --- The other Shor: elliptic-curve discrete logarithms}
@@ -4993,6 +4994,66 @@ including noise. The bug was invisible in the pass/fail of an end-to-end test an
 moment the vote shares were printed next to the uniform baseline.
 \end{warnbox}
 
+\subsection{Complete extended-Edwards arithmetic at toy size}
+\label{ec:sec:edwards-toy}
+
+The repository now has a \emph{separate} standard extended twisted-Edwards
+arithmetic backend, \code{ec\_edwards.py}; it is \emph{not} attributed to
+\cite{ec:kim26} Sec.~4.4. The full text of that section could not be
+verified from this host, and the implementation follows the complete
+$a=-1$ formulas of Hisil--Wong--Carter--Dawson and RFC~8032
+\cite{ec:rfc8032}. The point is represented by $(X:Y:Z:T)$ with
+$XY=ZT$, $x=X/Z$, $y=Y/Z$. For $d$ a nonsquare over $\mathbb F_p$
+and $p\equiv1\pmod4$, the model checks every pair of toy-curve points,
+including identity, inverse and doubling. Out-of-place controlled addition
+leaves its input triple available and erases intermediate arithmetic work.
+The in-place variant uses a forward add and the inverse of addition by
+the negative point to erase its old affine input, trading extra gates for
+the absence of retained projective point registers.
+
+For the complete eight-point curve $-x^2+y^2=1+3x^2y^2$ over
+$\mathbb F_5$, $P=(1,2)$ and $Q=[5]P=(4,3)$, all $64$ $(u,v)$
+oracle basis inputs and their cleanup pass. The full in-place
+Hadamard--oracle--inverse-QFT--measurement circuit recovers $k=5$ on
+Aer CPU/MPS, with all $42$ scratch qubits read as zero; the saved
+$4\,000$-shot runs have TVD $0.0165$ (Toffoli-only) and $0.0122$
+(temporary-AND) versus a $0.035$ shot-noise limit
+(\path{bench/ec_edwards_toy.json}). The equally scoped Bennett
+oracle is basis checked, \emph{not} Aer sampled: its $117$ qubits
+exceed this host's $63$-qubit limit. The existing Weierstrass arithmetic
+adders on the birationally isomorphic toy curve cannot find a starting
+offset that avoids their exceptional inputs, so the lookup-table
+oracle is a distribution reference only, \emph{not} a comparable arithmetic
+cost or a Pareto point.
+\begin{center}\footnotesize
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+style & gates & oracle qubits & Toffoli/AND & retained point qubits & Aer\\
+\midrule
+in-place & Toffoli & 54 & 45\,528 & 0 & sampled\\
+in-place & temp.\ AND & 54 & 23\,104 & 0 & sampled\\
+Bennett & Toffoli & 117 & 18\,026 & 72 & basis only\\
+Bennett & temp.\ AND & 117 & 9\,136 & 72 & basis only\\
+\bottomrule
+\end{tabular}
+\end{center}
+The paper-convention ``Toffoli/AND'' column counts an AND compute
+but not its measurement-assisted uncompute; it is not a physical
+gate-time estimate. Neither two different gate implementations nor an
+unsampled wide circuit establish a paper-level resource advantage.
+Reproduce the figure and JSON with
+\path{PYTHONPATH=shor_qiskit:tests:bench venv/bin/python bench/ec_edwards_toy.py}.
+\begin{center}
+\includegraphics[width=\linewidth]{bench/ec_edwards_toy.png}
+\par\smallskip\footnotesize
+\textbf{Toy Edwards benchmark.} Left: sampled-versus-exact
+ECDLP output peaks. Right: same-task oracle width, logical
+Toffoli/AND count (in thousands) and retained input wires. The
+$63$-qubit line distinguishes Aer-tested in-place circuits from
+basis-checked Bennett circuits; no Weierstrass arithmetic Pareto
+comparison is inferred.
+\end{center}
+
 \section{What is not here}\label{ec:sec:gaps}
 
 Named rather than glossed:
@@ -5001,8 +5062,10 @@ Named rather than glossed:
 \item \textbf{Composing Gidney's dirty-ancilla adder} \cite{ec:gidney25} into the modular
 arithmetic. The standalone dynamic adder is implemented, but the surrounding arithmetic still
 requires unitary inverse emission and does not yet use it.
-\item \textbf{The Ed25519 extension} of \cite{ec:kim26} Sec 4.4, in extended Edwards coordinates.
-The curve model here is short Weierstrass only.
+\item \textbf{The paper-specific Ed25519 extension} attributed to
+\cite{ec:kim26} Sec.~4.4 is still unverified because the full text was
+unavailable. The standard toy extended-Edwards circuit above does not
+establish the paper's Ed25519-scale construction or cost.
 \item \textbf{Physical-level estimates} --- surface codes, QLDPC, wall-clock runtime. This part
 stops at the logical layer, as Parts II--VI do.
 \end{itemize}
@@ -5246,6 +5309,12 @@ arXiv:2507.23079, 2025.
 M.~Grassl, B.~Langenberg, M.~Roetteler, and R.~Steinwandt,
 \emph{Applying Grover's algorithm to AES: quantum resource estimates},
 PQCrypto 2016, LNCS 9606, pp.~29--43.
+
+\bibitem{ec:rfc8032}
+S.~Josefsson and I.~Liusvaara,
+\emph{Edwards-Curve Digital Signature Algorithm (EdDSA)},
+RFC~8032, January 2017, \S5.1.4.
+\url{https://www.rfc-editor.org/rfc/rfc8032#section-5.1.4}.
 
 \bibitem{ec:classiq}
 Classiq,

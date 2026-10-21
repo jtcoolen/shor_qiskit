@@ -500,8 +500,10 @@ Named rather than glossed:
   the paper calls this cost negligible against the arithmetic, so it moves no
   headline number; but if you want the paper's constant, this is the circuit to
   replace.
-- **The Ed25519 extension** of 106 §4.4 — the same out-of-place strategy in
-  extended Edwards coordinates. The curve model here is short Weierstrass only.
+- **The paper-specific Ed25519 extension** attributed to 106 §4.4 is not
+  verified against the inaccessible full paper. A separate standard complete
+  extended-Edwards toy circuit is implemented and Aer-tested; it is not an
+  Ed25519-scale benchmark or a Kim-paper resource claim.
 - **Physical-level estimates** (surface codes, QLDPC, runtime) from 106 §6.2.
   This package stops at the logical layer.
 

@@ -48,6 +48,32 @@ def test_frontier():
         assert extra["tvd"] <= extra["tvd_limit"]
         assert extra["aer"].startswith("Aer ")
 
+    from plot_optimisation_frontiers import edwards_kim_rows
+    kim = json.loads((ROOT / "bench" / "ec_edwards_kim.json").read_text())
+    assert len(kim["oracles"]) == 26
+    assert all(row["basis_verified_all_64"] for row in kim["oracles"])
+    for mode in ("toffoli", "and"):
+        rows, winners = edwards_kim_rows(mode)
+        assert len(rows) == len(kim["oracles"])
+        assert winners == set(frontier(rows))
+        assert winners == {
+            "Horner inplace", "QROM bennett compact w3 load",
+            "QROM bennett paper w3 load",
+        }
+        for row in rows:
+            if row["sampled"]:
+                original = next(
+                    variant for variant in kim["oracles"]
+                    if variant[mode]["qubits"] == row["qubits"]
+                    and variant[mode]["toffoli_paper"] == row["toffoli_paper"])
+                shot = next(run for run in original["aer_runs"]
+                            if run["mode"] == mode)
+                assert shot["recovered_k"] == kim["curve"]["k"]
+                assert shot["scratch_all_zero_shots"] == shot["shots"]
+                assert shot["tvd"] <= shot["tvd_noise_bound"]
+        assert not next(row for row in rows if row["label"] ==
+                        "QROM bennett paper w3 load")["sampled"]
+
 
 if __name__ == "__main__":
     test_frontier()

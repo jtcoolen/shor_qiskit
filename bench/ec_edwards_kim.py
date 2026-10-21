@@ -50,6 +50,7 @@ K, SHOTS, SEED, AER_LIMIT, MB = 5, 4000, 3, 63, 3
 # (adder, style, layout, w, first_lookup, mode) sampled on Aer
 AER_RUNS = [
     ("horner", "inplace", None, None, None, "toffoli"),
+    ("horner", "inplace", None, None, None, "and"),
     ("kim-qrom", "inplace", "compact", 1, True, "toffoli"),
     ("kim-qrom", "inplace", "compact", 2, True, "toffoli"),
     ("kim-qrom", "inplace", "compact", 3, True, "toffoli"),
@@ -165,7 +166,8 @@ def measure():
                  "addend constants loaded by a coherent windowed QROM, inside "
                  "a full Shor ECDLP circuit; compared with the ec_edwards "
                  "controlled-Horner baseline. NOT Ed25519 scale, NOT the "
-                 "paper's QCSA/ProjectQ synthesis; no Pareto claim",
+                 "paper's QCSA/ProjectQ synthesis; same-task toy resource "
+                 "frontier only, not a cryptographic-scale Pareto claim",
         "resource_convention": "toffoli_paper = Toffoli + AND + CSWAP of the "
                                "whole oracle (ec_cost.count); 'toffoli' mode: "
                                "ANDs and their uncompute both as ccx; 'and' "

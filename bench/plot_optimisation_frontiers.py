@@ -163,10 +163,67 @@ def dynamic_figure():
     return fig
 
 
+def edwards_kim_rows(mode):
+    """Equal-task ECDLP resources; keep gate modes on separate frontiers."""
+    from ec_pareto import frontier
+
+    rows = []
+    for result in _report("ec_edwards_kim.json")["oracles"]:
+        label = (f"Horner {result['style']}" if result["adder"] == "horner"
+                 else f"QROM {result['style']} {result['layout']} "
+                      f"w{result['w']} "
+                      f"{'load' if result['first_lookup'] else 'add'}")
+        rows.append({
+            "label": label, **{
+                key: result[mode][key]
+                for key in ("qubits", "toffoli_paper", "depth")},
+            "sampled": any(run["mode"] == mode for run in result["aer_runs"]),
+        })
+    return rows, set(frontier(rows))
+
+
+def edwards_kim_figure():
+    """Separate toy ECDLP Pareto panels; unsampled rows are never certified."""
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.7), layout="constrained")
+    for ax, mode in zip(axes, ("toffoli", "and")):
+        rows, frontier = edwards_kim_rows(mode)
+        for row in rows:
+            best = row["label"] in frontier
+            ax.scatter(
+                row["qubits"], row["toffoli_paper"],
+                s=115 if best else 40,
+                marker="o" if row["sampled"] else "s",
+                facecolors=("#147d65" if best else "#9ca7b1")
+                if row["sampled"] else "none",
+                edgecolors="#16523f" if best else "#5c6670",
+                linewidths=1.4 if best else .8, zorder=3,
+            )
+            if best:
+                ax.annotate(row["label"],
+                            (row["qubits"], row["toffoli_paper"]),
+                            xytext=(5, 8),
+                            textcoords="offset points", fontsize=7)
+        ax.set(xlabel="logical qubits",
+               ylabel="Toffoli/AND (paper convention)",
+               title=f"p=5, 3-bit ECDLP: {mode} gates")
+        ax.set_yscale("log")
+        ax.set_xlim(48, 145)
+        ax.grid(alpha=.22, zorder=0)
+    fig.suptitle("Kim Sec. 4.4 three-constant QROM and Horner baseline: "
+                 "same-task resource frontiers")
+    fig.text(.5, -.04,
+             "Green = nondominated in (qubits, Toffoli, depth); "
+             "filled circle = Aer sampled; hollow square = basis only. "
+             "Paper-layout rows above 63 qubits are not Aer-certified.",
+             ha="center", fontsize=8)
+    return fig
+
+
 if __name__ == "__main__":
     for stem, figure in (("ec_optimisation_frontiers", ec_figure()),
                          ("rns_order_frontier", rns_figure()),
-                         ("ec_dynamic_composition", dynamic_figure())):
+                         ("ec_dynamic_composition", dynamic_figure()),
+                         ("ec_edwards_kim_frontier", edwards_kim_figure())):
         output = HERE / f"{stem}.pdf"
         figure.savefig(output, bbox_inches="tight")
         figure.savefig(HERE / f"{stem}.png", dpi=160, bbox_inches="tight")

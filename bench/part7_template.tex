@@ -1302,12 +1302,26 @@ moment the vote shares were printed next to the uniform baseline.
 \subsection{Complete extended-Edwards arithmetic at toy size}
 \label{ec:sec:edwards-toy}
 
-The repository now has a \emph{separate} standard extended twisted-Edwards
-arithmetic backend, \code{ec\_edwards.py}; it is \emph{not} attributed to
-\cite{ec:kim26} Sec.~4.4. The full text of that section could not be
-verified from this host, and the implementation follows the complete
-$a=-1$ formulas of Hisil--Wong--Carter--Dawson and RFC~8032
-\cite{ec:rfc8032}. The point is represented by $(X:Y:Z:T)$ with
+The existing toy \code{ec\_edwards.py} backend implements the standard
+extended twisted-Edwards mixed addition of Hisil--Wong--Carter--Dawson and
+RFC~8032 \cite{ec:rfc8032}. The now-verified formulas in \cite{ec:kim26}
+Sec.~4.4, Fig.~11 are the \emph{same} mixed addition: for a fixed affine
+addend $(x_2,y_2)$, compute
+\[
+A=(Y_1-X_1)(y_2-x_2),\quad B=(Y_1+X_1)(y_2+x_2),\quad
+C=2dT_1x_2y_2,\quad D=2Z_1,
+\]
+\[
+E=B-A,\quad F=D-C,\quad G=D+C,\quad H=B+A,\qquad
+(X_3,Y_3,Z_3,T_3)=(EF,GH,FG,EH).
+\]
+These are the paper's three known-constant products and four output products,
+seven at the algorithm level; reversible scratch uncomputation adds operations
+to the compiled circuit. The existing backend selects constants by controlled
+modular arithmetic instead of the paper's \emph{windowed quantum lookup of
+three constants} $(y_2-x_2,y_2+x_2,2dx_2y_2)$, and uses a different toy
+multiplier, so its gate counts cannot be equated to the paper's Table~4
+Ed25519 resource estimates. The point is represented by $(X:Y:Z:T)$ with
 $XY=ZT$, $x=X/Z$, $y=Y/Z$. For $d$ a nonsquare over $\mathbb F_p$
 and $p\equiv1\pmod4$, the model checks every pair of toy-curve points,
 including identity, inverse and doubling. Out-of-place controlled addition
@@ -1357,6 +1371,65 @@ Toffoli/AND count (in thousands) and retained input wires. The
 $63$-qubit line distinguishes Aer-tested in-place circuits from
 basis-checked Bennett circuits; no Weierstrass arithmetic Pareto
 comparison is inferred.
+\end{center}
+For context, \cite{ec:kim26} Table~4 reports its \emph{projected 255-bit
+Ed25519 point-addition} costs as $64\,947$ qubits, $3\,577$ $T$-depth,
+$42\,377$ full depth and $2^{25.06}$ total gates. These are paper
+synthesis estimates for a different field size and arithmetic stack,
+\emph{not} local Aer measurements or points on the toy Pareto chart.
+
+\subsection{Kim Sec.~4.4: coherent three-constant lookup}
+\label{ec:sec:kim-edwards-qrom}
+
+The distinct opt-in \code{ec\_edwards\_kim.py} path implements the
+\emph{windowed} part of \cite{ec:kim26} Sec.~4.4 as well as its mixed law:
+a single reversible unary-iteration QROM walk writes
+$(y_2-x_2,y_2+x_2,2dx_2y_2)$ for the selected precomputed window point
+into three $n$-qubit registers; the seven-product arithmetic consumes them,
+and the same lookup uncomputes all three. Window address zero selects the
+Edwards identity, whose constants are $(1,1,0)$, with no exceptional-case
+branch. A first lookup can initialise the accumulator directly, rather than
+performing an identity-plus-point addition. This \emph{is not} a toy-point
+permutation oracle: the selected constants feed the actual modular
+arithmetic. The compact circuit reuses intermediate registers; a separate
+Fig.~11-like fresh-register layout is basis-checked but too wide for this
+host's $63$-qubit Aer limit.
+
+For the \emph{same} complete $\mathbb F_5$, $3$-bit-per-scalar ECDLP task above,
+all $64$ control-register inputs pass with clean scratch for all $26$
+adder/layout/window choices in Toffoli mode; the temporary-AND variants
+are separately costed and the selected narrow variants sampled on Aer
+(\path{bench/ec_edwards_kim.json}). A no-first-lookup $w=1$ compact
+variant performs the same six additions as the controlled-Horner baseline:
+$56\,760$ versus $45\,528$ paper-convention Toffolis at $63$ versus
+$54$ qubits. Windowing, rather than merely changing the addend selector,
+accounts for the reduction. With a first direct lookup, $w=3$ requires
+only one remaining mixed addition: the compact in-place variant uses
+$63$ qubits and $9\,568$ Toffolis ($4\,862$ temporary-AND convention),
+while compact Bennett uses $63$ qubits and $4\,496$ ($2\,284$ in AND
+mode). Each of these four circuits recovers $k=5$ on Aer CPU/MPS in
+$4\,000$ shots, all $51$ scratch qubits zero on every shot, with TVD
+$0.0165$ below the $0.035$ shot-noise bound. Bennett's arithmetic saving
+comes from a \emph{single window per scalar} at this toy size; larger
+multi-window Bennett variants retain projective inputs and may exceed
+the local simulator limit. The fresh-register layout at $w=3$ has
+$75$ qubits and $4\,328$ Toffolis, but is \emph{basis-checked only}.
+These numbers count logical Toffoli/AND/CSWAP equivalents and are not
+\cite{ec:kim26}'s 255-bit QCSA synthesis or physical runtimes.
+
+\begin{center}
+\includegraphics[width=\linewidth]{bench/ec_edwards_kim_frontier.pdf}
+\par\smallskip\footnotesize
+\textbf{Same-task Edwards resource frontiers.} Separate Toffoli and
+temporary-AND panels compare all $26$ variants per mode on qubits,
+paper-convention Toffolis and circuit depth. Filled circles were sampled
+end to end on Aer; hollow squares were only basis-checked. Three
+resource-nondominated rows in each mode are the $54$-qubit Horner
+in-place baseline, the $63$-qubit compact Bennett QROM $w=3$
+variant, and the unsampled $75$-qubit fresh-register Bennett $w=3$
+variant. An unsampled resource point is \emph{not} an Aer-certified
+performance claim. The other ECDLP and order-finding graphs retain
+their distinct tasks and are not merged into this frontier.
 \end{center}
 
 \subsection{Dynamic dirty-ancilla modular addition in a toy affine oracle}
@@ -1412,10 +1485,10 @@ Named rather than glossed:
 \item \textbf{A fully dynamic low-space arithmetic oracle.} The opt-in
 composition above covers constant additions, not the other eleven
 arithmetic steps; it leaves the complete-oracle width unchanged.
-\item \textbf{The paper-specific Ed25519 extension} attributed to
-\cite{ec:kim26} Sec.~4.4 is still unverified because the full text was
-unavailable. The standard toy extended-Edwards circuit above does not
-establish the paper's Ed25519-scale construction or cost.
+\item \textbf{Cryptographic-scale Ed25519 resource reproduction.}
+The complete toy arithmetic and three-constant windowed lookup above validate
+\cite{ec:kim26} Sec.~4.4 at toy size, but do not reproduce the paper's
+255-bit QCSA arithmetic, Table~4 synthesis or physical costs.
 \item \textbf{Physical-level estimates} --- surface codes, QLDPC, wall-clock runtime. This part
 stops at the logical layer, as Parts II--VI do.
 \end{itemize}

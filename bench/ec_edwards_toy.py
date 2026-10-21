@@ -142,10 +142,11 @@ def measure():
             "tvd": round(ST.tvd(temp, exact), 4)},
     }
     return {
-        "scope": "toy only; standard complete extended twisted-Edwards "
-                 "(HWCD 2008 add-2008-hwcd-3 / RFC 8032 5.1.4) a=-1; NOT Kim "
-                 "ePrint 2026/106 Sec 4.4 (unverified, PDF inaccessible); NOT "
-                 "Ed25519 scale; no Pareto claim",
+        "scope": "toy only; complete extended twisted-Edwards mixed addition "
+                 "(HWCD 2008 / RFC 8032 5.1.4), also Kim ePrint 2026/106 "
+                 "Sec 4.4 seven-product law; constants selected by controlled "
+                 "arithmetic, not Kim's three-register windowed lookup; "
+                 "NOT Ed25519 scale or Table 4 QCSA synthesis; no Pareto claim",
         "curve": {"p": c.p, "a": -1, "d": c.d, "points": len(c.points()),
                   "P": P, "Q": Q, "k": K, "order": order, "m_bits": mb},
         "components": component_costs(c),
@@ -190,9 +191,9 @@ def plot(data):
     a2.set_title("oracle resources (same task; trade-off, no Pareto claim)",
                  fontsize=9)
     a2.legend(fontsize=8)
-    fig.suptitle("TOY ONLY: standard HWCD/RFC 8032 extended twisted-Edwards "
-                 "(a=-1, d=3, F_5); not Kim 2026/106 Sec 4.4, not Ed25519 "
-                 "scale. Weierstrass arithmetic oracles refuse this instance.",
+    fig.suptitle("TOY ONLY: Kim 2026/106 Sec 4.4 mixed law via HWCD/RFC 8032 "
+                 "(a=-1, d=3, F_5); no paper-style windowed QROM, QCSA or "
+                 "Ed25519 scale. Weierstrass arithmetic refuses this instance.",
                  fontsize=8)
     fig.tight_layout()
     fig.savefig(PNG, dpi=150)

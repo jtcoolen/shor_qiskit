@@ -492,18 +492,21 @@ Named rather than glossed:
   2.12n. It is probabilistic; everything built here is exact.
   `ec_eea.shrink_schedule` computes the widths it would use so `ec_cost` can
   price it, and the gap is reported rather than hidden.
-- **Gidney's dirty-ancilla constant adder** [Gid25]. Constant addition here uses
-  clean ancillas: correct, and more qubits than the paper's accounting.
+- **Whole-oracle low-space dynamic arithmetic** [Gid25]. The opt-in dirty-ancilla
+  constant adder is composed into controlled modular constant addition and a
+  toy affine ECDLP oracle, but only four point-add steps use it. The complete
+  oracle saves no qubits over the unitary baseline.
 - The **Fig 1 compression circuit** is built from a generic permutation, so it
   costs **57 Toffoli-equivalents per triple against the paper's 5** — an order of
   magnitude worse. It compresses correctly (all 27 valid patterns, verified) and
   the paper calls this cost negligible against the arithmetic, so it moves no
   headline number; but if you want the paper's constant, this is the circuit to
   replace.
-- **The paper-specific Ed25519 extension** attributed to 106 §4.4 is not
-  verified against the inaccessible full paper. A separate standard complete
-  extended-Edwards toy circuit is implemented and Aer-tested; it is not an
-  Ed25519-scale benchmark or a Kim-paper resource claim.
+- **Ed25519-scale resource reproduction** for 106 §4.4. Its mixed
+  extended-Edwards seven-product law and three-constant windowed QROM are
+  now verified against the paper and tested end to end at toy size. The
+  measured toy gate counts do not implement the paper's 255-bit QCSA
+  synthesis or reproduce its Table 4 estimates.
 - **Physical-level estimates** (surface codes, QLDPC, runtime) from 106 §6.2.
   This package stops at the logical layer.
 

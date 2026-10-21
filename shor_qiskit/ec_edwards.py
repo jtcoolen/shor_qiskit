@@ -2,12 +2,12 @@
 
 Scope, stated first because it is easy to over-read
 ---------------------------------------------------
-This is a *toy*, standard-literature construction.  It is NOT an implementation
-of Kim, ePrint 2026/106 Sec 4.4 (whose full text could not be retrieved here,
-so nothing in this file is claimed to follow it), and it is NOT Ed25519: the
-field is tiny (p = 5 or 13) so that every basis state can be simulated and the
-whole Shor circuit can be sampled on Aer.  Nothing here says anything about
-cryptographic-size cost.
+This is a *toy* construction: the field is tiny (p = 5 or 13) so that every
+basis state can be simulated and the whole Shor circuit can be sampled on Aer.
+Its mixed addition uses the same seven products as Kim et al., ePrint 2026/106
+Sec 4.4, but selects each classical addend with controlled constant arithmetic,
+not the paper's three-register windowed QROM. It does not implement Ed25519-scale
+arithmetic, the paper's QCSA multiplier or its resource schedule.
 
 Sources for the formulas
 ------------------------
@@ -17,6 +17,9 @@ Sources for the formulas
   it add-2008-hwcd-3).  It is complete when a is a square and d is not.
 * RFC 8032 Sec 5.1.4 states the same a = -1 extended addition for Ed25519
   (p = 2^255 - 19, which is 1 mod 4 so a = -1 is a square, and d non-square).
+* Kim et al., ePrint 2026/106 Sec 4.4 and Fig. 11 use the same mixed
+  fixed-affine-addend formula and count three constant and four variable
+  products. Their windowed lookup selects (y-x, y+x, 2dxy).
 
 The law, for a = -1 and k = 2d:
 

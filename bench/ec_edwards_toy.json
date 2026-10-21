@@ -1,5 +1,5 @@
 {
-  "scope": "toy only; standard complete extended twisted-Edwards (HWCD 2008 add-2008-hwcd-3 / RFC 8032 5.1.4) a=-1; NOT Kim ePrint 2026/106 Sec 4.4 (unverified, PDF inaccessible); NOT Ed25519 scale; no Pareto claim",
+  "scope": "toy only; complete extended twisted-Edwards mixed addition (HWCD 2008 / RFC 8032 5.1.4), also Kim ePrint 2026/106 Sec 4.4 seven-product law; constants selected by controlled arithmetic, not Kim's three-register windowed lookup; NOT Ed25519 scale or Table 4 QCSA synthesis; no Pareto claim",
   "curve": {
     "p": 5,
     "a": -1,

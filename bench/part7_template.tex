@@ -507,8 +507,9 @@ $n=32$, since the copy needs a register of its own.
 For a classical constant offset, the separate module
 \code{gidney\_dirty\_adder} implements Gidney's dynamic $3n\pm O(1)$ construction with two clean
 and $n-2$ dirty ancillas. It vents carries by mid-circuit measurement and repairs their phases by
-classical feed-forward. This path is not composed into the unitary modular adders above: it has no
-unitary inverse and requires a backend that supports dynamic circuits.
+classical feed-forward. It is not a drop-in replacement for a unitary adder:
+the opt-in modular composition and its toy affine oracle below use forward
+subtraction circuits instead of reversing measurements.
 
 \subsection{Level 0: temporary ANDs}\label{ec:sec:fastand}
 
@@ -1350,14 +1351,59 @@ basis-checked Bennett circuits; no Weierstrass arithmetic Pareto
 comparison is inferred.
 \end{center}
 
+\subsection{Dynamic dirty-ancilla modular addition in a toy affine oracle}
+\label{ec:sec:dynamic-modadd}
+
+Gidney's measured-carry constant adder \cite{ec:gidney25} has now been composed
+into an \emph{opt-in} controlled addition $y\mapsto y+[c]k\bmod p$ in
+\code{ec\_dynamic\_modarith.py}. A signed offset first computes the reduction
+flag; a second conditional addition restores the modulus where needed; a
+carry-out computation erases the flag. The dirty workspace is returned in
+its original state even when entangled with other registers. Every measured
+carry is corrected by classical feed-forward before reuse. The inverse
+operation is a \emph{new forward} addition of $p-k$, not an attempt to invert
+a measurement; this matters when the affine point-add circuit erases its
+input. The hybrid oracle selects the dynamic path only at four
+constant-addition steps and leaves the other eleven arithmetic steps unitary.
+It does not make the whole affine construction a low-space dynamic circuit.
+
+For the $p=7$, $k=1$ controlled modular-add \emph{component}, the unitary
+construction costs $15$ paper-convention Toffoli/AND operations and ten
+clean ancillas; the dynamic construction costs $18$ Toffolis, three clean
+ancillas, two borrowed dirty ancillas and eleven measured carries. These
+are \emph{component} workspace counts, not complete-oracle widths. For the
+same $p=7$ divsteps affine ECDLP oracle, the recorded comparison is
+$63$ qubits and $31\,488$ versus $63$ qubits and $31\,456$ paper-convention
+Toffoli/AND operations (unitary versus hybrid), with $108$ additional
+X-basis measurements for the hybrid. The $32$-operation reduction is small;
+the whole oracle does \emph{not} save a qubit. Both oracle variants pass
+all $16$ control-register basis inputs and all measurement-branch
+phase/cleanup checks. The hybrid's $1\,024$-shot Aer CPU/MPS run recovers
+$k=4$, with TVD $0.0479$ against a $0.0791$ shot-noise bound.
+The alternative Kaliski hybrid has $67$ qubits and is basis/branch
+checked only, exceeding this host's $63$-qubit simulator limit.
+Counts and sampled metadata are in \path{bench/ec_dynamic_modarith.json}.
+Since a measured-carry gate's physical cost differs from the
+paper-convention count, none of these numbers establish a physical
+runtime improvement.
+\begin{center}
+\includegraphics[width=\linewidth]{bench/ec_dynamic_composition.png}
+\par\smallskip\footnotesize
+\textbf{Dynamic modular composition.} Left: clean workspace (solid),
+borrowed dirty workspace (hatched), and Toffolis (dashed, right scale) for
+one controlled add. Right: equal-task whole-oracle costs, with unchanged
+width. These are separate comparisons, not a new cross-task Pareto frontier.
+Reproduce with \path{venv/bin/python bench/plot_optimisation_frontiers.py}.
+\end{center}
+
 \section{What is not here}\label{ec:sec:gaps}
 
 Named rather than glossed:
 
 \begin{itemize}\setlength\itemsep{2pt}
-\item \textbf{Composing Gidney's dirty-ancilla adder} \cite{ec:gidney25} into the modular
-arithmetic. The standalone dynamic adder is implemented, but the surrounding arithmetic still
-requires unitary inverse emission and does not yet use it.
+\item \textbf{A fully dynamic low-space arithmetic oracle.} The opt-in
+composition above covers constant additions, not the other eleven
+arithmetic steps; it leaves the complete-oracle width unchanged.
 \item \textbf{The paper-specific Ed25519 extension} attributed to
 \cite{ec:kim26} Sec.~4.4 is still unverified because the full text was
 unavailable. The standard toy extended-Edwards circuit above does not

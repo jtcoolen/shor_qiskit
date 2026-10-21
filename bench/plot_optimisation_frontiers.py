@@ -1,7 +1,7 @@
 """Reproduce the toy optimisation figures from saved end-to-end benchmarks.
 
 Run: venv/bin/python bench/plot_optimisation_frontiers.py
-The three tasks are deliberately plotted separately; component-only schedules,
+The tasks are deliberately plotted separately; component-only schedules,
 unsampled affine rows, and CFS's different factoring task are not Aer-certified
 points on the windowed ECDLP frontier.
 """
@@ -118,9 +118,55 @@ def rns_figure():
     return fig
 
 
+def dynamic_figure():
+    """Show component workspace separately from full-oracle costs."""
+    report = _report("ec_dynamic_modarith.json")
+    component = next(row for row in report["modadd"]
+                     if row["p"] == 7 and row["k"] == 1)
+    oracle = report["oracle"]["divsteps"]
+    fig, axes = plt.subplots(1, 2, figsize=(10, 3.8),
+                             layout="constrained")
+    labels = ("unitary", "dynamic")
+    pos = (0, 1)
+    axes[0].bar(pos, (component["unitary"]["ancilla_qubits"],
+                       component["dynamic"]["clean_ancilla"]),
+                color=("#6992b8", "#147d65"), label="clean workspace")
+    axes[0].bar(1, component["dynamic"]["dirty_borrowed"],
+                bottom=component["dynamic"]["clean_ancilla"],
+                facecolor="none", edgecolor="#147d65", hatch="///",
+                label="borrowed dirty workspace")
+    axes[0].set(xticks=pos, xticklabels=labels, ylabel="ancilla wires",
+                title="p=7 controlled add +1 (component)")
+    ax_cost = axes[0].twinx()
+    costs = (component["unitary"]["toffoli_paper"],
+             component["dynamic"]["toffoli"])
+    ax_cost.plot(pos, costs, "ko--", markersize=6)
+    ax_cost.set_ylabel("Toffolis", color="black")
+    axes[1].bar(pos, (oracle["toffoli_unitary"],
+                       oracle["toffoli_dynamic"]),
+                color=("#6992b8", "#147d65"))
+    axes[1].set(xticks=pos, xticklabels=labels, ylabel="Toffolis",
+                title="p=7 divsteps affine ECDLP (same oracle)")
+    axes[1].ticklabel_format(axis="y", style="plain", useOffset=False)
+    axes[1].set_ylim(0, max(oracle["toffoli_unitary"],
+                            oracle["toffoli_dynamic"]) * 1.18)
+    axes[1].text(.5, .97,
+                 f"{oracle['qubits_unitary']} qubits each; "
+                 f"dynamic: {oracle['vent_measurements']} X measurements",
+                 ha="center", va="top", transform=axes[1].transAxes, fontsize=8)
+    fig.suptitle("Dirty-ancilla modular composition: component space, "
+                 "no oracle-level width saving")
+    fig.text(.25, -.04,
+             "Solid = clean workspace; hatched = borrowed dirty wires; "
+             "dashed = component Toffolis (right axis).",
+             ha="center", fontsize=8)
+    return fig
+
+
 if __name__ == "__main__":
     for stem, figure in (("ec_optimisation_frontiers", ec_figure()),
-                         ("rns_order_frontier", rns_figure())):
+                         ("rns_order_frontier", rns_figure()),
+                         ("ec_dynamic_composition", dynamic_figure())):
         output = HERE / f"{stem}.pdf"
         figure.savefig(output, bbox_inches="tight")
         figure.savefig(HERE / f"{stem}.png", dpi=160, bbox_inches="tight")

@@ -5,11 +5,72 @@ from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 
 from _ec_util import ok, section
-from ec_packed_euclid import binary_divmod, rotate_word_if, swap_at
+from ec_packed_euclid import binary_divmod, rotate_word_if, shift_work2, swap_at
 from ec_sim import Machine, run
 
 
 def main():
+    section("coherent Work2 shifts with moving position counter")
+    for direction, steps in (("left", 1), ("right", 1),
+                             ("left", 2), ("right", 2)):
+        m = Machine("toffoli")
+        word, shift, control = (
+            m.alloc(3, "word"), m.alloc(3, "shift"), m.alloc(1, "control"))
+        shift_work2(m, word, shift, control[0], direction, steps)
+        for value in range(8):
+            for old_shift in range(2, 5):
+                for enabled in (0, 1):
+                    result = run(m, {word: value, shift: old_shift,
+                                     control: enabled})
+                    count = steps if enabled else 0
+                    if direction == "left":
+                        expected_word = ((value << count) |
+                                         (value >> (3 - count))) & 7
+                        expected_shift = old_shift + count
+                    else:
+                        expected_word = ((value >> count) |
+                                         (value << (3 - count))) & 7
+                        expected_shift = old_shift - count
+                    assert (result(word), result(shift), result(control)) == (
+                        expected_word, expected_shift, enabled)
+        ok(f"Work2 {direction} x{steps}: counters and words clean")
+
+    m = Machine("and")
+    word, shift, control = (
+        m.alloc(3, "word"), m.alloc(3, "shift"), m.alloc(1, "control"))
+    shift_work2(m, word, shift, control[0], "left")
+    qc = QuantumCircuit(*m.qc.qregs)
+    qc.x(word[0])
+    qc.x(shift[1])
+    qc.h(control[0])
+    qc.compose(m.qc, inplace=True)
+    got = np.asarray(Statevector.from_instruction(qc))
+    want = np.zeros_like(got)
+    for value, counter, enabled in ((1, 2, 0), (2, 3, 1)):
+        basis = sum(((number >> bit) & 1) << qc.find_bit(reg[bit]).index
+                    for reg, number in ((word, value), (shift, counter),
+                                        (control, enabled))
+                    for bit in range(len(reg)))
+        want[basis] = 2 ** -0.5
+    assert abs(np.vdot(got, want)) > 1 - 1e-9
+    assert np.max(np.abs(got[want == 0])) < 1e-9
+    ok("Work2 counter and rotation preserve coherent relative phases")
+    for bad_word, bad_steps in (([], 1), (word, 1.0), (word, True)):
+        try:
+            shift_work2(m, bad_word, shift, control[0], "left", bad_steps)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("invalid shift should be rejected")
+    paper = Machine("and")
+    word8, small_shift, paper_control = (
+        paper.alloc(8, "paper_width_work2"),
+        paper.alloc(3, "paper_shift"), paper.alloc(1, "paper_control"))
+    shift_work2(paper, word8, small_shift, paper_control[0], "left")
+    assert run(paper, {word8: 1, small_shift: 4,
+                       paper_control: 1})(small_shift) == 5
+    ok("paper-sized eight-wire word accepts a three-bit shift counter")
+
     section("conditional packed-workspace circular shifts")
     for width in (2, 3, 4):
         for direction in ("left", "right"):

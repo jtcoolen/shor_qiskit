@@ -54,6 +54,28 @@ def rotate_word_if(m, word, control, direction):
         m.ctx.cswap(control, word[i], word[i + 1])
 
 
+def shift_work2(m, word, shift, control, direction, steps=1):
+    """Rotate Work2 and update its coherent shift counter together.
+
+    Algorithms 2-3 use one-position pre/post shifts and two-position
+    corrections. The caller must ensure the counter does not overflow its
+    promised live range; modulo-register wrapping is not a valid boundary.
+    """
+    if (not word or not shift or type(steps) is not int
+            or not 1 <= steps <= 2
+            or len(set(word + shift + [control])) != len(word) + len(shift) + 1
+            or direction not in ("left", "right")):
+        raise ValueError("Work2 shift needs a nonempty word, counter, separate "
+                         "control and a one- or two-position direction")
+    cp = m.anc(len(shift), "constant")
+    carry = m.anc(len(shift), "carry")
+    for _ in range(steps):
+        rotate_word_if(m, word, control, direction)
+    A.cadd_const(m.ctx, control, shift,
+                 steps if direction == "left" else -steps, cp, carry)
+    m.free(cp, carry)
+
+
 def binary_divmod(m, numerator, denominator, quotient, remainder):
     """XOR quotient and remainder of numerator / denominator into clean outputs.
 

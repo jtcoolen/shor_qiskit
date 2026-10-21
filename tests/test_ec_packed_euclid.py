@@ -5,11 +5,48 @@ from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 
 from _ec_util import ok, section
-from ec_packed_euclid import binary_divmod, swap_at
+from ec_packed_euclid import binary_divmod, rotate_word_if, swap_at
 from ec_sim import Machine, run
 
 
 def main():
+    section("conditional packed-workspace circular shifts")
+    for width in (2, 3, 4):
+        for direction in ("left", "right"):
+            m = Machine("toffoli")
+            word, control = m.alloc(width, "word"), m.alloc(1, "control")
+            rotate_word_if(m, word, control[0], direction)
+            for value in range(1 << width):
+                for enabled in (0, 1):
+                    result = run(m, {word: value, control: enabled})
+                    rotated = (((value << 1) | (value >> (width - 1)))
+                               & ((1 << width) - 1) if direction == "left"
+                               else (value >> 1) | ((value & 1) << (width - 1)))
+                    assert (result(word), result(control)) == (
+                        rotated if enabled else value, enabled)
+            ok(f"width={width} {direction}: every word/control exact")
+    m = Machine("and")
+    word, control = m.alloc(3, "word"), m.alloc(1, "control")
+    rotate_word_if(m, word, control[0], "left")
+    qc = QuantumCircuit(*m.qc.qregs)
+    qc.x(word[0])
+    qc.h(control[0])
+    qc.compose(m.qc, inplace=True)
+    got = np.asarray(Statevector.from_instruction(qc))
+    want = np.zeros_like(got)
+    for value, enabled in ((1, 0), (2, 1)):
+        basis = (value << qc.find_bit(word[0]).index) | (
+            enabled << qc.find_bit(control[0]).index)
+        want[basis] = 2 ** -0.5
+    assert abs(np.vdot(got, want)) > 1 - 1e-9
+    ok("coherent conditional rotation preserves phase and word layout")
+    try:
+        rotate_word_if(m, [word[0], word[1], word[0]], control[0], "right")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("repeated word bits must be rejected")
+
     section("coherent indexed swap for packed-word boundaries")
     for width in (2, 3):
         m = Machine("toffoli")

@@ -36,6 +36,24 @@ def swap_at(m, word, index, flag):
     m.free(selected)
 
 
+def rotate_word_if(m, word, control, direction):
+    """Conditionally rotate a packed work word by one physical wire.
+
+    Luo et al. Alg. 3 uses this reversible circular shift while the live
+    coefficient and remainder boundaries move. A rotation alone does not
+    update those boundaries or implement the full packed walk.
+    """
+    if (direction not in ("left", "right") or not word
+            or control in word or len(set(word)) != len(word)):
+        raise ValueError("rotation needs unique word wires and a disjoint control")
+    if direction == "left":
+        positions = range(len(word) - 2, -1, -1)
+    else:
+        positions = range(len(word) - 1)
+    for i in positions:
+        m.ctx.cswap(control, word[i], word[i + 1])
+
+
 def binary_divmod(m, numerator, denominator, quotient, remainder):
     """XOR quotient and remainder of numerator / denominator into clean outputs.
 

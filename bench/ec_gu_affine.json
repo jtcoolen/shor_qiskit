@@ -1,0 +1,49 @@
+{
+  "task": "affine arithmetic ECDLP p=5, order=3, k=2, m_bits=2",
+  "shots": 1024,
+  "seed": 5,
+  "device": "CPU",
+  "aer_limit": 63,
+  "tvd_limit": 0.078125,
+  "rows": [
+    {
+      "label": "kaliski",
+      "qubits": 67,
+      "toffoli_paper": 10976,
+      "depth": 46911,
+      "t": 50336,
+      "basis_cases": 16,
+      "aer": "not sampled: 67 > 63 Aer CPU qubits",
+      "tvd": null
+    },
+    {
+      "label": "kaliski-opt",
+      "qubits": 71,
+      "toffoli_paper": 13336,
+      "depth": 51421,
+      "t": 64096,
+      "basis_cases": 16,
+      "aer": "not sampled: 71 > 63 Aer CPU qubits",
+      "tvd": null
+    },
+    {
+      "label": "divsteps",
+      "qubits": 63,
+      "toffoli_paper": 19384,
+      "depth": 71393,
+      "t": 103168,
+      "basis_cases": 16,
+      "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+      "tvd": 0.032227
+    }
+  ],
+  "metrics": [
+    "qubits",
+    "toffoli_paper",
+    "depth"
+  ],
+  "frontier": [
+    "kaliski",
+    "divsteps"
+  ]
+}

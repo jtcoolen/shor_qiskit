@@ -11,6 +11,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "bench"))
 D = json.loads((ROOT / "bench" / "ec_ablation.json").read_text())
 PARETO = json.loads((ROOT / "bench" / "ec_pareto.json").read_text())
+GU_AFFINE = json.loads((ROOT / "bench" / "ec_gu_affine.json").read_text())
 V = lambda s: D[s]["variants"]
 
 import ec_listings as L
@@ -49,6 +50,19 @@ def num(v):
     while len(s) > 3:
         out, s = "\\," + s[-3:] + out, s[:-3]
     return s + out
+
+
+def rows_gu_affine():
+    rows = []
+    for row in GU_AFFINE["rows"]:
+        sample = (f"TVD ${row['tvd']:.3f}$"
+                  if row["tvd"] is not None else "not sampled")
+        rows.append(
+            f"{row['label']} & ${row['qubits']}$ & "
+            f"${num(row['toffoli_paper'])}$ & ${num(row['depth'])}$ & "
+            f"{sample} & "
+            f"{'yes' if row['label'] in GU_AFFINE['frontier'] else 'no'}\\\\")
+    return "\n".join(rows)
 
 
 def pct(new, old):
@@ -224,6 +238,34 @@ def rows_space():
 # ---- values quoted in prose, so they too come from the benchmark ----------
 def facts():
     f = {}
+    gu = next(row for row in GU_AFFINE["rows"] if row["label"] == "divsteps")
+    if gu["tvd"] is None:
+        raise ValueError("Gu divsteps documentation requires an Aer measurement")
+    f["gu_shots"] = num(GU_AFFINE["shots"])
+    f["gu_width"] = gu["qubits"]
+    f["gu_tvd"] = f"{gu['tvd']:.3f}"
+    f["gu_bound"] = f"{GU_AFFINE['tvd_limit']:.3f}"
+    skipped = [row["label"] for row in GU_AFFINE["rows"]
+               if row["tvd"] is None]
+    skipped_names = " and ".join("\\code{" + label + "}" for label in skipped)
+    f["gu_sampling"] = (
+        f"Only divsteps fits this run's Aer {GU_AFFINE['device']} limit "
+        f"of ${GU_AFFINE['aer_limit']}$ qubits; its"
+        if len(skipped) == 2 else
+        f"On Aer {GU_AFFINE['device']}, the divsteps circuit's"
+    )
+    f["gu_unsampled"] = (
+        f"The {skipped_names} "
+        f"{'row has' if len(skipped) == 1 else 'rows have'} "
+        "\\emph{not} been sampled on Aer for this task."
+        if skipped else "All three rows were sampled on Aer for this task."
+    )
+    f["gu_device_note"] = (
+        "The Aer measurement above ran on CPU/MPS, not CUDA GPU; rerun "
+        "on a CUDA host remains pending." if GU_AFFINE["device"] == "CPU" else
+        "The saved benchmark reports a CUDA Aer GPU run, rather than "
+        "claiming GPU validation from a CPU measurement."
+    )
     dv = D["_derivation"]
     f["deriv_offset"] = "yes" if dv["offset_invisible"] else "NO"
     r5 = [e for e in dv["real"] if e["r"] == 5]
@@ -297,7 +339,8 @@ if __name__ == "__main__":
             "ADDERS": rows_adders(), "MODARITH": rows_modarith(), "MUL": rows_mul(),
             "INV": rows_inv(), "DIALOG": rows_dialog(), "PADD": rows_padd(),
             "TEMPAND": rows_tempand(), "WINDOW": rows_window(),
-            "PARETO": rows_pareto(), "FULL": rows_full(),
+            "PARETO": rows_pareto(), "GUAFFINE": rows_gu_affine(),
+            "FULL": rows_full(),
             "SPACE": rows_space()}
     for k, v in subs.items():
         tpl = tpl.replace(f"%%{k}%%", v)

@@ -3061,6 +3061,11 @@ fault-tolerance overhead priced in Part~III's bill.
 
 
 
+
+
+
+
+
 \clearpage
 \part*{Part VII --- The other Shor: elliptic-curve discrete logarithms}
 \addcontentsline{toc}{part}{Part VII --- The other Shor: elliptic-curve discrete logarithms}
@@ -4411,8 +4416,43 @@ probabilistic register sharing remain separate opt-in techniques, not part of
 the measured windowed circuits. The full-circuit reference-affine oracle
 below is likewise \emph{not} a point on this windowed frontier.
 Gu et al.\ \cite{ec:gu26} propose a different, reversible divsteps
-prime-field inversion architecture for affine point addition. This repository
-does not implement that backend: none of these rows is a Gu divsteps result.
+prime-field inversion architecture for affine point addition. The
+\code{divsteps} selector now implements its exact signed $(z,f,g)$ recurrence
+and coefficient updates on toy primes up to $127$, with a fixed-length schedule
+chosen by enumerating toy-field units. Branch decisions are retained on
+qubits; the modular result is halved once for each recorded active step to
+remove the $2^t$ factor, then the gate walk is reversed to clean the
+history and arithmetic ancillas. Exhaustive toy tests check Appendix~A's
+integer determinant, scaling, branch decoder and reverse recurrence; a
+separate binary-long-division Euclidean reference checks SI~II.2's quotient
+arithmetic. The latter is \emph{not} a packed-Euclidean quantum backend.
+
+The following \emph{separate affine frontier} holds the complete ECDLP task
+fixed at $p=5$, order $3$, $k=2$, and two control bits per scalar. All three
+affine oracles pass every one of their $16$ arithmetic basis-state checks.
+Only divsteps fits this run's Aer CPU limit of $63$ qubits; its $1\,024$-shot full superposition/QFT/measurement
+run on $63$
+qubits recovers $k=2$ and has TVD $0.032$ against an exact-distribution
+shot-noise bound $0.078$.
+The \code{kaliski} and \code{kaliski-opt} rows have \emph{not} been sampled on Aer for this task. The last column reports three-metric resource nondominance, not
+end-to-end Aer certification for the unsampled rows:
+\begin{center}\footnotesize\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+affine inverse & qubits & Toffoli & depth & Aer sampling & frontier\\
+\midrule
+kaliski & $67$ & $10\,976$ & $46\,911$ & not sampled & yes\\
+kaliski-opt & $71$ & $13\,336$ & $51\,421$ & not sampled & no\\
+divsteps & $63$ & $19\,384$ & $71\,393$ & TVD $0.032$ & yes\\
+\bottomrule
+\end{tabular}
+\end{center}
+The p=5 affine task is not comparable with the p=7 windowed frontier above.
+The toy branch-history circuit does \emph{not} yet implement Gu's
+history-compressed branch decoder, two-register packed layout, specialised
+packed-Euclidean circuit, fused coordinate arithmetic or bounded-error
+256-bit schedule; no cryptographic-size resource claim follows.
+The Aer measurement above ran on CPU/MPS, not CUDA GPU; rerun on a CUDA host remains pending.
 Likewise, ECDSA.Fail's lane-lifetime refinements, general constant
 propagation and post-generation dead-code elimination are not represented
 by a selectable, end-to-end measured point-adder backend here. The separate

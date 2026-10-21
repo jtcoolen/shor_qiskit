@@ -47,13 +47,16 @@ report how many, rather than quietly passing.
 Backend selection
 -----------------
 `multiplier` may be `reference`, `montgomery-qcsa`, or `montgomery-lookup`;
-`inversion` may be `kaliski` or `kaliski-opt`. Montgomery multiplication
+`inversion` may be `kaliski`, `kaliski-opt`, or `divsteps`. Montgomery multiplication
 converts the ordinary field residues at its boundary, so the point-adder
 formula remains unchanged. The optimized inverse likewise converts its
 Montgomery-scaled result back to an ordinary residue.
+The toy-width `divsteps` inversion uses an exact fixed schedule with explicit
+branch history; it is not the packed/history-compressed Gu circuit.
 """
 
 import ec_adders as A
+import ec_divsteps as D
 import ec_kaliski as K
 import ec_kaliski_opt as KO
 import ec_modarith as MA
@@ -153,10 +156,13 @@ def _modmul_add(m, x, y, acc, p, multiplier, word_size):
 
 def _moddiv(m, q, x, y, out, p, multiplier, word_size, inversion):
     n = len(x)
-    if inversion not in ("kaliski", "kaliski-opt"):
+    if inversion not in ("kaliski", "kaliski-opt", "divsteps"):
         raise ValueError(f"unknown inversion backend {inversion!r}")
 
     def build_inverse(machine, src, dst, modulus, ctrl):
+        if inversion == "divsteps":
+            D.mod_inv(machine, src, dst, modulus, ctrl)
+            return []
         if inversion == "kaliski":
             recs, counter = K.mod_inv(machine, src, dst, modulus, ctrl=ctrl)
             garbage = [bit for record in recs for bit in record]

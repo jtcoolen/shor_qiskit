@@ -1,0 +1,978 @@
+{
+ "scope": "toy only (p = 5, n = 3 bits): Kim ePrint 2026/106 Sec 4.4 out-of-place mixed extended-Edwards addition with the three addend constants loaded by a coherent windowed QROM, inside a full Shor ECDLP circuit; compared with the ec_edwards controlled-Horner baseline. NOT Ed25519 scale, NOT the paper's QCSA/ProjectQ synthesis; no Pareto claim",
+ "resource_convention": "toffoli_paper = Toffoli + AND + CSWAP of the whole oracle (ec_cost.count); 'toffoli' mode: ANDs and their uncompute both as ccx; 'and' mode: measurement-based AND-dagger; qubits = allocated circuit qubits incl. u, v, output",
+ "like_for_like": "kim-qrom w=1, first_lookup=False performs the same 6 additions as horner (accumulator from identity); first_lookup=True replaces the first u window by a QROM load straight into the accumulator",
+ "curve": {
+  "p": 5,
+  "a": -1,
+  "d": 3,
+  "points": 8,
+  "P": [
+   1,
+   2
+  ],
+  "Q": [
+   4,
+   3
+  ],
+  "k": 5,
+  "order": 8,
+  "m_bits": 3
+ },
+ "aer_limit_qubits": 63,
+ "oracles": [
+  {
+   "adder": "horner",
+   "style": "inplace",
+   "layout": null,
+   "w": null,
+   "first_lookup": null,
+   "toffoli": {
+    "qubits": 54,
+    "peak_live": 48,
+    "toffoli_paper": 45528,
+    "gates": 178201,
+    "depth": 128385
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 0,
+   "and": {
+    "qubits": 54,
+    "peak_live": 48,
+    "toffoli_paper": 23104,
+    "gates": 178201,
+    "depth": 128385
+   },
+   "aer_runs": [
+    {
+     "mode": "toffoli",
+     "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+     "circuit_qubits": 54,
+     "shots": 4000,
+     "seed": 3,
+     "recovered_k": 5,
+     "scratch_qubits_measured": 42,
+     "scratch_all_zero_shots": 4000,
+     "tvd": 0.0165,
+     "tvd_noise_bound": 0.035,
+     "wall_seconds": 11.8
+    }
+   ]
+  },
+  {
+   "adder": "horner",
+   "style": "bennett",
+   "layout": null,
+   "w": null,
+   "first_lookup": null,
+   "toffoli": {
+    "qubits": 117,
+    "peak_live": 105,
+    "toffoli_paper": 18026,
+    "gates": 71252,
+    "depth": 50275
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 72,
+   "and": {
+    "qubits": 117,
+    "peak_live": 105,
+    "toffoli_paper": 9136,
+    "gates": 71252,
+    "depth": 50275
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 117 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "inplace",
+   "layout": "compact",
+   "w": 1,
+   "first_lookup": true,
+   "toffoli": {
+    "qubits": 63,
+    "peak_live": 57,
+    "toffoli_paper": 47300,
+    "gates": 182733,
+    "depth": 131761
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 0,
+   "mixed_additions": 5,
+   "windows": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 63,
+    "peak_live": 57,
+    "toffoli_paper": 24040,
+    "gates": 182733,
+    "depth": 131761
+   },
+   "aer_runs": [
+    {
+     "mode": "toffoli",
+     "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+     "circuit_qubits": 63,
+     "shots": 4000,
+     "seed": 3,
+     "recovered_k": 5,
+     "scratch_qubits_measured": 51,
+     "scratch_all_zero_shots": 4000,
+     "tvd": 0.0165,
+     "tvd_noise_bound": 0.035,
+     "wall_seconds": 65.5
+    }
+   ]
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "inplace",
+   "layout": "compact",
+   "w": 1,
+   "first_lookup": false,
+   "toffoli": {
+    "qubits": 63,
+    "peak_live": 57,
+    "toffoli_paper": 56760,
+    "gates": 219289,
+    "depth": 158113
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 0,
+   "mixed_additions": 6,
+   "windows": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 63,
+    "peak_live": 57,
+    "toffoli_paper": 28848,
+    "gates": 219289,
+    "depth": 158113
+   },
+   "aer_runs": [],
+   "aer": "unsampled: CPU time budget (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "inplace",
+   "layout": "compact",
+   "w": 2,
+   "first_lookup": true,
+   "toffoli": {
+    "qubits": 63,
+    "peak_live": 57,
+    "toffoli_paper": 28416,
+    "gates": 109774,
+    "depth": 79145
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 0,
+   "mixed_additions": 3,
+   "windows": [
+    2,
+    1,
+    2,
+    1
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 63,
+    "peak_live": 57,
+    "toffoli_paper": 14442,
+    "gates": 109774,
+    "depth": 79145
+   },
+   "aer_runs": [
+    {
+     "mode": "toffoli",
+     "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+     "circuit_qubits": 63,
+     "shots": 4000,
+     "seed": 3,
+     "recovered_k": 5,
+     "scratch_qubits_measured": 51,
+     "scratch_all_zero_shots": 4000,
+     "tvd": 0.0165,
+     "tvd_noise_bound": 0.035,
+     "wall_seconds": 336.5
+    }
+   ]
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "inplace",
+   "layout": "compact",
+   "w": 2,
+   "first_lookup": false,
+   "toffoli": {
+    "qubits": 63,
+    "peak_live": 57,
+    "toffoli_paper": 37904,
+    "gates": 146433,
+    "depth": 105585
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 0,
+   "mixed_additions": 4,
+   "windows": [
+    2,
+    1,
+    2,
+    1
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 63,
+    "peak_live": 57,
+    "toffoli_paper": 19264,
+    "gates": 146433,
+    "depth": 105585
+   },
+   "aer_runs": [],
+   "aer": "unsampled: CPU time budget (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "inplace",
+   "layout": "compact",
+   "w": 3,
+   "first_lookup": true,
+   "toffoli": {
+    "qubits": 63,
+    "peak_live": 57,
+    "toffoli_paper": 9568,
+    "gates": 36949,
+    "depth": 26641
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 0,
+   "mixed_additions": 1,
+   "windows": [
+    3,
+    3
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 63,
+    "peak_live": 57,
+    "toffoli_paper": 4862,
+    "gates": 36949,
+    "depth": 26641
+   },
+   "aer_runs": [
+    {
+     "mode": "toffoli",
+     "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+     "circuit_qubits": 63,
+     "shots": 4000,
+     "seed": 3,
+     "recovered_k": 5,
+     "scratch_qubits_measured": 51,
+     "scratch_all_zero_shots": 4000,
+     "tvd": 0.0165,
+     "tvd_noise_bound": 0.035,
+     "wall_seconds": 203.4
+    },
+    {
+     "mode": "and",
+     "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+     "circuit_qubits": 63,
+     "shots": 4000,
+     "seed": 3,
+     "recovered_k": 5,
+     "scratch_qubits_measured": 51,
+     "scratch_all_zero_shots": 4000,
+     "tvd": 0.0165,
+     "tvd_noise_bound": 0.035,
+     "wall_seconds": 279.6
+    }
+   ]
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "inplace",
+   "layout": "compact",
+   "w": 3,
+   "first_lookup": false,
+   "toffoli": {
+    "qubits": 63,
+    "peak_live": 57,
+    "toffoli_paper": 19112,
+    "gates": 73817,
+    "depth": 53313
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 0,
+   "mixed_additions": 2,
+   "windows": [
+    3,
+    3
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 63,
+    "peak_live": 57,
+    "toffoli_paper": 9712,
+    "gates": 73817,
+    "depth": 53313
+   },
+   "aer_runs": [],
+   "aer": "unsampled: CPU time budget (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "inplace",
+   "layout": "paper",
+   "w": 1,
+   "first_lookup": true,
+   "toffoli": {
+    "qubits": 75,
+    "peak_live": 69,
+    "toffoli_paper": 45620,
+    "gates": 175173,
+    "depth": 125361
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 0,
+   "mixed_additions": 5,
+   "windows": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 75,
+    "peak_live": 69,
+    "toffoli_paper": 23200,
+    "gates": 175173,
+    "depth": 125361
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 75 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "inplace",
+   "layout": "paper",
+   "w": 1,
+   "first_lookup": false,
+   "toffoli": {
+    "qubits": 75,
+    "peak_live": 69,
+    "toffoli_paper": 54744,
+    "gates": 210217,
+    "depth": 150433
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 0,
+   "mixed_additions": 6,
+   "windows": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 75,
+    "peak_live": 69,
+    "toffoli_paper": 27840,
+    "gates": 210217,
+    "depth": 150433
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 75 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "inplace",
+   "layout": "paper",
+   "w": 2,
+   "first_lookup": true,
+   "toffoli": {
+    "qubits": 75,
+    "peak_live": 69,
+    "toffoli_paper": 27408,
+    "gates": 105238,
+    "depth": 75353
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 0,
+   "mixed_additions": 3,
+   "windows": [
+    2,
+    1,
+    2,
+    1
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 75,
+    "peak_live": 69,
+    "toffoli_paper": 13938,
+    "gates": 105238,
+    "depth": 75353
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 75 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "inplace",
+   "layout": "paper",
+   "w": 2,
+   "first_lookup": false,
+   "toffoli": {
+    "qubits": 75,
+    "peak_live": 69,
+    "toffoli_paper": 36560,
+    "gates": 140385,
+    "depth": 100529
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 0,
+   "mixed_additions": 4,
+   "windows": [
+    2,
+    1,
+    2,
+    1
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 75,
+    "peak_live": 69,
+    "toffoli_paper": 18592,
+    "gates": 140385,
+    "depth": 100529
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 75 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "inplace",
+   "layout": "paper",
+   "w": 3,
+   "first_lookup": true,
+   "toffoli": {
+    "qubits": 75,
+    "peak_live": 69,
+    "toffoli_paper": 9232,
+    "gates": 35437,
+    "depth": 25405
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 0,
+   "mixed_additions": 1,
+   "windows": [
+    3,
+    3
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 75,
+    "peak_live": 69,
+    "toffoli_paper": 4694,
+    "gates": 35437,
+    "depth": 25405
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 75 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "inplace",
+   "layout": "paper",
+   "w": 3,
+   "first_lookup": false,
+   "toffoli": {
+    "qubits": 75,
+    "peak_live": 69,
+    "toffoli_paper": 18440,
+    "gates": 70793,
+    "depth": 50841
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 0,
+   "mixed_additions": 2,
+   "windows": [
+    3,
+    3
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 75,
+    "peak_live": 69,
+    "toffoli_paper": 9376,
+    "gates": 70793,
+    "depth": 50841
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 75 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "bennett",
+   "layout": "compact",
+   "w": 1,
+   "first_lookup": true,
+   "toffoli": {
+    "qubits": 111,
+    "peak_live": 99,
+    "toffoli_paper": 19672,
+    "gates": 76342,
+    "depth": 54137
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 69,
+   "mixed_additions": 5,
+   "windows": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 111,
+    "peak_live": 99,
+    "toffoli_paper": 9992,
+    "gates": 76342,
+    "depth": 54137
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 111 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "bennett",
+   "layout": "compact",
+   "w": 1,
+   "first_lookup": false,
+   "toffoli": {
+    "qubits": 123,
+    "peak_live": 111,
+    "toffoli_paper": 23484,
+    "gates": 91140,
+    "depth": 64573
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 81,
+   "mixed_additions": 6,
+   "windows": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 123,
+    "peak_live": 111,
+    "toffoli_paper": 11928,
+    "gates": 91140,
+    "depth": 64573
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 123 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "bennett",
+   "layout": "compact",
+   "w": 2,
+   "first_lookup": true,
+   "toffoli": {
+    "qubits": 87,
+    "peak_live": 75,
+    "toffoli_paper": 12072,
+    "gates": 46828,
+    "depth": 33335
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 45,
+   "mixed_additions": 3,
+   "windows": [
+    2,
+    1,
+    2,
+    1
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 87,
+    "peak_live": 75,
+    "toffoli_paper": 6132,
+    "gates": 46828,
+    "depth": 33335
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 87 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "bennett",
+   "layout": "compact",
+   "w": 2,
+   "first_lookup": false,
+   "toffoli": {
+    "qubits": 99,
+    "peak_live": 87,
+    "toffoli_paper": 15892,
+    "gates": 61656,
+    "depth": 43745
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 57,
+   "mixed_additions": 4,
+   "windows": [
+    2,
+    1,
+    2,
+    1
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 99,
+    "peak_live": 87,
+    "toffoli_paper": 8072,
+    "gates": 61656,
+    "depth": 43745
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 99 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "bennett",
+   "layout": "compact",
+   "w": 3,
+   "first_lookup": true,
+   "toffoli": {
+    "qubits": 63,
+    "peak_live": 51,
+    "toffoli_paper": 4496,
+    "gates": 17396,
+    "depth": 12509
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 21,
+   "mixed_additions": 1,
+   "windows": [
+    3,
+    3
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 63,
+    "peak_live": 51,
+    "toffoli_paper": 2284,
+    "gates": 17396,
+    "depth": 12509
+   },
+   "aer_runs": [
+    {
+     "mode": "toffoli",
+     "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+     "circuit_qubits": 63,
+     "shots": 4000,
+     "seed": 3,
+     "recovered_k": 5,
+     "scratch_qubits_measured": 51,
+     "scratch_all_zero_shots": 4000,
+     "tvd": 0.0165,
+     "tvd_noise_bound": 0.035,
+     "wall_seconds": 45.1
+    },
+    {
+     "mode": "and",
+     "aer": "Aer CPU/matrix_product_state (no CUDA GPU on this host)",
+     "circuit_qubits": 63,
+     "shots": 4000,
+     "seed": 3,
+     "recovered_k": 5,
+     "scratch_qubits_measured": 51,
+     "scratch_all_zero_shots": 4000,
+     "tvd": 0.0165,
+     "tvd_noise_bound": 0.035,
+     "wall_seconds": 38.1
+    }
+   ]
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "bennett",
+   "layout": "compact",
+   "w": 3,
+   "first_lookup": false,
+   "toffoli": {
+    "qubits": 75,
+    "peak_live": 63,
+    "toffoli_paper": 8332,
+    "gates": 32288,
+    "depth": 23301
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 33,
+   "mixed_additions": 2,
+   "windows": [
+    3,
+    3
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 75,
+    "peak_live": 63,
+    "toffoli_paper": 4232,
+    "gates": 32288,
+    "depth": 23301
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 75 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "bennett",
+   "layout": "paper",
+   "w": 1,
+   "first_lookup": true,
+   "toffoli": {
+    "qubits": 123,
+    "peak_live": 111,
+    "toffoli_paper": 18832,
+    "gates": 72562,
+    "depth": 51047
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 69,
+   "mixed_additions": 5,
+   "windows": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 123,
+    "peak_live": 111,
+    "toffoli_paper": 9572,
+    "gates": 72562,
+    "depth": 51047
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 123 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "bennett",
+   "layout": "paper",
+   "w": 1,
+   "first_lookup": false,
+   "toffoli": {
+    "qubits": 135,
+    "peak_live": 123,
+    "toffoli_paper": 22476,
+    "gates": 86604,
+    "depth": 60835
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 81,
+   "mixed_additions": 6,
+   "windows": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 135,
+    "peak_live": 123,
+    "toffoli_paper": 11424,
+    "gates": 86604,
+    "depth": 60835
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 135 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "bennett",
+   "layout": "paper",
+   "w": 2,
+   "first_lookup": true,
+   "toffoli": {
+    "qubits": 99,
+    "peak_live": 87,
+    "toffoli_paper": 11568,
+    "gates": 44560,
+    "depth": 31683
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 45,
+   "mixed_additions": 3,
+   "windows": [
+    2,
+    1,
+    2,
+    1
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 99,
+    "peak_live": 87,
+    "toffoli_paper": 5880,
+    "gates": 44560,
+    "depth": 31683
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 99 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "bennett",
+   "layout": "paper",
+   "w": 2,
+   "first_lookup": false,
+   "toffoli": {
+    "qubits": 111,
+    "peak_live": 99,
+    "toffoli_paper": 15220,
+    "gates": 58632,
+    "depth": 41487
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 57,
+   "mixed_additions": 4,
+   "windows": [
+    2,
+    1,
+    2,
+    1
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 111,
+    "peak_live": 99,
+    "toffoli_paper": 7736,
+    "gates": 58632,
+    "depth": 41487
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 111 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "bennett",
+   "layout": "paper",
+   "w": 3,
+   "first_lookup": true,
+   "toffoli": {
+    "qubits": 75,
+    "peak_live": 63,
+    "toffoli_paper": 4328,
+    "gates": 16640,
+    "depth": 11891
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 21,
+   "mixed_additions": 1,
+   "windows": [
+    3,
+    3
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 75,
+    "peak_live": 63,
+    "toffoli_paper": 2200,
+    "gates": 16640,
+    "depth": 11891
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 75 qubits > 63-qubit Aer limit (basis-verified only)"
+  },
+  {
+   "adder": "kim-qrom",
+   "style": "bennett",
+   "layout": "paper",
+   "w": 3,
+   "first_lookup": false,
+   "toffoli": {
+    "qubits": 87,
+    "peak_live": 75,
+    "toffoli_paper": 7996,
+    "gates": 30776,
+    "depth": 22059
+   },
+   "basis_verified_all_64": true,
+   "retained_projective_qubits_peak": 33,
+   "mixed_additions": 2,
+   "windows": [
+    3,
+    3
+   ],
+   "qrom_constant_registers": 3,
+   "and": {
+    "qubits": 87,
+    "peak_live": 75,
+    "toffoli_paper": 4064,
+    "gates": 30776,
+    "depth": 22059
+   },
+   "aer_runs": [],
+   "aer": "unsampled: 87 qubits > 63-qubit Aer limit (basis-verified only)"
+  }
+ ],
+ "paper_table4_projection": {
+  "source": "Kim et al., ePrint 2026/106, Table 4 (Ed25519, n = 255, one point addition, ProjectQ resource counts)",
+  "note": "the paper's projections, quoted -- NOT measured here and not comparable to the toy counts (different field size, adders, gate set and depth-optimised layout)",
+  "sec4_1_inplace_via_weierstrass": {
+   "total_gates_log2": 28.07,
+   "qubits": 7038,
+   "t_depth": 144717,
+   "full_depth": 2182096,
+   "td_x_m_log2": 29.92,
+   "fd_x_m_log2": 33.84
+  },
+  "sec4_4_out_of_place_edwards": {
+   "total_gates_log2": 25.06,
+   "qubits": 64947,
+   "t_depth": 3577,
+   "full_depth": 42377,
+   "td_x_m_log2": 27.79,
+   "fd_x_m_log2": 31.36
+  }
+ }
+}

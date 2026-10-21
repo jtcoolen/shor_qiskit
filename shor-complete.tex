@@ -2427,6 +2427,28 @@ least-significant-bit CFS 2024/222 algorithm nor Gidney's low-space
 GHZ-lookup/vented-uncompute implementation; neither paper's
 cryptographic-size qubit reduction follows from this toy circuit.
 
+\code{rns\_gidney.py} is a separate toy transcription of the
+\code{approx\_modexp} dataflow of Gidney (2025), App.~A.1 and Fig.~3:
+discrete-log lookup-additions, binary long division modulo $p-1$, a
+residue lookup, residue-bit accumulation of the truncated CRT weights
+(Eq.~21) whose wrap qubit is X-measured and phase-corrected by a
+comparison, and measurement-based deletion of the lookup output with a
+phase correction. For $N=15$, $g=2$, $m=3$, primes $(17,23)$, $f=2$
+($L=391$, $L\bmod15=1<15\gg2$) and window $w_1=2$, all eight basis
+inputs give the Eq.~(20) output with every workspace qubit cleared. On a
+uniform exponent superposition every Aer shot branch has fidelity $1$
+with the ideal Eq.~(26) state, with and without a one-bit mask, and
+removing either phase correction breaks this. The full inverse-QFT
+circuit recovers order~$4$ from $512$ Aer CPU shots with $18$ qubits,
+$1\,816$ Toffolis, $1\,739$ unsynthesised rotations and $16$ mid-circuit
+X-measurements on the same task (\code{bench/rns\_gidney\_toy.json});
+the exact Fourier-modular oracle still dominates it at this size.
+Labelled deviations: Shor-style $g^e$ input rather than
+Eker\aa--H\aa stad; lookup tables rebuilt from the equations because the
+paper's Zenodo code was unavailable; only the loop3 startup lookup and
+$w_4=1$; ancilla-free Fourier arithmetic without vents; toy widths. It
+is not the CFS 2024/222 least-significant-bit algorithm.
+
 There is also a change of character worth stating plainly. Every other construction in this note is
 \emph{exact}, and its tests assert exact equality with ancillas provably clean. The coset
 representation is approximate by design, so its tests measure an error \emph{rate} against a

@@ -45,8 +45,10 @@ def measure(shots=512, seed=5):
                             rns_order_circuit(high))):
         counts = mps.run(transpile(circuit, mps, optimization_level=0),
                          shots=shots, seed_simulator=seed).result().get_counts()
-        rows.append(_row(label, circuit, counts,
-                         "Aer CPU/matrix_product_state"))
+        row = _row(label, circuit, counts, "Aer CPU/matrix_product_state")
+        if row["order"] != 4 or any(int(b, 2) % 2 for b in counts):
+            raise AssertionError(row)
+        rows.append(row)
     sv = AerSimulator(method="statevector", device="CPU")
     for mask_bits in (0, 1):
         conf = ApproxModexpConfig(15, 2, 3, (17, 23), 2, window1=2,

@@ -13,7 +13,8 @@ def qft(n, approx=0):
     """QFT on n qubits, Qiskit convention (qubit 0 = LSB):
         |j> -> 2^(-n/2) sum_k exp(2*pi*i*j*k/2^n) |k>.
     approx > 0 drops controlled rotations by less than pi/2^approx."""
-    qc = QuantumCircuit(n, name="qft")
+    qc = QuantumCircuit(n)
+
     for j in reversed(range(n)):
         qc.h(j)
         for k in range(j):
@@ -123,3 +124,4 @@ def find_factor(N, run):                     # run: circuit -> counts dict
             d = math.gcd(pow(a, r // 2, N) - 1, N)
             if 1 < d < N:
                 return d
+

@@ -48,13 +48,18 @@ def _lookup(m, one, addr, out, table):
     m.free(anc)
 
 
-def windowed_point_add(m, addr, x2, y2, points, p, iters=None, gcd="dialog"):
+def windowed_point_add(m, addr, x2, y2, points, p, iters=None, gcd="dialog",
+                       square="reference"):
     """[1128] Algorithm 1.  `points[i]` is the window entry for address i.
 
     `gcd` picks the in-place multiply/divide: "dialog" is [1128] Alg. 3
     (`ec_eea`); "pingpong" the comparison-free walk of ECDSA.Fail Sec 5.3.3
     (`ec_pingpong`); "jump2" / "jump2-codec" its Jump-2 macro-step dialog,
     raw or with the base-5 transcript codec (`ec_jump2`).
+
+    `square` picks step 10's controlled square-subtract: "reference" squares
+    into a scratch register with the generic multiplier; "symmetric" and
+    "karatsuba" are the ECDSA.Fail Sec 5.3.4 forms in `ec_karatsuba`.
 
     points[0] must be the point at infinity; it is encoded as (0, 0), which is
     what makes the i = 0 branch fall out for free.
@@ -75,6 +80,14 @@ def windowed_point_add(m, addr, x2, y2, points, p, iters=None, gcd="dialog"):
         mul = lambda: J2.j2_mul(m, x2, y2, p, iters, codec)
     else:
         raise ValueError(f"unknown gcd backend {gcd!r}")
+    if square == "reference":
+        csq = _csub_square
+    elif square in ("symmetric", "karatsuba"):
+        import ec_karatsuba as K
+        csq = (K.csub_square_symmetric if square == "symmetric"
+               else K.csub_square_karatsuba)
+    else:
+        raise ValueError(f"unknown square backend {square!r}")
     assert len(points) == 1 << w, "the window must be full"
     assert points[0].inf, "entry 0 must be the point at infinity"
 
@@ -103,7 +116,7 @@ def windowed_point_add(m, addr, x2, y2, points, p, iters=None, gcd="dialog"):
     _lookup(m, one[0], addr, xx, x3s)                  # 9
     m.free(xx)
 
-    _csub_square(m, c[0], y2, x2, p)                   # 10 if c: x2 -= y2^2
+    csq(m, c[0], y2, x2, p)                            # 10 if c: x2 -= y2^2
     mul()                                              # 11 y2 <- y2 * x2
     MA.cmodneg(m, c[0], x2, p)                         # 12 if c: x2 <- -x2
 

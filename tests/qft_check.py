@@ -4,6 +4,8 @@ from qiskit.circuit import QuantumCircuit
 from qiskit.circuit.library import QFTGate
 from qiskit.quantum_info import Operator
 
+from shor_essentials import qft as production_qft
+
 
 def qft(n, inverse=False, approx=0):
     """QFT on n qubits, Qiskit convention (qubit 0 = LSB).
@@ -23,6 +25,9 @@ def qft(n, inverse=False, approx=0):
 for n in range(1, 7):
     mine = Operator(qft(n)).data
     theirs = Operator(QFTGate(n)).data
+    gate = production_qft(n)
+    assert gate.num_clbits == 0
+    assert np.allclose(Operator(gate).data, theirs), f"production n={n} mismatch"
     assert np.allclose(mine, theirs), f"n={n} mismatch"
     # also check the direct definition |j> -> sum_k e^{2 pi i j k / 2^n} |k>
     ref = np.array([[np.exp(2j * np.pi * j * k / 2**n) for j in range(2**n)]

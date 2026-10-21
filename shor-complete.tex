@@ -4263,43 +4263,34 @@ be measured, so measure it first and make the control classical. Both scalar reg
 point arithmetic.
 
 The windowed addition itself, with the three lookups and the two in-place multiplications that
-replace \S\ref{ec:sec:padd}'s two divisions:
+replace \S\ref{ec:sec:padd}'s two divisions. The implementation is not hard-wired to a single
+Euclidean walk or a single square-subtract pattern:
 
 \begin{lstlisting}
-def windowed_point_add(m, addr, x2, y2, points, p, iters=None):
-    """[1128] Algorithm 1.  `points[i]` is the window entry for address i.
-    ..."""
-    ctx, n = m.ctx, len(x2)
-    w = len(addr)
-    assert len(points) == 1 << w, "the window must be full"
-    assert points[0].inf, "entry 0 must be the point at infinity"
+def windowed_point_add(m, addr, x2, y2, points, p, iters=None, gcd="dialog",
+                     square="reference"):
+    if gcd == "dialog":
+        div, mul = E.inplace_div, E.inplace_mul
+    elif gcd == "pingpong":
+        import ec_pingpong as PP
+        div, mul = PP.pp_div, PP.pp_mul
+    elif gcd in ("jump2", "jump2-codec"):
+        import ec_jump2 as J2
+        div, mul = J2.j2_div, J2.j2_mul
+    if square == "reference":
+        csq = _csub_square
+    elif square == "symmetric":
+        from ec_karatsuba import csub_square_symmetric as csq
+    elif square == "karatsuba":
+        from ec_karatsuba import csub_square_karatsuba as csq
 
     ...
-
-    one = m.anc(1, "one")
-    ctx.x(one[0])
-    c = m.anc(1, "c")
-    MA.is_nonzero(m, addr, c[0])                       # 1
-
-    x1, y1 = m.anc(n, "x1"), m.anc(n, "y1")
-    _lookup(m, one[0], addr, x1, xs)                   # 2
+    _lookup(m, one[0], addr, x1, xs)
     _lookup(m, one[0], addr, y1, ys)
-    MA.modsub(m, x1, x2, p)                            # 3
-    MA.modsub(m, y1, y2, p)                            # 4
-    _lookup(m, one[0], addr, x1, xs)                   # 5
-    _lookup(m, one[0], addr, y1, ys)
-
-    E.inplace_div(m, x2, y2, p, iters)                 # 6  y2 <- y2 / x2
-
-    xx = m.anc(n, "3x")
-    _lookup(m, one[0], addr, xx, x3s)                  # 7
-    MA.modadd(m, xx, x2, p)                            # 8
-    _lookup(m, one[0], addr, xx, x3s)                  # 9
-    m.free(xx)
-
-    _csub_square(m, c[0], y2, x2, p)                   # 10 if c: x2 -= y2^2
-    E.inplace_mul(m, x2, y2, p, iters)                 # 11 y2 <- y2 * x2
-    MA.cmodneg(m, c[0], x2, p)                         # 12 if c: x2 <- -x2
+    div(m, x2, y2, p, iters)                           # y2 <- y2 / x2
+    ...
+    csq(m, c[0], y2, x2, p)                           # if c: x2 -= y2^2
+    mul(m, x2, y2, p, iters)                           # y2 <- y2 * x2
     ...
 \end{lstlisting}
 
@@ -4323,6 +4314,32 @@ At $n=256$: $514$ additions become $34$, a $15\times$ reduction,
 and the registers holding projective garbage fall from $32$ to $8$. The two
 compose --- windowing cuts how many additions there are, zig-zag cuts how many of their outputs are
 live at once --- and together they take the garbage from $24\,576$ qubits to $6\,144$.
+
+\subsection{Other implemented backends in the same stack}
+
+The current implementation also exposes several alternative backends that are in the same arithmetic
+stack but are not all represented by the single table underneath the main reference build. They are
+measured by the test suite and wired into the same windowed point-addition path:
+
+\begin{itemize}
+\item \emph{Comparison-free dialog:} \code{gcd="pingpong"} removes the per-step comparison and the
+      separate branch on \(u>v\) by folding the Euclidean walk into the update law itself, so the
+      same in-place multiply/divide circuit runs without the two explicit conditional swaps.
+\item \emph{Jump-2 macro-step dialog:} \code{gcd="jump2"} and \code{gcd="jump2-codec"}
+      process two binary-GCD rounds as one macro-step, leaving the arithmetic map unchanged while
+      reducing the number of round boundaries and recorded controls. The codec variant packs the
+      three-symbol transcript into a 5-bit record instead of a 9-wire one.
+\item \emph{Square-subtract variants:} \code{square="symmetric"} and \code{square="karatsuba"}
+      replace the generic controlled square in step 10 by factored square-subtract forms, reducing
+      off-diagonal product work in the point-addition window. They are the same circuit family as the
+      ECDSA.Fail paper's Sec.~5.3.4 optimisation, not a separate arithmetic law.
+\end{itemize}
+
+These are not redundant paper-only sketches: they are implemented in \code{ec\_pingpong.py},
+\code{ec\_jump2.py}, and \code{ec\_karatsuba.py}, and the end-to-end tests switch them in and out
+of the windowed oracle on toy curves. They therefore belong in the same optimisation story as the
+Level 3 and Level 5 changes, even though the final whole-circuit table keeps a single affine
+reference build for clarity.
 
 \section{Everything at once}\label{ec:sec:cost}
 

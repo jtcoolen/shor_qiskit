@@ -1,0 +1,52 @@
+{
+  "task": "N=15, A=2, exponent_bits=3, order=4",
+  "shots": 512,
+  "rows": [
+    {
+      "label": "exact Fourier modular",
+      "qubits": 13,
+      "toffoli": 324,
+      "rotations": 4800,
+      "t": 5364,
+      "counts": {
+        "000": 126,
+        "010": 117,
+        "100": 150,
+        "110": 119
+      },
+      "order": 4,
+      "backend": "Aer CPU/matrix_product_state"
+    },
+    {
+      "label": "truncated RNS high bits",
+      "qubits": 18,
+      "toffoli": 2654,
+      "rotations": 43983,
+      "t": 45412,
+      "counts": {
+        "000": 135,
+        "010": 123,
+        "100": 141,
+        "110": 113
+      },
+      "order": 4,
+      "backend": "Aer CPU/matrix_product_state"
+    }
+  ],
+  "rns_primes": [
+    7,
+    11,
+    13,
+    19
+  ],
+  "crt_product": 19019,
+  "kept_bits": 3,
+  "wrap_deviation": 0.06666666666666667,
+  "max_output_deviation": 0.26666666666666666,
+  "exact_high_bit_matches": 4,
+  "input_cases": 8,
+  "frontier": [
+    "exact Fourier modular"
+  ],
+  "note": "RNS high-bit toy circuit is dominated at this width; Toffoli/rotations exclude fault-tolerant synthesis overhead."
+}

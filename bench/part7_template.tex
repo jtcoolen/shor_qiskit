@@ -1245,9 +1245,10 @@ The affine construction is \cite{ec:rnsl17} as improved by \cite{ec:hjnrs20}, wi
 \cite{ec:kim26}'s modifications: 2017--2020 with a 2026 finish. The projective addition and the
 carry-save Montgomery multiplier are \cite{ec:kim26}. The Euclidean dialog, the approximate and
 pseudo-Mersenne arithmetic, and the windowed addition are \cite{ec:schrott26}. What is deliberately
-absent is the line that leaves this architecture entirely --- the residue-number-system
-constructions that cut qubit counts by changing what a number \emph{is}, rather than how it is
-added.
+still absent is the \emph{scalable} residue-number-system factoring architecture
+that cuts qubit counts by changing what a number \emph{is}, rather than how it is
+added. The separate toy high-bit RNS demonstration above does not change the
+ECDLP oracles or reproduce CFS's low-bit quantum circuit.
 
 The honest limit of what runs on a laptop: the circuit with real arithmetic is verified on every
 basis state, which for a permutation is the whole truth, but at $@@full_q@@$ qubits for a

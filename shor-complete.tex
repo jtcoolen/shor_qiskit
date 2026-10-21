@@ -2405,6 +2405,28 @@ each give $897\,864$ physical qubits, versus $2\,078\,024$ if the cold
 qubits use hot patches. This is a checked \emph{storage cost model}, not
 a yoked-code syndrome/decoder implementation or an RNS factoring circuit.
 
+\code{rns\_order.py} is a distinct, deliberately unoptimised \emph{toy}
+residue-number-system order finder after the high-bit approximation of
+Gidney (2025), Eqs.~(8)--(22). For $N=15$, $A=2$, three exponent bits and
+primes $(7,11,13,19)$, the CRT modulus is $L=19\,019\geq15^3$ and
+$\Delta_{15}(L)=1/15<2^{-3}$. Coherent modular multipliers compute the
+residue of the product of the \emph{$N$-reduced} power factors at each
+prime. The bits of those residues control additions of the truncated
+CRT weights into a three-bit output; all residue and adder work is
+uncomputed. Every eight input exponents agrees with the classical CRT
+approximation, whose maximum measured modular deviation is $4/15$;
+only $4/8$ of the approximated high-bit outputs equal the exact truncated
+outputs, although the period-four labels remain distinct.
+With an inverse QFT, all $512$ Aer CPU shots land on period-four
+frequencies and recover order~$4$. The equal-task, exact Fourier-modular
+reference uses $13$ qubits, $324$ Toffolis and $4\,800$ unsynthesised
+rotations versus the toy RNS circuit's $18$, $2\,654$ and $43\,983$:
+the latter is \emph{dominated} on this toy frontier. These counts do not
+include fault-tolerant rotation synthesis. This is neither the
+least-significant-bit CFS 2024/222 algorithm nor Gidney's low-space
+GHZ-lookup/vented-uncompute implementation; neither paper's
+cryptographic-size qubit reduction follows from this toy circuit.
+
 There is also a change of character worth stating plainly. Every other construction in this note is
 \emph{exact}, and its tests assert exact equality with ancillas provably clean. The coset
 representation is approximate by design, so its tests measure an error \emph{rate} against a
@@ -4811,9 +4833,10 @@ The affine construction is \cite{ec:rnsl17} as improved by \cite{ec:hjnrs20}, wi
 \cite{ec:kim26}'s modifications: 2017--2020 with a 2026 finish. The projective addition and the
 carry-save Montgomery multiplier are \cite{ec:kim26}. The Euclidean dialog, the approximate and
 pseudo-Mersenne arithmetic, and the windowed addition are \cite{ec:schrott26}. What is deliberately
-absent is the line that leaves this architecture entirely --- the residue-number-system
-constructions that cut qubit counts by changing what a number \emph{is}, rather than how it is
-added.
+still absent is the \emph{scalable} residue-number-system factoring architecture
+that cuts qubit counts by changing what a number \emph{is}, rather than how it is
+added. The separate toy high-bit RNS demonstration above does not change the
+ECDLP oracles or reproduce CFS's low-bit quantum circuit.
 
 The honest limit of what runs on a laptop: the circuit with real arithmetic is verified on every
 basis state, which for a permutation is the whole truth, but at $69$ qubits for a
